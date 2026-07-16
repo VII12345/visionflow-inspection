@@ -1,0 +1,62 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { api } from '../services/api';
+import type { SystemStatus, CameraStatus } from '../types';
+
+export function useSystemPolling(isRunning: boolean) {
+  const [status, setStatus] = useState<SystemStatus>({ cameras: {} });
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const poll = useCallback(async () => {
+    try {
+      const data = await api.status();
+      setStatus({ cameras: (data as unknown as SystemStatus).cameras || {} });
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    if (isRunning) {
+      poll();
+      intervalRef.current = setInterval(poll, 500);
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isRunning, poll]);
+
+  return status;
+}
+
+export function useFrameUpdater(isRunning: boolean) {
+  const [frames, setFrames] = useState<Record<number, string>>({});
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    async function updateFrames() {
+      const newFrames: Record<number, string> = {};
+      for (let i = 1; i <= 4; i++) {
+        try {
+          const buffer = await api.getFrame(i);
+          const bytes = new Uint8Array(buffer as unknown as ArrayBuffer);
+          const binary = bytes.reduce((acc, b) => acc + String.fromCharCode(b), '');
+          newFrames[i] = `data:image/jpeg;base64,${btoa(binary)}`;
+        } catch { /* ignore */ }
+      }
+      setFrames(prev => ({ ...prev, ...newFrames }));
+    }
+
+    if (isRunning) {
+      updateFrames();
+      intervalRef.current = setInterval(updateFrames, 1000);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isRunning]);
+
+  return frames;
+}

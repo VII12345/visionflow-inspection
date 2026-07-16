@@ -1,0 +1,117 @@
+import React, { useEffect, useRef, useCallback } from 'react';
+import { useAppStore } from './store/useAppStore';
+import { TopBar } from './components/layout/TopBar';
+import { TabBar } from './components/layout/TabBar';
+import { RunTab } from './components/run/RunTab';
+import { FileTab } from './components/file/FileTab';
+import { SettingsTab } from './components/settings/SettingsTab';
+import { UserTab } from './components/user/UserTab';
+import { CameraDetailTab } from './components/camera/CameraDetailTab';
+import { CameraConfigModal } from './components/camera/CameraConfigModal';
+import { LoginModal, ChangePwdModal, AddProductModal, LearnConfirmModal } from './components/common/Modals';
+import { EnvCheckModal } from './components/common/EnvCheckModal';
+import { api } from './services/api';
+import { storage } from './services/storage';
+import type { TabId } from './types';
+
+const App: React.FC = () => {
+  const activeTab = useAppStore(s => s.activeTab);
+  const loginModal = useAppStore(s => s.loginModal);
+  const changePwdModal = useAppStore(s => s.changePwdModal);
+  const addProductModal = useAppStore(s => s.addProductModal);
+  const learnConfirmModal = useAppStore(s => s.learnConfirmModal);
+  const envCheckModal = useAppStore(s => s.envCheckModal);
+  const cameraConfigModal = useAppStore(s => s.cameraConfigModal);
+  const cameraConfigCamId = useAppStore(s => s.cameraConfigCamId);
+  const setCameraConfigCamId = useAppStore(s => s.setCameraConfigCamId);
+  const setModal = useAppStore(s => s.setModal);
+  const showMessage = useAppStore(s => s.showMessage);
+  const statusMessage = useAppStore(s => s.statusMessage);
+  const setEnvResult = useAppStore(s => s.setEnvResult);
+  const dynamicTabs = useAppStore(s => s.dynamicTabs);
+  const learnCallback = useAppStore(s => s.learnCallback);
+
+  // Environment check on mount
+  useEffect(() => {
+    api.envCheck().then(data => {
+      setEnvResult(data);
+      if (!(data as { passed: boolean }).passed) {
+        showMessage(`⚠️ 环境检测: ${(data as { summary: string }).summary}`);
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Storage info
+  useEffect(() => {
+    const info = storage.getStorageInfo();
+    showMessage(info.type === 'encrypted' ? `🔒 加密存储: ${info.path}` : `⚠️ 明文存储: ${info.path}`);
+  }, []);
+
+  // ESC key handler
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setModal('all', false);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  const handleLearnConfirm = useCallback((upright: string, inverted: string, folder: string) => {
+    if (learnCallback) learnCallback(upright, inverted, folder);
+  }, [learnCallback]);
+
+  const renderTabContent = () => {
+    if (activeTab === 'run') return <RunTab />;
+    if (activeTab === 'file') return <FileTab />;
+    if (activeTab === 'settings') return <SettingsTab />;
+    if (activeTab === 'user') return <UserTab />;
+    if (activeTab.startsWith('cam-detail-')) {
+      const camId = parseInt(activeTab.replace('cam-detail-', ''));
+      return <CameraDetailTab camId={camId} />;
+    }
+    return <RunTab />;
+  };
+
+  return (
+    <div className="w-full h-full flex flex-col bg-[#090c12] text-[#f1f5f9] font-sans overflow-hidden antialiased">
+      {/* Background glow */}
+      <div className="fixed inset-0 pointer-events-none z-0"
+        style={{
+          background: 'radial-gradient(ellipse at 20% 50%, rgba(91,110,245,0.03) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.02) 0%, transparent 50%)',
+        }}
+      />
+
+      <TopBar />
+      <TabBar />
+
+      {/* Content */}
+      <main className="flex-1 overflow-hidden relative z-[1]">
+        <div className="w-full h-full overflow-auto p-6">
+          {renderTabContent()}
+        </div>
+      </main>
+
+      {/* Status Bar */}
+      <footer className="flex items-center justify-between h-8 px-7 bg-[#111620] border-t border-white/[0.06] shrink-0 text-[11.5px] text-gray-500 z-[100] relative">
+        <span>{statusMessage}</span>
+        <span>{storage.getStorageInfo().type === 'encrypted' ? `🔒 ${storage.getStorageInfo().path}` : `⚠️ ${storage.getStorageInfo().path}`}</span>
+      </footer>
+
+      {/* Modals */}
+      {loginModal && <LoginModal />}
+      {changePwdModal && <ChangePwdModal />}
+      {addProductModal && <AddProductModal />}
+      {learnConfirmModal && <LearnConfirmModal onConfirm={handleLearnConfirm} />}
+      {envCheckModal && <EnvCheckModal />}
+      {cameraConfigModal && cameraConfigCamId !== null && (
+        <CameraConfigModal
+          camId={cameraConfigCamId}
+          open={cameraConfigModal}
+          onClose={() => setCameraConfigCamId(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+export default App;

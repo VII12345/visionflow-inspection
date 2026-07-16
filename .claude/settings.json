@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(python -m py_compile \"backend/plc_service.py\")",
+      "PowerShell(& \".venv\\\\Scripts\\\\python.exe\" -c \"from backend.plc_service import CAMERA_PLC_MAP; [print\\(f'CAM{cam}: �޳�ʱ��={m[\\\\\"reject_time\\\\\"]}, ��ʱ�޳�={m[\\\\\"reject_delay\\\\\"]}, ���ź�={m[\\\\\"reject_signal\\\\\"]}'\\) for cam,m in CAMERA_PLC_MAP.items\\(\\)]\")",
+      "PowerShell(Get-ChildItem -Directory | ForEach-Object { $d = $_; Get-ChildItem $d.FullName -Directory -Recurse -Depth 0 | Select-Object @{N='Parent';E={$d.Name}}, Name })",
+      "PowerShell(\\(Get-ChildItem view/resources/backend/_internal -Recurse -File | Measure-Object\\).Count)"
+    ]
+  }
+}
