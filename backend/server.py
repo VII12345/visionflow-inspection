@@ -170,13 +170,22 @@ def update_camera_config(cam_id):
 
         plc_url = camera_config["plcUrl"].strip()
         if not plc_url.startswith(("http://", "https://")):
-            return jsonify({"success": False, "error": "PLC地址必须以 http:// 或 https:// 开头"}), 400
+            return jsonify(
+                {"success": False, "error": "PLC地址必须以 http:// 或 https:// 开头"}
+            ), 400
         camera_config["plcUrl"] = plc_url.rstrip("/")
 
         for key in ("rejectTime", "rejectDelay"):
             value = camera_config[key]
-            if isinstance(value, bool) or not isinstance(value, int) or value < 0 or value > 4294967295:
-                return jsonify({"success": False, "error": f"{key} 必须是 0 到 4294967295 的整数"}), 400
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or value < 0
+                or value > 4294967295
+            ):
+                return jsonify(
+                    {"success": False, "error": f"{key} 必须是 0 到 4294967295 的整数"}
+                ), 400
 
         success = camera_config_manager.update_camera_config(cam_id, camera_config)
         plc_result = None
@@ -205,6 +214,8 @@ def update_camera_config(cam_id):
     except Exception as e:
         logger.error(f"更新相机配置失败: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/cameras/<int:cam_id>/plc/test-reject", methods=["POST"])
 def test_reject_signal(cam_id):
     """写入对应相机的 MB=1 测试信号"""
@@ -212,22 +223,28 @@ def test_reject_signal(cam_id):
         return jsonify({"success": False, "error": "Invalid camera ID"}), 400
     try:
         result = plc_service.with_base_url(
-            camera_config_manager.get_camera_config(cam_id).get("plcUrl", plc_service.base_url)
+            camera_config_manager.get_camera_config(cam_id).get(
+                "plcUrl", plc_service.base_url
+            )
         ).write_reject_signal(cam_id)
-        return jsonify({
-            "success": True,
-            "camera": cam_id,
-            "address": CAMERA_PLC_MAP[cam_id]["reject_signal"],
-            "value": 1,
-            "plc": result,
-        })
+        return jsonify(
+            {
+                "success": True,
+                "camera": cam_id,
+                "address": CAMERA_PLC_MAP[cam_id]["reject_signal"],
+                "value": 1,
+                "plc": result,
+            }
+        )
     except (PlcWriteError, ValueError) as e:
-        return jsonify({
-            "success": False,
-            "camera": cam_id,
-            "address": CAMERA_PLC_MAP[cam_id]["reject_signal"],
-            "error": str(e),
-        }), 502
+        return jsonify(
+            {
+                "success": False,
+                "camera": cam_id,
+                "address": CAMERA_PLC_MAP[cam_id]["reject_signal"],
+                "error": str(e),
+            }
+        ), 502
 
 
 @app.route("/api/start", methods=["POST"])
@@ -522,6 +539,8 @@ training_state = {
     "history": None,
     "folderPath": "",
     "modelName": "",
+    "modelPath": None,
+    "evalResult": None,
 }
 _training_thread = None
 _training_stop_flag = False
@@ -761,7 +780,9 @@ def camera_worker(cam_id):
                         stats[cam_id]["defective"] += 1
                         try:
                             plc_service.with_base_url(
-                                camera_config_manager.get_camera_config(cam_id).get("plcUrl", plc_service.base_url)
+                                camera_config_manager.get_camera_config(cam_id).get(
+                                    "plcUrl", plc_service.base_url
+                                )
                             ).write_reject_signal(cam_id)
                         except (PlcWriteError, ValueError) as e:
                             logger.error(f"Camera {cam_id}: 反结果写入PLC失败: {e}")
@@ -918,6 +939,8 @@ def _run_training(folder_path, model_name, upright_path=None, inverted_path=None
         logger.info("推理模型已更新")
 
         training_state["history"] = history
+        training_state["modelPath"] = str(model_path)
+        training_state["evalResult"] = history.get("eval", {})
         training_state["message"] = (
             f"训练完成！最佳轮次: {history['best_epoch']}, "
             f"验证准确率: {history['eval']['accuracy']:.2%}"
@@ -928,6 +951,8 @@ def _run_training(folder_path, model_name, upright_path=None, inverted_path=None
     except Exception as e:
         logger.error(f"训练失败: {e}", exc_info=True)
         training_state["message"] = f"训练失败: {str(e)}"
+        training_state["evalResult"] = None
+        training_state["modelPath"] = None
     finally:
         training_state["running"] = False
 
@@ -985,6 +1010,8 @@ def start_training():
                 "uprightPath": upright_path,
                 "invertedPath": inverted_path,
                 "modelName": model_name,
+                "modelPath": None,
+                "evalResult": None,
             }
         )
         _training_stop_flag = False

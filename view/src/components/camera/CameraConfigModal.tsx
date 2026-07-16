@@ -98,12 +98,12 @@ export const CameraConfigModal: React.FC<Props> = ({ camId, open, onClose }) => 
         <div>
           <label className="text-xs text-gray-400 mb-1 block">IP 地址</label>
           <input type="text" value={ip} onChange={e => setIp(e.target.value)} placeholder="192.168.1.50"
-            className="w-full bg-[#111620] border border-white/[0.09] rounded-lg px-3 py-2.5 text-[13px] text-white outline-none focus:border-[#5b6ef5]" />
+            className="w-full bg-[#1a1f2e] border border-white/[0.15] rounded-lg px-3 py-2.5 text-[13px] text-white focus:outline-none focus:ring-2 focus:ring-[#5b6ef5]/50 focus:border-[#5b6ef5] transition-all duration-150" />
         </div>
         <div>
           <label className="text-xs text-gray-400 mb-1 block">PLC 地址</label>
           <input type="text" value={plcUrl} onChange={e => setPlcUrl(e.target.value)} placeholder="http://127.0.0.1:8088"
-            className="w-full bg-[#111620] border border-white/[0.09] rounded-lg px-3 py-2.5 text-[13px] text-white outline-none focus:border-[#5b6ef5]" />
+            className="w-full bg-[#1a1f2e] border border-white/[0.15] rounded-lg px-3 py-2.5 text-[13px] text-white focus:outline-none focus:ring-2 focus:ring-[#5b6ef5]/50 focus:border-[#5b6ef5] transition-all duration-150" />
         </div>
         <div className="border-t border-white/[0.06] pt-2" />
         <div className="grid grid-cols-2 gap-x-4 gap-y-3">
@@ -112,7 +112,7 @@ export const CameraConfigModal: React.FC<Props> = ({ camId, open, onClose }) => 
               <label className={`text-xs text-gray-400 ${m.type !== 'toggle' ? 'mb-1 block' : ''}`}>{m.label}</label>
               {m.type === 'select' ? (
                 <select value={String(fields[m.key] ?? '')} onChange={e => update(m.key, e.target.value)}
-                  className="w-full bg-[#111620] border border-white/[0.09] rounded-lg px-3 py-2.5 text-[13px] text-white outline-none focus:border-[#5b6ef5]">
+                  className="w-full bg-[#1a1f2e] border border-white/[0.15] rounded-lg px-3 py-2.5 text-[13px] text-white focus:outline-none focus:ring-2 focus:ring-[#5b6ef5]/50 focus:border-[#5b6ef5] transition-all duration-150">
                   {m.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               ) : m.type === 'toggle' ? (
@@ -123,7 +123,7 @@ export const CameraConfigModal: React.FC<Props> = ({ camId, open, onClose }) => 
               ) : (
                 <input type="number" value={Number(fields[m.key] ?? 0)} onChange={e => update(m.key, parseFloat(e.target.value) || 0)}
                   min={m.min} max={m.max} step={m.step}
-                  className="w-full bg-[#111620] border border-white/[0.09] rounded-lg px-3 py-2.5 text-[13px] text-white outline-none focus:border-[#5b6ef5]" />
+                  className="w-full bg-[#1a1f2e] border border-white/[0.15] rounded-lg px-3 py-2.5 text-[13px] text-white focus:outline-none focus:ring-2 focus:ring-[#5b6ef5]/50 focus:border-[#5b6ef5] transition-all duration-150" />
               )}
               {m.hint && <span className="text-[10px] text-gray-600 mt-0.5 block">{m.hint}</span>}
             </div>

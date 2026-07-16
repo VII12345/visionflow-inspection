@@ -49,7 +49,7 @@ export const api = {
   startTraining: (params: { uprightPath?: string; invertedPath?: string; folderPath?: string; modelName: string }) =>
     backendFetch<{ success: boolean; message?: string }>('/api/training/start', { method: 'POST', body: params }),
   stopTraining: () => backendFetch('/api/training/stop', { method: 'POST' }),
-  trainingStatus: () => backendFetch<{ running: boolean; progress: number; message: string; epoch: number; total_epochs: number; train_loss: number; val_loss: number; val_acc: number }>('/api/training/status'),
+  trainingStatus: () => backendFetch<{ running: boolean; progress: number; message: string; epoch: number; total_epochs: number; train_loss: number; val_loss: number; val_acc: number; modelPath?: string | null; evalResult?: Record<string, unknown> | null }>('/api/training/status'),
 
   // Models
   getModels: () => backendFetch<{ success: boolean; models: { name: string }[] }>('/api/models'),

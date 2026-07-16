@@ -52,6 +52,14 @@ select {
     padding-right: 36px;
 }
 
+/* Fix: Tailwind preflight sets appearance:none on number inputs,
+   which breaks clickability in Electron/Chromium — spinner works
+   but the text area cannot be focused by mouse click. */
+input[type="number"] {
+    -webkit-appearance: auto !important;
+    appearance: auto !important;
+}
+
 /* Animations */
 @keyframes fade-in {
     from {

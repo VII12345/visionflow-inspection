@@ -10,6 +10,7 @@ import { CameraDetailTab } from './components/camera/CameraDetailTab';
 import { CameraConfigModal } from './components/camera/CameraConfigModal';
 import { LoginModal, ChangePwdModal, AddProductModal, LearnConfirmModal } from './components/common/Modals';
 import { EnvCheckModal } from './components/common/EnvCheckModal';
+import { TrainingCompleteModal } from './components/settings/TrainingCompleteModal';
 import { api } from './services/api';
 import { storage } from './services/storage';
 import type { TabId } from './types';
@@ -21,6 +22,8 @@ const App: React.FC = () => {
   const addProductModal = useAppStore(s => s.addProductModal);
   const learnConfirmModal = useAppStore(s => s.learnConfirmModal);
   const envCheckModal = useAppStore(s => s.envCheckModal);
+  const trainingCompleteModal = useAppStore(s => s.trainingCompleteModal);
+  const trainingResult = useAppStore(s => s.trainingResult);
   const cameraConfigModal = useAppStore(s => s.cameraConfigModal);
   const cameraConfigCamId = useAppStore(s => s.cameraConfigCamId);
   const setCameraConfigCamId = useAppStore(s => s.setCameraConfigCamId);
@@ -103,6 +106,16 @@ const App: React.FC = () => {
       {addProductModal && <AddProductModal />}
       {learnConfirmModal && <LearnConfirmModal onConfirm={handleLearnConfirm} />}
       {envCheckModal && <EnvCheckModal />}
+      {trainingCompleteModal && (
+        <TrainingCompleteModal
+          open={trainingCompleteModal}
+          onClose={() => setModal('trainingComplete', false)}
+          modelName={trainingResult.modelName}
+          modelPath={trainingResult.modelPath}
+          evalResult={trainingResult.evalResult as { accuracy: number; precision: number; recall: number; f1: number; confusion_matrix: { TP: number; TN: number; FP: number; FN: number }; total: number } | null}
+          errorMessage={trainingResult.errorMessage}
+        />
+      )}
       {cameraConfigModal && cameraConfigCamId !== null && (
         <CameraConfigModal
           camId={cameraConfigCamId}

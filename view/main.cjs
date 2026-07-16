@@ -143,6 +143,9 @@ ipcMain.handle('backend-fetch', async (event, url, options = {}) => {
 
 // ========== 后端进程 ==========
 let backendProcess = null;
+let backendRetryCount = 0;
+const BACKEND_MAX_RETRIES = 3;
+const BACKEND_RETRY_DELAY = 2000;
 
 async function startBackend() {
   return new Promise((resolve, reject) => {
@@ -214,6 +217,16 @@ async function startBackend() {
 
     backendProcess.on('close', (code) => {
       console.log(`后端进程退出，代码: ${code}`);
+      // 异常退出时自动重启（code !== 0 且未被主动停止）
+      if (code !== 0 && backendProcess !== null && backendRetryCount < BACKEND_MAX_RETRIES) {
+        backendRetryCount++;
+        console.log(`后端异常退出，${BACKEND_RETRY_DELAY / 1000}秒后第 ${backendRetryCount} 次重试...`);
+        setTimeout(() => {
+          if (backendProcess === null) return; // 已被 stopBackend 清理
+          startBackend().then(() => waitForBackend()).catch(() => { });
+        }, BACKEND_RETRY_DELAY);
+        return;
+      }
       backendProcess = null;
       if (!started) reject(new Error(`后端进程异常退出 (代码 ${code})，请检查上方日志`));
     });
@@ -374,21 +387,69 @@ function createWindow() {
   });
 }
 
+function createErrorWindow(title, message) {
+  if (mainWindow) return; // 已有窗口
+
+  mainWindow = new BrowserWindow({
+    width: 520,
+    height: 360,
+    resizable: false,
+    title: title,
+    webPreferences: { nodeIntegration: false, contextIsolation: true },
+  });
+
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>${title}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d1117;color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;display:flex;align-items:center;justify-content:center;height:100vh}
+.card{text-align:center;padding:40px}
+.icon{font-size:48px;margin-bottom:16px}
+h1{font-size:18px;margin-bottom:12px;color:#f87171}
+p{font-size:13px;color:#9ca3af;white-space:pre-line;line-height:1.6}
+.btn{margin-top:20px;background:#5b6ef5;color:#fff;border:none;padding:10px 28px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
+.btn:hover{background:#7b8cf8}
+</style></head>
+<body>
+<div class="card">
+  <div class="icon">⚠️</div>
+  <h1>${title}</h1>
+  <p>${message}</p>
+  <button class="btn" onclick="window.close()">关闭</button>
+</div>
+</body></html>`;
+
+  mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  mainWindow.on('closed', () => { mainWindow = null; });
+}
+
 app.whenReady().then(async () => {
   ensureDataDir();
 
-  try {
-    await startBackend();
-    await waitForBackend();
-    console.log('后端启动成功，打开主窗口');
-  } catch (err) {
-    console.error('后端启动失败:', err.message);
-    // 弹窗提示用户
-    const { dialog } = require('electron');
-    dialog.showErrorBox(
-      '后端启动失败',
-      `无法启动检测引擎:\n${err.message}\n\n请确认:\n1. backend.exe 未被杀毒软件拦截\n2. exe 所在目录有写入权限\n3. 端口 5000 未被占用`
-    );
+  let backendReady = false;
+  for (let attempt = 1; attempt <= BACKEND_MAX_RETRIES; attempt++) {
+    try {
+      console.log(`启动后端 (尝试 ${attempt}/${BACKEND_MAX_RETRIES})...`);
+      backendRetryCount = attempt - 1;
+      await startBackend();
+      await waitForBackend();
+      backendReady = true;
+      console.log('后端启动成功，打开主窗口');
+      break;
+    } catch (err) {
+      console.error(`后端启动失败 (尝试 ${attempt}):`, err.message);
+      if (attempt < BACKEND_MAX_RETRIES) {
+        await new Promise(r => setTimeout(r, BACKEND_RETRY_DELAY));
+      }
+    }
+  }
+
+  if (!backendReady) {
+    // 显示错误页面而非空白
+    createErrorWindow('后端启动失败',
+      '无法启动检测引擎。请确认:\n\n1. backend.exe 未被杀毒软件拦截\n2. 5000 端口未被占用\n3. 文件目录有写入权限\n\n请关闭此窗口后重新尝试。');
+    return;
   }
 
   createWindow();

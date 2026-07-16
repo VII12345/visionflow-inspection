@@ -11,6 +11,7 @@ export const SettingsTab: React.FC = () => {
   const setCameraConfigCamId = useAppStore(s => s.setCameraConfigCamId);
   const showMessage = useAppStore(s => s.showMessage);
   const setLearnCallback = useAppStore(s => s.setLearnCallback);
+  const setTrainingResult = useAppStore(s => s.setTrainingResult);
   const [products, setProducts] = useState<Product[]>(storage.getProducts());
   const [filter, setFilter] = useState('');
   const [selectedModel, setSelectedModel] = useState<{ model: string; id: number } | null>(null);
@@ -104,13 +105,14 @@ export const SettingsTab: React.FC = () => {
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
           setLearning(false);
-          // 显示训练结果（成功或失败）
-          if (status.message && status.message.includes('失败')) {
-            showMessage(status.message);
-            setProgressLabel(status.message);
-          } else if (status.progress >= 100) {
-            showMessage('训练完成！');
-          }
+          const isFailed = status.message && status.message.includes('失败');
+          setTrainingResult({
+            modelName: selectedModel?.model || '',
+            modelPath: (status as Record<string, unknown>).modelPath as string | null || null,
+            evalResult: (status as Record<string, unknown>).evalResult as Record<string, unknown> | null || null,
+            errorMessage: isFailed ? status.message : null,
+          });
+          setModal('trainingComplete', true);
           refresh();
         }
       } catch { /* ignore */ }

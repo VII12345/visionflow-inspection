@@ -126,7 +126,8 @@ if (-not (Test-Path $BackendExe)) {
 
 $totalSize = if (Test-Path $BackendDir) {
     (Get-ChildItem $BackendDir -Recurse | Measure-Object Length -Sum).Sum
-} else {
+}
+else {
     (Get-Item $BackendExe).Length
 }
 Write-Host "  ✓ 后端打包完成 ($([math]::Round($totalSize/1MB,1)) MB，完整 GPU 支持)" -ForegroundColor Green
@@ -143,7 +144,8 @@ New-Item -ItemType Directory -Path $ResourcesBackendDir -Force | Out-Null
 if (Test-Path $BackendDir) {
     Copy-Item "$BackendDir\*" -Destination $ResourcesBackendDir -Recurse -Force
     Write-Host "  ✓ 复制后端目录 ($([math]::Round($totalSize/1MB,1)) MB)" -ForegroundColor Gray
-} else {
+}
+else {
     Copy-Item $BackendExe -Destination (Join-Path $ResourcesBackendDir "backend.exe") -Force
     Write-Host "  ✓ 复制 backend.exe" -ForegroundColor Gray
 }
@@ -190,6 +192,69 @@ New-Item -ItemType Directory -Path $finalDir -Force | Out-Null
 Copy-Item "$releaseDir\*" -Destination $finalDir -Recurse -Force
 $finalExe = Join-Path $finalDir "视觉检测系统.exe"
 $finalSize = [math]::Round(((Get-ChildItem $finalDir -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB, 1)
+
+# 生成一键启动脚本
+Write-Host "  生成启动脚本..." -ForegroundColor Gray
+$batContent = @'
+@echo off
+chcp 65001 >nul
+title 视觉检测系统 V2.0
+
+echo ============================================
+echo          视觉检测系统 V2.0 一键启动
+echo ============================================
+echo.
+
+echo [1/3] 正在启动检测引擎...
+start "" /B "resources\backend\backend.exe"
+
+echo [2/3] 等待后端就绪...
+set /a count=0
+:wait_health
+timeout /t 1 /nobreak >nul
+set /a count+=1
+
+powershell -Command "try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1:5000/api/health' -UseBasicParsing -TimeoutSec 2; exit 0 } catch { exit 1 }" >nul 2>&1
+if %errorlevel% equ 0 goto backend_ready
+if %count% geq 20 goto backend_timeout
+echo    等待中... (%count%s)
+goto wait_health
+
+:backend_timeout
+echo [错误] 后端启动超时！请检查：
+echo   1. backend.exe 是否存在
+echo   2. 端口 5000 是否被占用
+echo   3. 杀毒软件是否拦截
+echo.
+pause
+exit /b 1
+
+:backend_ready
+echo [2/3] 后端已就绪 (耗时 %count%s)
+
+echo [3/3] 启动前端界面...
+start "" "视觉检测系统.exe"
+
+echo.
+echo ============================================
+echo   系统已启动！
+echo   关闭前端窗口后，请手动关闭后端进程
+echo   (或直接关闭此窗口自动清理)
+echo ============================================
+
+:wait_electron
+timeout /t 3 /nobreak >nul
+tasklist /FI "IMAGENAME eq 视觉检测系统.exe" 2>NUL | find /I "视觉检测系统.exe" >NUL
+if %errorlevel% equ 0 goto wait_electron
+
+echo 正在关闭后端...
+taskkill /F /IM backend.exe >nul 2>&1
+echo 系统已完全关闭。
+exit /b 0
+'@
+$batPath = Join-Path $finalDir "启动系统.bat"
+[System.IO.File]::WriteAllText($batPath, $batContent, [System.Text.UTF8Encoding]::new($true))
+Write-Host "  ✓ 启动脚本已生成: 启动系统.bat" -ForegroundColor Gray
 
 # 清理临时构建目录
 Write-Host "  清理临时文件..." -ForegroundColor Gray

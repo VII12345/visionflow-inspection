@@ -2,6 +2,13 @@ import { create } from 'zustand';
 import type { User, TabId } from '../types';
 import { storage } from '../services/storage';
 
+interface TrainingResult {
+  modelName: string;
+  modelPath: string | null;
+  evalResult: Record<string, unknown> | null;
+  errorMessage: string | null;
+}
+
 interface AppState {
   // Auth
   user: User | null;
@@ -26,9 +33,14 @@ interface AppState {
   learnConfirmModal: boolean;
   envCheckModal: boolean;
   cameraConfigModal: boolean;
+  trainingCompleteModal: boolean;
   cameraConfigCamId: number | null;
   setCameraConfigCamId: (camId: number | null) => void;
   setModal: (modal: string, open: boolean) => void;
+
+  // Training result
+  trainingResult: TrainingResult;
+  setTrainingResult: (result: TrainingResult) => void;
 
   // Messages
   statusMessage: string;
@@ -58,12 +70,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   learnConfirmModal: false,
   envCheckModal: false,
   cameraConfigModal: false,
+  trainingCompleteModal: false,
   cameraConfigCamId: null,
   setCameraConfigCamId: (camId) => set({ cameraConfigCamId: camId, cameraConfigModal: camId !== null }),
   statusMessage: '系统就绪',
   envResult: null,
   learnCallback: null,
   setLearnCallback: (cb) => set({ learnCallback: cb }),
+
+  trainingResult: { modelName: '', modelPath: null, evalResult: null, errorMessage: null },
+  setTrainingResult: (result) => set({ trainingResult: result }),
 
   login: (name, password) => {
     const users = storage.getUsers();
