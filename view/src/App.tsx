@@ -114,6 +114,8 @@ const App: React.FC = () => {
           modelPath={trainingResult.modelPath}
           evalResult={trainingResult.evalResult as { accuracy: number; precision: number; recall: number; f1: number; confusion_matrix: { TP: number; TN: number; FP: number; FN: number }; total: number } | null}
           errorMessage={trainingResult.errorMessage}
+          trainCount={trainingResult.trainCount}
+          valCount={trainingResult.valCount}
         />
       )}
       {cameraConfigModal && cameraConfigCamId !== null && (

@@ -7,6 +7,8 @@ interface TrainingResult {
   modelPath: string | null;
   evalResult: Record<string, unknown> | null;
   errorMessage: string | null;
+  trainCount: number;
+  valCount: number;
 }
 
 interface AppState {
@@ -78,7 +80,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   learnCallback: null,
   setLearnCallback: (cb) => set({ learnCallback: cb }),
 
-  trainingResult: { modelName: '', modelPath: null, evalResult: null, errorMessage: null },
+  trainingResult: { modelName: '', modelPath: null, evalResult: null, errorMessage: null, trainCount: 0, valCount: 0 },
   setTrainingResult: (result) => set({ trainingResult: result }),
 
   login: (name, password) => {

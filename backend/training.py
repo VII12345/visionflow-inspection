@@ -188,6 +188,7 @@ class JarDataset(Dataset):
 
         # 预加载
         self.x, self.y = [], []
+        failed = 0
         for item in self.samples:
             try:
                 img = Image.open(item[0]).convert("RGB")
@@ -196,7 +197,13 @@ class JarDataset(Dataset):
                 self.x.append(torch.from_numpy(preprocess(img, augment=self.augment)))
                 self.y.append(item[1])
             except Exception:
-                pass
+                failed += 1
+        if failed > 0:
+            import logging
+
+            logging.getLogger("vision").warning(
+                f"数据集预加载: {len(self.samples)} 张图片中 {failed} 张加载失败（已跳过），成功 {len(self.x)} 张"
+            )
 
     def __len__(self):
         return len(self.x)

@@ -541,6 +541,8 @@ training_state = {
     "modelName": "",
     "modelPath": None,
     "evalResult": None,
+    "trainCount": 0,
+    "valCount": 0,
 }
 _training_thread = None
 _training_stop_flag = False
@@ -907,6 +909,9 @@ def _run_training(folder_path, model_name, upright_path=None, inverted_path=None
             f"数据集模式: {train_set.mode}, 训练集={len(train_set)}, 验证集={len(val_set)}"
         )
 
+        training_state["trainCount"] = len(train_set)
+        training_state["valCount"] = len(val_set)
+
         from torch.utils.data import DataLoader
 
         train_ldr = DataLoader(
@@ -1012,6 +1017,8 @@ def start_training():
                 "modelName": model_name,
                 "modelPath": None,
                 "evalResult": None,
+                "trainCount": 0,
+                "valCount": 0,
             }
         )
         _training_stop_flag = False

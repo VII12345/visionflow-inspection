@@ -111,6 +111,8 @@ export const SettingsTab: React.FC = () => {
             modelPath: (status as Record<string, unknown>).modelPath as string | null || null,
             evalResult: (status as Record<string, unknown>).evalResult as Record<string, unknown> | null || null,
             errorMessage: isFailed ? status.message : null,
+            trainCount: (status as Record<string, unknown>).trainCount as number || 0,
+            valCount: (status as Record<string, unknown>).valCount as number || 0,
           });
           setModal('trainingComplete', true);
           refresh();

@@ -17,6 +17,8 @@ interface Props {
   modelPath: string | null;
   evalResult: EvalResult | null;
   errorMessage: string | null;
+  trainCount: number;
+  valCount: number;
 }
 
 const MetricRow: React.FC<{ label: string; value: number; suffix?: string; color?: string }> = ({
@@ -31,7 +33,7 @@ const MetricRow: React.FC<{ label: string; value: number; suffix?: string; color
 );
 
 export const TrainingCompleteModal: React.FC<Props> = ({
-  open, onClose, modelName, modelPath, evalResult, errorMessage,
+  open, onClose, modelName, modelPath, evalResult, errorMessage, trainCount, valCount,
 }) => {
   if (!open) return null;
 
@@ -53,6 +55,12 @@ export const TrainingCompleteModal: React.FC<Props> = ({
             <span className="text-xs text-gray-500">产品型号</span>
             <span className="text-sm font-semibold text-white">{modelName || '--'}</span>
           </div>
+          {(trainCount > 0 || valCount > 0) && (
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs text-gray-500">数据分布</span>
+              <span className="text-xs text-gray-400">训练集 {trainCount} 张 · 验证集 {valCount} 张（用于评估）</span>
+            </div>
+          )}
           {modelPath && (
             <div className="flex items-start gap-2">
               <span className="text-xs text-gray-500 shrink-0">保存位置</span>
@@ -101,7 +109,7 @@ export const TrainingCompleteModal: React.FC<Props> = ({
                     <div className="text-lg font-bold text-emerald-400">{cm.TN}</div>
                   </div>
                 </div>
-                <p className="text-[11px] text-gray-600 mt-2 text-right">总样本: {cm.TP + cm.TN + cm.FP + cm.FN}</p>
+                <p className="text-[11px] text-gray-600 mt-2 text-right">验证集总样本: {cm.TP + cm.TN + cm.FP + cm.FN} 张（训练集 {trainCount} 张未在此评估）</p>
               </div>
             )}
           </>

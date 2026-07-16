@@ -88,8 +88,8 @@ const SettingsTab = {
 
     const text = document.getElementById('learnConfirmText');
     text.textContent = `确认开始学习「${this._selectedModel.model}」？${DB.getProducts().find(p => p.id === this._selectedModel.id)?.learned
-        ? '\n（该型号已学习过，重新学习将覆盖原有模型）'
-        : ''
+      ? '\n（该型号已学习过，重新学习将覆盖原有模型）'
+      : ''
       }`;
     document.getElementById('learnUprightPath').value = '';
     document.getElementById('learnInvertedPath').value = '';
@@ -214,10 +214,12 @@ const SettingsTab = {
     const modelName = this._selectedModel?.model || '';
     const modelPath = status.modelPath || '';
     const ev = status.evalResult || (status.history && status.history.eval) || null;
+    const trainCount = status.trainCount || 0;
+    const valCount = status.valCount || 0;
 
     if (isFailed) {
       label.textContent = status.message;
-      this._showTrainingResultModal(modelName, modelPath, null, status.message);
+      this._showTrainingResultModal(modelName, modelPath, null, status.message, 0, 0);
     } else {
       const accText = ev?.accuracy != null ? ` (验证准确率: ${(ev.accuracy * 100).toFixed(1)}%)` : '';
       label.textContent = `学习完成！${accText}`;
@@ -232,7 +234,7 @@ const SettingsTab = {
         `;
       }
 
-      this._showTrainingResultModal(modelName, modelPath, ev, null);
+      this._showTrainingResultModal(modelName, modelPath, ev, null, trainCount, valCount);
     }
 
     // 同步模型状态
@@ -240,7 +242,7 @@ const SettingsTab = {
     this.updateLearningUI();
   },
 
-  _showTrainingResultModal(modelName, modelPath, evalResult, errorMessage) {
+  _showTrainingResultModal(modelName, modelPath, evalResult, errorMessage, trainCount, valCount) {
     // 移除已有弹窗
     const existing = document.getElementById('trainingResultModal');
     if (existing) existing.remove();
@@ -256,8 +258,7 @@ const SettingsTab = {
       bodyHtml = `
         <div style="background:#1a1f2e;border-radius:8px;padding:12px;margin-bottom:12px;">
           <div style="font-size:11px;color:#6b7280;margin-bottom:2px;">产品型号</div>
-          <div style="font-size:14px;font-weight:600;color:#fff;">${modelName || '--'}</div>
-          ${modelPath ? `<div style="font-size:11px;color:#6b7280;margin-top:6px;">保存位置</div><div style="font-size:11px;color:#9ca3af;word-break:break-all;font-family:monospace;">${modelPath}</div>` : ''}
+          <div style="font-size:14px;font-weight:600;color:#fff;">${modelName || '--'}</div>          ${(trainCount > 0 || valCount > 0) ? `<div style="font-size:11px;color:#6b7280;margin-top:4px;">数据分布: 训练集 ${trainCount} 张 · 验证集 ${valCount} 张（用于评估）</div>` : ''}          ${modelPath ? `<div style="font-size:11px;color:#6b7280;margin-top:6px;">保存位置</div><div style="font-size:11px;color:#9ca3af;word-break:break-all;font-family:monospace;">${modelPath}</div>` : ''}
         </div>
         ${evalResult ? `
         <div style="margin-bottom:12px;">
@@ -278,7 +279,7 @@ const SettingsTab = {
             <div style="background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.2);border-radius:8px;padding:10px;text-align:center;"><div style="font-size:11px;color:#6b7280;">FN</div><div style="font-size:18px;font-weight:700;color:#f87171;">${cm.FN}</div></div>
             <div style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.2);border-radius:8px;padding:10px;text-align:center;"><div style="font-size:11px;color:#6b7280;">TN</div><div style="font-size:18px;font-weight:700;color:#34d399;">${cm.TN}</div></div>
           </div>
-          <div style="font-size:10px;color:#6b7280;text-align:right;margin-top:4px;">总样本: ${cm.TP + cm.TN + cm.FP + cm.FN}</div>
+          <div style="font-size:10px;color:#6b7280;text-align:right;margin-top:4px;">验证集总样本: ${cm.TP + cm.TN + cm.FP + cm.FN} 张（训练集 ${trainCount} 张未在此评估）</div>
         </div>
         ` : ''}
         ` : ''}
