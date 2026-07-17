@@ -33,8 +33,25 @@ from torchvision import transforms
 from torch.amp import autocast
 
 IMG_SIZE = 224
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-USE_AMP = torch.cuda.is_available()  # GPU 时启用混合精度
+# 默认设备（运行时可通过 set_training_device() 覆盖）
+_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def set_training_device(device_str: str):
+    """运行时切换训练设备，如 'cuda' 或 'cpu'"""
+    global _device
+    _device = torch.device(device_str)
+    import logging
+
+    logging.getLogger("vision").info(f"训练设备已切换至: {_device}")
+
+
+def _get_device():
+    return _device
+
+
+def _use_amp():
+    return _device.type == "cuda"
 
 
 # ─── 数据增强（加强版）─────────────────────────────────────
@@ -283,7 +300,7 @@ def evaluate_model(model, loader):
     all_preds, all_labels = [], []
     with torch.no_grad():
         for x, y in loader:
-            x = x.to(DEVICE)
+            x = x.to(_get_device())
             preds = model(x).argmax(1).cpu().numpy()
             all_preds.extend(preds.tolist())
             all_labels.extend(y.numpy().tolist())
@@ -317,7 +334,7 @@ def _eval_acc(model, loader):
     corr = tot = 0
     with torch.no_grad():
         for x, y in loader:
-            x, y = x.to(DEVICE), y.to(DEVICE)
+            x, y = x.to(_get_device()), y.to(_get_device())
             corr += (model(x).argmax(1) == y).sum().item()
             tot += y.size(0)
     return corr / max(tot, 1)
@@ -343,18 +360,18 @@ def train_model_v2(
     Args:
         status_callback: fn(epoch, total_epochs, train_loss, val_loss, val_acc, message)
     """
-    msg = f"设备: {DEVICE}" + (" (GPU 混合精度)" if USE_AMP else " (CPU)")
+    msg = f"设备: {_get_device()}" + (" (GPU 混合精度)" if _use_amp() else " (CPU)")
     if status_callback:
         status_callback(0, epochs, 0, 0, 0, msg)
     print(msg)
 
-    model.to(DEVICE)
+    model.to(_get_device())
     crit = nn.CrossEntropyLoss(label_smoothing=0.1)  # 标签平滑
     optimizer = torch.optim.AdamW(model.head.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
         optimizer, T_0=20, T_mult=2
     )
-    scaler = torch.amp.GradScaler("cuda", enabled=USE_AMP)
+    scaler = torch.amp.GradScaler("cuda", enabled=_use_amp())
     early_stop = EarlyStopping(patience=early_stop_patience)
     checkpoint = ModelCheckpoint(save_path)
 
@@ -386,9 +403,9 @@ def train_model_v2(
         model.train()
         loss_sum = 0
         for x, y in train_ldr:
-            x, y = x.to(DEVICE), y.to(DEVICE)
+            x, y = x.to(_get_device()), y.to(_get_device())
             optimizer.zero_grad()
-            with autocast("cuda", enabled=USE_AMP):
+            with autocast("cuda", enabled=_use_amp()):
                 loss = crit(model(x), y)
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
@@ -406,7 +423,7 @@ def train_model_v2(
         model.eval()
         with torch.no_grad():
             for x, y in val_ldr:
-                x, y = x.to(DEVICE), y.to(DEVICE)
+                x, y = x.to(_get_device()), y.to(_get_device())
                 val_loss_sum += crit(model(x), y).item()
         val_loss = val_loss_sum / max(len(val_ldr), 1)
         val_acc = _eval_acc(model, val_ldr)
@@ -448,7 +465,7 @@ def train_model_v2(
     # 加载最佳模型
     if save_path.exists():
         model.load_state_dict(
-            torch.load(save_path, map_location=DEVICE, weights_only=True)
+            torch.load(save_path, map_location=_get_device(), weights_only=True)
         )
 
     # 最终评估
@@ -475,7 +492,7 @@ def train_model_v2(
 def classify_single(model, pil_image: Image.Image) -> tuple[str, float]:
     """单帧推理：返回 (label, confidence)"""
     arr = preprocess(pil_image, augment=False)
-    tensor = torch.from_numpy(arr).unsqueeze(0).to(DEVICE)
+    tensor = torch.from_numpy(arr).unsqueeze(0).to(_get_device())
     with torch.no_grad():
         logits = model(tensor)
         probs = torch.softmax(logits, dim=1)[0]
@@ -496,7 +513,7 @@ def classify_batch(model, paths):
         elapsed = (time.perf_counter() - t0) * 1000
         return [(p, "读取失败", 0.0) for p in paths], elapsed
 
-    batch = torch.from_numpy(np.stack([t for _, t in valid])).to(DEVICE)
+    batch = torch.from_numpy(np.stack([t for _, t in valid])).to(_get_device())
     with torch.no_grad():
         logits = model(batch)
         probs = torch.softmax(logits, dim=1)
@@ -520,9 +537,9 @@ def main():
 
     if model_path.exists():
         print(f"加载模型: {model_path}")
-        model = JarClassifier().to(DEVICE)
+        model = JarClassifier().to(_get_device())
         model.load_state_dict(
-            torch.load(model_path, map_location=DEVICE, weights_only=True)
+            torch.load(model_path, map_location=_get_device(), weights_only=True)
         )
         model.eval()
     else:

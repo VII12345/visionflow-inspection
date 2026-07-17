@@ -45,6 +45,31 @@ class Config:
     import torch
 
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    TRAINING_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # 从持久化配置加载设备偏好（如果存在）
+    @classmethod
+    def load_device_config(cls):
+        import json
+
+        device_cfg = cls.DATA_DIR / "device_config.json"
+        if device_cfg.exists():
+            try:
+                with open(device_cfg, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+                valid = ["cpu"]
+                import torch
+
+                if torch.cuda.is_available():
+                    valid.append("cuda")
+                td = cfg.get("training_device", cls.TRAINING_DEVICE)
+                idd = cfg.get("inference_device", cls.DEVICE)
+                if td in valid:
+                    cls.TRAINING_DEVICE = td
+                if idd in valid:
+                    cls.DEVICE = idd
+            except Exception:
+                pass
 
     # 模型路径优先级：
     # 1) 数据目录下已训练的模型（持久化，exe 同目录）

@@ -101,6 +101,118 @@ def env_check():
     return jsonify(env_check_result)
 
 
+@app.route("/api/hardware", methods=["GET"])
+def hardware_info():
+    """返回 CPU/GPU 硬件信息，供前端展示和选择"""
+    import torch
+
+    info = {
+        "cpu": {
+            "model": None,
+            "cores": None,
+            "arch": None,
+        },
+        "gpu": {
+            "name": None,
+            "memory_mb": None,
+            "cuda_available": torch.cuda.is_available(),
+            "cuda_version": torch.version.cuda if torch.cuda.is_available() else None,
+            "count": torch.cuda.device_count() if torch.cuda.is_available() else 0,
+        },
+        "pytorch_version": torch.__version__,
+        "training_device": getattr(Config, "TRAINING_DEVICE", Config.DEVICE),
+        "inference_device": Config.DEVICE,
+    }
+    # CPU 信息
+    import platform
+
+    info["cpu"]["arch"] = platform.machine()
+    try:
+        import psutil
+
+        info["cpu"]["cores"] = psutil.cpu_count(logical=True)
+        info["cpu"]["model"] = platform.processor() or None
+    except ImportError:
+        info["cpu"]["cores"] = None
+        info["cpu"]["model"] = platform.processor() or None
+
+    # GPU 信息
+    if torch.cuda.is_available():
+        try:
+            info["gpu"]["name"] = torch.cuda.get_device_name(0)
+            mem = torch.cuda.get_device_properties(0).total_mem
+            info["gpu"]["memory_mb"] = round(mem / 1024 / 1024)
+        except Exception:
+            pass
+
+    return jsonify({"success": True, "hardware": info})
+
+
+# 设备配置持久化
+import json as _json
+
+_device_config_path = Config.DATA_DIR / "device_config.json"
+
+
+def _load_device_config():
+    if _device_config_path.exists():
+        try:
+            with open(_device_config_path, "r", encoding="utf-8") as f:
+                return _json.load(f)
+        except Exception:
+            pass
+    return {"training_device": Config.DEVICE, "inference_device": Config.DEVICE}
+
+
+def _save_device_config(cfg):
+    _device_config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(_device_config_path, "w", encoding="utf-8") as f:
+        _json.dump(cfg, f, indent=2)
+
+
+@app.route("/api/settings/device", methods=["GET"])
+def get_device_config():
+    """获取设备选择配置"""
+    cfg = _load_device_config()
+    return jsonify({"success": True, "config": cfg})
+
+
+@app.route("/api/settings/device", methods=["POST"])
+def update_device_config():
+    """更新设备选择配置"""
+    import torch
+
+    data = request.get_json()
+    training_device = data.get("training_device", "").strip()
+    inference_device = data.get("inference_device", "").strip()
+
+    valid_devices = ["cpu"]
+    if torch.cuda.is_available():
+        valid_devices.append("cuda")
+
+    if training_device not in valid_devices:
+        return jsonify(
+            {"success": False, "message": f"无效的训练设备: {training_device}"}
+        ), 400
+    if inference_device not in valid_devices:
+        return jsonify(
+            {"success": False, "message": f"无效的推理设备: {inference_device}"}
+        ), 400
+
+    cfg = {"training_device": training_device, "inference_device": inference_device}
+    _save_device_config(cfg)
+
+    # 更新运行时配置
+    Config.DEVICE = inference_device
+    if hasattr(Config, "TRAINING_DEVICE"):
+        Config.TRAINING_DEVICE = training_device
+    else:
+        setattr(Config, "TRAINING_DEVICE", training_device)
+
+    logger.info(f"设备配置已更新: 训练={training_device}, 推理={inference_device}")
+    return jsonify({"success": True, "message": "设备配置已保存", "config": cfg})
+
+
 @app.route("/api/cameras", methods=["GET"])
 def get_cameras():
     """枚举所有相机"""
@@ -883,7 +995,17 @@ def _run_training(folder_path, model_name, upright_path=None, inverted_path=None
     """后台训练线程"""
     global training_state
     try:
-        from .training import JarDataset, JarClassifier, train_model_v2
+        from .training import (
+            JarDataset,
+            JarClassifier,
+            train_model_v2,
+            set_training_device,
+        )
+
+        # 应用用户配置的训练设备
+        training_device = getattr(Config, "TRAINING_DEVICE", Config.DEVICE)
+        set_training_device(training_device)
+        logger.info(f"训练设备: {training_device}")
 
         logger.info(
             f"开始训练: model={model_name}, upright={upright_path}, inverted={inverted_path}, folder={folder_path}"

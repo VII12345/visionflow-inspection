@@ -74,7 +74,6 @@ export const CameraConfigModal: React.FC<Props> = ({ camId, open, onClose }) => 
   const update = (key: string, value: string | number | boolean) => setFields(prev => ({ ...prev, [key]: value }));
 
   const testRejectSignal = async () => {
-    if (!window.confirm(`确认向 Cam${camId} 的 MB${camId - 1} 写入 Byte=1？`)) return;
     setTestingSignal(true);
     try {
       const data = await api.testRejectSignal(camId);

@@ -58,6 +58,12 @@ export const api = {
   getPhotos: (camId: number) => backendFetch<{ success: boolean; photos: { filename: string; mtime: string; size: number; result: string; timestamp: number }[]; okCount: number; ngCount: number }>(`/api/photos/${camId}`),
   getPhotoUrl: (camId: number, filename: string) => `${API_BASE}/api/photos/${camId}/${filename}`,
 
+  // Hardware & Device
+  getHardware: () => backendFetch<{ success: boolean; hardware: { cpu: { model: string | null; cores: number | null; arch: string | null }; gpu: { name: string | null; memory_mb: number | null; cuda_available: boolean; cuda_version: string | null; count: number }; pytorch_version: string; training_device: string; inference_device: string } }>('/api/hardware'),
+  getDeviceConfig: () => backendFetch<{ success: boolean; config: { training_device: string; inference_device: string } }>('/api/settings/device'),
+  saveDeviceConfig: (config: { training_device: string; inference_device: string }) =>
+    backendFetch<{ success: boolean; message?: string; config?: { training_device: string; inference_device: string } }>('/api/settings/device', { method: 'POST', body: config }),
+
   // Environment
   envCheck: () => backendFetch<{ passed: boolean; summary: string; results: { name: string; message: string; passed: boolean; level: string; detail?: string }[] }>('/api/env-check'),
 };

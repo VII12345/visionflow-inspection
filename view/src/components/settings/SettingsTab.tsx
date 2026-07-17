@@ -21,6 +21,12 @@ export const SettingsTab: React.FC = () => {
   const [metrics, setMetrics] = useState('--');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Hardware & device selection
+  const [hwInfo, setHwInfo] = useState<{ cpu: { model: string | null; cores: number | null; arch: string | null }; gpu: { name: string | null; memory_mb: number | null; cuda_available: boolean; cuda_version: string | null; count: number }; pytorch_version: string } | null>(null);
+  const [trainingDevice, setTrainingDevice] = useState('cpu');
+  const [inferenceDevice, setInferenceDevice] = useState('cpu');
+  const [deviceSaving, setDeviceSaving] = useState(false);
+
   const refresh = useCallback(async () => {
     try {
       const data = await api.getModels();
@@ -41,6 +47,21 @@ export const SettingsTab: React.FC = () => {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  // 硬件检测 + 设备配置加载
+  useEffect(() => {
+    (async () => {
+      try {
+        const hw = await api.getHardware();
+        if (hw.success) setHwInfo(hw.hardware);
+        const dev = await api.getDeviceConfig();
+        if (dev.success) {
+          setTrainingDevice(dev.config.training_device || 'cpu');
+          setInferenceDevice(dev.config.inference_device || 'cpu');
+        }
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
   // 自动刷新模型列表（每10秒）
   useEffect(() => {
     const interval = setInterval(refresh, 10000);
@@ -48,6 +69,17 @@ export const SettingsTab: React.FC = () => {
   }, [refresh]);
 
   const filtered = products.filter(p => p.model.toLowerCase().includes(filter.toLowerCase()));
+
+  const saveDeviceConfig = async () => {
+    if (!user || user.level !== 'admin') { showMessage('需要管理员权限才能修改设备配置'); return; }
+    setDeviceSaving(true);
+    try {
+      const r = await api.saveDeviceConfig({ training_device: trainingDevice, inference_device: inferenceDevice });
+      if (r.success) showMessage('设备配置已保存');
+      else showMessage('保存失败: ' + (r as { message?: string }).message);
+    } catch (e) { showMessage('保存失败: ' + (e as Error).message); }
+    finally { setDeviceSaving(false); }
+  };
 
   const startLearning = () => {
     if (!user) { setModal('login', true); return; }
@@ -219,6 +251,67 @@ export const SettingsTab: React.FC = () => {
           </div>
           <p className="text-[11px] text-gray-600 mt-3">需要技术员或以上权限</p>
         </div>
+
+        {/* Hardware & Device */}
+        {hwInfo && (
+          <div className="bg-[#171d2b] border border-white/[0.06] rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-white mb-4">硬件 & 运行设备</h3>
+
+            {/* Hardware status */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="bg-[#111620] rounded-lg p-3">
+                <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">CPU</div>
+                <div className="text-[12px] text-white font-medium truncate">{hwInfo.cpu.model || hwInfo.cpu.arch || '未知'}</div>
+                {hwInfo.cpu.cores && <div className="text-[10px] text-gray-600 mt-0.5">{hwInfo.cpu.cores} 核</div>}
+              </div>
+              <div className="bg-[#111620] rounded-lg p-3">
+                <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">GPU</div>
+                {hwInfo.gpu.cuda_available ? (
+                  <>
+                    <div className="text-[12px] text-emerald-400 font-medium truncate">{hwInfo.gpu.name || 'NVIDIA GPU'}</div>
+                    <div className="text-[10px] text-gray-600 mt-0.5">
+                      CUDA {hwInfo.gpu.cuda_version} · {hwInfo.gpu.memory_mb ? `${(hwInfo.gpu.memory_mb / 1024).toFixed(1)} GB` : ''} · {hwInfo.gpu.count} 卡
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-[12px] text-rose-400 font-medium">不可用</div>
+                )}
+              </div>
+            </div>
+
+            {/* PyTorch info */}
+            <div className="text-[10px] text-gray-600 mb-4">PyTorch {hwInfo.pytorch_version}</div>
+
+            {/* Device selectors */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <span className="text-gray-400 text-[12px] w-14 shrink-0">训练设备</span>
+                <select
+                  value={trainingDevice}
+                  onChange={e => setTrainingDevice(e.target.value)}
+                  className="bg-[#111620] border border-white/[0.12] rounded-lg px-3 py-2 text-[12px] text-white flex-1 focus:outline-none focus:ring-2 focus:ring-[#5b6ef5]/50"
+                >
+                  <option value="cpu">CPU</option>
+                  {hwInfo.gpu.cuda_available && <option value="cuda">GPU (CUDA)</option>}
+                </select>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-gray-400 text-[12px] w-14 shrink-0">推理设备</span>
+                <select
+                  value={inferenceDevice}
+                  onChange={e => setInferenceDevice(e.target.value)}
+                  className="bg-[#111620] border border-white/[0.12] rounded-lg px-3 py-2 text-[12px] text-white flex-1 focus:outline-none focus:ring-2 focus:ring-[#5b6ef5]/50"
+                >
+                  <option value="cpu">CPU</option>
+                  {hwInfo.gpu.cuda_available && <option value="cuda">GPU (CUDA)</option>}
+                </select>
+              </div>
+              <Button variant="secondary" size="sm" onClick={saveDeviceConfig} disabled={deviceSaving}>
+                {deviceSaving ? '保存中...' : '保存设备设置'}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
