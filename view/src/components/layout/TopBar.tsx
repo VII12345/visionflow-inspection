@@ -11,28 +11,23 @@ export const TopBar: React.FC = () => {
   const setModal = useAppStore(s => s.setModal);
 
   return (
-    <header className="flex items-center justify-between h-14 px-7 bg-[#111620] border-b border-white/[0.06] shrink-0 z-[100] relative">
-      <div className="flex items-center gap-4">
-        <h1 className="text-base font-bold text-white tracking-[1.5px] uppercase">视觉检测系统</h1>
-        <span className={`text-xs font-semibold px-3.5 py-1 rounded-full border transition-all duration-300 ${
-          isRunning
-            ? 'text-emerald-400 border-emerald-500/25 bg-emerald-500/10 shadow-[0_0_12px_rgba(16,185,129,0.1)]'
-            : 'text-gray-500 border-white/[0.09] bg-[#1e2534]'
+    <header className="flex items-center justify-between h-14 px-8 bg-white border-b border-gray-200 shrink-0 relative">
+      <div className="flex items-center gap-5">
+        <h1 className="text-[15px] font-semibold text-text-primary tracking-tight">视觉检测系统</h1>
+        <span className={`inline-flex items-center gap-1.5 text-xs font-medium transition-colors ${
+          isRunning ? 'text-ok' : 'text-text-tertiary'
         }`}>
-          ● {isRunning ? '运行中' : '停止'}
+          <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-ok' : 'bg-gray-300'}`} />
+          {isRunning ? '运行中' : '已停止'}
         </span>
       </div>
 
       <div className="flex items-center gap-3">
         {user ? (
           <>
-            <span className="text-gray-400 text-[13px]">
-              <span className="text-white font-semibold mr-2">{user.name}</span>
-              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                user.level === 'admin' ? 'bg-rose-500/15 text-rose-400' :
-                user.level === 'tech' ? 'bg-blue-500/15 text-blue-400' :
-                'bg-emerald-500/15 text-emerald-400'
-              }`}>{roleLabels[user.level]}</span>
+            <span className="text-sm text-text-secondary">
+              <span className="text-text-primary font-medium mr-2">{user.name}</span>
+              <span className="text-xs text-text-tertiary">{roleLabels[user.level]}</span>
             </span>
             <Button variant="ghost" size="sm" onClick={() => setModal('changePwd', true)}>修改密码</Button>
             <Button variant="secondary" size="sm" onClick={logout}>登出</Button>

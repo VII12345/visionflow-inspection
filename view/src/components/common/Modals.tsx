@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { Button, Modal } from '../common/Modal';
 
+const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors placeholder:text-text-tertiary';
+const labelClass = 'text-xs text-text-secondary mb-1.5 block';
+
 export const LoginModal: React.FC = () => {
   const [name, setName] = useState('');
   const [pwd, setPwd] = useState('');
@@ -27,24 +30,24 @@ export const LoginModal: React.FC = () => {
         <Button variant="secondary" onClick={() => setModal('login', false)}>取消</Button>
       </>}
     >
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         <div>
-          <label className="text-xs text-gray-400 mb-1 block">用户名</label>
+          <label className={labelClass}>用户名</label>
           <input type="text" placeholder="输入用户名" value={name}
             onChange={e => setName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleLogin()}
-            className="w-full bg-[#111620] border border-white/[0.09] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#5b6ef5]"
+            className={inputClass}
           />
         </div>
         <div>
-          <label className="text-xs text-gray-400 mb-1 block">密码</label>
+          <label className={labelClass}>密码</label>
           <input type="password" placeholder="输入密码" value={pwd}
             onChange={e => setPwd(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleLogin()}
-            className="w-full bg-[#111620] border border-white/[0.09] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#5b6ef5]"
+            className={inputClass}
           />
         </div>
-        {error && <p className="text-rose-400 text-xs">{error}</p>}
+        {error && <p className="text-ng text-xs">{error}</p>}
       </div>
     </Modal>
   );
@@ -82,23 +85,23 @@ export const ChangePwdModal: React.FC = () => {
         <Button variant="secondary" onClick={() => setModal('changePwd', false)}>取消</Button>
       </>}
     >
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         <div>
-          <label className="text-xs text-gray-400 mb-1 block">旧密码</label>
+          <label className={labelClass}>旧密码</label>
           <input type="password" placeholder="输入当前密码" value={oldPwd} onChange={e => setOldPwd(e.target.value)}
-            className="w-full bg-[#111620] border border-white/[0.09] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#5b6ef5]" />
+            className={inputClass} />
         </div>
         <div>
-          <label className="text-xs text-gray-400 mb-1 block">新密码</label>
+          <label className={labelClass}>新密码</label>
           <input type="password" placeholder="输入新密码" value={newPwd} onChange={e => setNewPwd(e.target.value)}
-            className="w-full bg-[#111620] border border-white/[0.09] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#5b6ef5]" />
+            className={inputClass} />
         </div>
         <div>
-          <label className="text-xs text-gray-400 mb-1 block">确认新密码</label>
+          <label className={labelClass}>确认新密码</label>
           <input type="password" placeholder="再次输入新密码" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)}
-            className="w-full bg-[#111620] border border-white/[0.09] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#5b6ef5]" />
+            className={inputClass} />
         </div>
-        {error && <p className="text-rose-400 text-xs">{error}</p>}
+        {error && <p className="text-ng text-xs">{error}</p>}
       </div>
     </Modal>
   );
@@ -128,16 +131,16 @@ export const AddProductModal: React.FC = () => {
         <Button variant="secondary" onClick={() => setModal('addProduct', false)}>取消</Button>
       </>}
     >
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         <div>
-          <label className="text-xs text-gray-400 mb-1 block">产品型号</label>
+          <label className={labelClass}>产品型号</label>
           <input type="text" placeholder="例如: JAR-500ml" value={model} onChange={e => setModel(e.target.value)}
-            className="w-full bg-[#111620] border border-white/[0.09] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#5b6ef5]" />
+            className={inputClass} />
         </div>
         <div>
-          <label className="text-xs text-gray-400 mb-1 block">尺寸规格</label>
+          <label className={labelClass}>尺寸规格</label>
           <input type="text" placeholder="例如: 直径73mm x 高120mm" value={size} onChange={e => setSize(e.target.value)}
-            className="w-full bg-[#111620] border border-white/[0.09] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#5b6ef5]" />
+            className={inputClass} />
         </div>
       </div>
     </Modal>
@@ -158,27 +161,27 @@ export const LearnConfirmModal: React.FC<{ onConfirm: (upright: string, inverted
   };
 
   return (
-    <Modal open={true} onClose={() => setModal('learnConfirm', false)} title="确认学习参数" width="500px"
+    <Modal open={true} onClose={() => setModal('learnConfirm', false)} title="确认学习参数" width="520px"
       footer={<>
         <Button variant="learn" onClick={() => onConfirm(upright, inverted, folder)}>确认开始学习</Button>
         <Button variant="secondary" onClick={() => setModal('learnConfirm', false)}>取消</Button>
       </>}
     >
-      <div className="flex flex-col gap-3">
-        <p className="text-xs text-gray-400">请指定正罐/倒罐图片目录，或指定包含 正/反/ 子目录的父目录</p>
+      <div className="flex flex-col gap-4">
+        <p className="text-xs text-text-secondary">请指定正罐/倒罐图片目录，或指定包含 正/反/ 子目录的父目录</p>
         <div className="flex gap-2">
           <input type="text" placeholder="正罐图片目录" value={upright} onChange={e => setUpright(e.target.value)}
-            className="flex-1 bg-[#111620] border border-white/[0.09] rounded-lg px-3 py-2 text-[13px] text-white outline-none focus:border-[#5b6ef5]" />
+            className={`${inputClass} flex-1`} />
           <Button variant="secondary" size="sm" onClick={() => browseFolder(setUpright)}>浏览</Button>
         </div>
         <div className="flex gap-2">
           <input type="text" placeholder="倒罐图片目录" value={inverted} onChange={e => setInverted(e.target.value)}
-            className="flex-1 bg-[#111620] border border-white/[0.09] rounded-lg px-3 py-2 text-[13px] text-white outline-none focus:border-[#5b6ef5]" />
+            className={`${inputClass} flex-1`} />
           <Button variant="secondary" size="sm" onClick={() => browseFolder(setInverted)}>浏览</Button>
         </div>
         <div className="flex gap-2">
           <input type="text" placeholder="父目录（含正/反/子目录）" value={folder} onChange={e => setFolder(e.target.value)}
-            className="flex-1 bg-[#111620] border border-white/[0.09] rounded-lg px-3 py-2 text-[13px] text-white outline-none focus:border-[#5b6ef5]" />
+            className={`${inputClass} flex-1`} />
           <Button variant="secondary" size="sm" onClick={() => browseFolder(setFolder)}>浏览</Button>
         </div>
       </div>

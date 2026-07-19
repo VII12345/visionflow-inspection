@@ -5,6 +5,8 @@ import { useAppStore } from '../../store/useAppStore';
 import { Button, Badge } from '../common/Modal';
 import type { Product } from '../../types';
 
+const thClass = 'px-4 py-2.5 text-left text-[11px] font-medium text-text-tertiary uppercase tracking-wide';
+
 export const FileTab: React.FC = () => {
   const user = useAppStore(s => s.user);
   const showMessage = useAppStore(s => s.showMessage);
@@ -36,7 +38,6 @@ export const FileTab: React.FC = () => {
 
   useEffect(() => { refresh(); }, []);
 
-  // 自动刷新（每5秒）
   useEffect(() => {
     if (isRunning) {
       refreshRef.current = setInterval(refresh, 5000);
@@ -68,32 +69,32 @@ export const FileTab: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-6 overflow-auto">
+    <div className="flex flex-col gap-8 overflow-auto">
       {/* Line Config */}
       <div>
-        <h3 className="text-sm font-semibold text-white mb-3">当前线体检测配置</h3>
-        <div className="border border-white/[0.06] rounded-xl overflow-hidden bg-[#171d2b]">
+        <h3 className="text-[15px] font-semibold text-text-primary mb-4">当前线体检测配置</h3>
+        <div className="bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden">
           <table className="w-full text-[13px] border-collapse">
-            <thead className="bg-[#1e2534] sticky top-0 z-10">
+            <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-gray-400 font-medium">线体</th>
-                <th className="px-4 py-3 text-left text-gray-400 font-medium">检测产品型号</th>
-                <th className="px-4 py-3 text-left text-gray-400 font-medium">状态</th>
+                <th className={thClass}>线体</th>
+                <th className={thClass}>检测产品型号</th>
+                <th className={thClass}>状态</th>
               </tr>
             </thead>
             <tbody>
               {lineConfig.map(item => {
                 const prod = products.find(p => p.id === item.productId);
                 return (
-                  <tr key={item.line} className="border-t border-white/[0.04]">
-                    <td className="px-4 py-3 font-semibold text-white">线体 {item.line}</td>
-                    <td className="px-4 py-3 text-gray-300">{prod ? prod.model : '-'}</td>
+                  <tr key={item.line} className="border-t border-gray-100">
+                    <td className="px-4 py-3 font-medium text-text-primary">线体 {item.line}</td>
+                    <td className="px-4 py-3 text-text-secondary">{prod ? prod.model : '-'}</td>
                     <td className="px-4 py-3">
                       {prod
                         ? (prod.learned
                           ? <Badge variant="learned">已学习</Badge>
                           : <Badge variant="unlearned">未学习</Badge>)
-                        : <span className="text-gray-600">未配置</span>
+                        : <span className="text-text-tertiary text-xs">未配置</span>
                       }
                     </td>
                   </tr>
@@ -106,45 +107,45 @@ export const FileTab: React.FC = () => {
 
       {/* Products */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <h3 className="text-sm font-semibold text-white">全部产品型号</h3>
-            <Button variant="secondary" size="sm" onClick={refresh}>🔄 刷新</Button>
+            <h3 className="text-[15px] font-semibold text-text-primary">全部产品型号</h3>
+            <Button variant="ghost" size="sm" onClick={refresh}>刷新</Button>
           </div>
-          <Button variant="primary" size="sm" onClick={() => setModal('addProduct', true)}>+ 新增产品</Button>
+          <Button variant="primary" size="sm" onClick={() => setModal('addProduct', true)}>新增产品</Button>
         </div>
-        <div className="border border-white/[0.06] rounded-xl overflow-hidden bg-[#171d2b]">
+        <div className="bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden">
           <table className="w-full text-[13px] border-collapse">
-            <thead className="bg-[#1e2534] sticky top-0 z-10">
+            <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-gray-400 font-medium w-12">选择</th>
-                <th className="px-4 py-3 text-left text-gray-400 font-medium">型号</th>
-                <th className="px-4 py-3 text-left text-gray-400 font-medium">尺寸</th>
-                <th className="px-4 py-3 text-left text-gray-400 font-medium">学习状态</th>
-                <th className="px-4 py-3 text-left text-gray-400 font-medium">分配线体</th>
-                <th className="px-4 py-3 text-left text-gray-400 font-medium">操作</th>
+                <th className={`${thClass} w-12`}>选择</th>
+                <th className={thClass}>型号</th>
+                <th className={thClass}>尺寸</th>
+                <th className={thClass}>学习状态</th>
+                <th className={thClass}>分配线体</th>
+                <th className={thClass}>操作</th>
               </tr>
             </thead>
             <tbody>
               {products.map(p => (
-                <tr key={p.id} className="border-t border-white/[0.04]">
+                <tr key={p.id} className="border-t border-gray-100">
                   <td className="px-4 py-3">
                     <input
                       type="checkbox"
-                      className="w-4 h-4 accent-[#5b6ef5]"
+                      className="w-4 h-4 accent-accent rounded"
                       checked={checkedId === p.id}
                       onChange={() => checkProduct(p.id)}
                     />
                   </td>
-                  <td className="px-4 py-3 font-semibold text-white">{p.model}</td>
-                  <td className="px-4 py-3 text-gray-400">{p.size}</td>
+                  <td className="px-4 py-3 font-medium text-text-primary">{p.model}</td>
+                  <td className="px-4 py-3 text-text-secondary">{p.size}</td>
                   <td className="px-4 py-3">
                     {p.learned ? <Badge variant="learned">已学习</Badge> : <Badge variant="unlearned">未学习</Badge>}
                   </td>
                   <td className="px-4 py-3">
                     <select
                       id={`prod-line-${p.id}`}
-                      className="bg-[#111620] border border-white/[0.09] rounded-lg px-3 py-2 text-[13px] text-white outline-none focus:border-[#5b6ef5] focus:shadow-[0_0_0_3px_rgba(91,110,245,0.25)] w-28"
+                      className="bg-white border border-gray-300 rounded-md px-3 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent w-28"
                     >
                       <option value="">--</option>
                       {[1,2,3,4].map(l => <option key={l} value={l}>线体 {l}</option>)}
@@ -157,7 +158,7 @@ export const FileTab: React.FC = () => {
               ))}
               {products.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-600">暂无产品型号，点击"新增产品"添加</td>
+                  <td colSpan={6} className="px-4 py-8 text-center text-text-tertiary text-xs">暂无产品型号，点击"新增产品"添加</td>
                 </tr>
               )}
             </tbody>

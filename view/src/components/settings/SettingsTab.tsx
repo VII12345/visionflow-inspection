@@ -5,6 +5,9 @@ import { useAppStore } from '../../store/useAppStore';
 import { Button, Badge } from '../common/Modal';
 import type { Product } from '../../types';
 
+const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors placeholder:text-text-tertiary';
+const thClass = 'px-4 py-2.5 text-left text-[11px] font-medium text-text-tertiary uppercase tracking-wide';
+
 export const SettingsTab: React.FC = () => {
   const user = useAppStore(s => s.user);
   const setModal = useAppStore(s => s.setModal);
@@ -21,7 +24,6 @@ export const SettingsTab: React.FC = () => {
   const [metrics, setMetrics] = useState('--');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Hardware & device selection
   const [hwInfo, setHwInfo] = useState<{ cpu: { model: string | null; cores: number | null; arch: string | null }; gpu: { name: string | null; memory_mb: number | null; cuda_available: boolean; cuda_version: string | null; count: number }; pytorch_version: string } | null>(null);
   const [trainingDevice, setTrainingDevice] = useState('cpu');
   const [inferenceDevice, setInferenceDevice] = useState('cpu');
@@ -47,7 +49,6 @@ export const SettingsTab: React.FC = () => {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  // 硬件检测 + 设备配置加载
   useEffect(() => {
     (async () => {
       try {
@@ -62,7 +63,6 @@ export const SettingsTab: React.FC = () => {
     })();
   }, []);
 
-  // 自动刷新模型列表（每10秒）
   useEffect(() => {
     const interval = setInterval(refresh, 10000);
     return () => clearInterval(interval);
@@ -85,7 +85,6 @@ export const SettingsTab: React.FC = () => {
     if (!user) { setModal('login', true); return; }
     if (user.level !== 'admin') { showMessage('需要管理员权限才能进行AI学习'); return; }
     if (!selectedModel) { showMessage('请先在左侧选择一个产品型号'); return; }
-    // Set the callback that LearnConfirmModal will invoke
     setLearnCallback(confirmLearning);
     setModal('learnConfirm', true);
   };
@@ -99,7 +98,6 @@ export const SettingsTab: React.FC = () => {
       showMessage('正罐和倒罐目录需要同时指定');
       return;
     }
-
     setModal('learnConfirm', false);
     try {
       const result = await api.startTraining({
@@ -165,21 +163,21 @@ export const SettingsTab: React.FC = () => {
     <div className="flex gap-6 h-full overflow-auto">
       {/* Left: Model List */}
       <div className="w-1/2 flex flex-col">
-        <h3 className="text-sm font-semibold text-white mb-3">已建立产品型号</h3>
+        <h3 className="text-[15px] font-semibold text-text-primary mb-4">已建立产品型号</h3>
         <input
           type="text"
           placeholder="输入型号筛选..."
           value={filter}
           onChange={e => setFilter(e.target.value)}
-          className="bg-[#171d2b] border border-white/[0.09] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#5b6ef5] focus:shadow-[0_0_0_3px_rgba(91,110,245,0.25)] mb-3"
+          className={`${inputClass} mb-4`}
         />
-        <div className="border border-white/[0.06] rounded-xl overflow-auto flex-1 bg-[#171d2b]">
+        <div className="bg-white rounded-lg shadow-card border border-gray-100 overflow-auto flex-1">
           <table className="w-full text-[13px] border-collapse">
-            <thead className="bg-[#1e2534] sticky top-0 z-10">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-3 text-left text-gray-400 font-medium">型号</th>
-                <th className="px-4 py-3 text-left text-gray-400 font-medium">尺寸</th>
-                <th className="px-4 py-3 text-left text-gray-400 font-medium">状态</th>
+                <th className={thClass}>型号</th>
+                <th className={thClass}>尺寸</th>
+                <th className={thClass}>状态</th>
               </tr>
             </thead>
             <tbody>
@@ -187,12 +185,12 @@ export const SettingsTab: React.FC = () => {
                 <tr
                   key={p.id}
                   onClick={() => setSelectedModel({ model: p.model, id: p.id })}
-                  className={`border-t border-white/[0.04] cursor-pointer transition-colors ${
-                    selectedModel?.id === p.id ? 'bg-[#5b6ef5]/[0.08]' : 'hover:bg-white/[0.02]'
+                  className={`border-t border-gray-100 cursor-pointer transition-colors ${
+                    selectedModel?.id === p.id ? 'bg-blue-50' : 'hover:bg-gray-50'
                   }`}
                 >
-                  <td className="px-4 py-3 font-semibold text-white">{p.model}</td>
-                  <td className="px-4 py-3 text-gray-400">{p.size}</td>
+                  <td className="px-4 py-3 font-medium text-text-primary">{p.model}</td>
+                  <td className="px-4 py-3 text-text-secondary">{p.size}</td>
                   <td className="px-4 py-3">
                     {p.learned ? <Badge variant="learned">已学习</Badge> : <Badge variant="unlearned">未学习</Badge>}
                   </td>
@@ -203,15 +201,15 @@ export const SettingsTab: React.FC = () => {
         </div>
       </div>
 
-      {/* Right: AI Controls + Camera Config */}
-      <div className="w-1/2 flex flex-col gap-6">
+      {/* Right: AI Controls + Camera Config + Hardware */}
+      <div className="w-1/2 flex flex-col gap-5">
         {/* AI Learning */}
-        <div className="bg-[#171d2b] border border-white/[0.06] rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-white mb-4">AI 学习控制</h3>
-          <div className="flex flex-col gap-3">
+        <div className="bg-white rounded-lg shadow-card border border-gray-100 p-6">
+          <h3 className="text-[15px] font-semibold text-text-primary mb-4">AI 学习控制</h3>
+          <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
-              <span className="text-gray-400 text-[13px] w-16">当前型号</span>
-              <span className="text-white font-semibold text-[13px] bg-[#111620] px-3 py-2 rounded-lg border border-white/[0.06] flex-1">
+              <span className="text-text-secondary text-[13px] w-16">当前型号</span>
+              <span className="text-text-primary font-medium text-[13px] bg-gray-50 px-3 py-2 rounded-md flex-1">
                 {selectedModel?.model || '未选择'}
               </span>
             </div>
@@ -220,87 +218,84 @@ export const SettingsTab: React.FC = () => {
               <Button variant="secondary" size="sm" onClick={stopLearning} disabled={!learning}>停止</Button>
             </div>
             {learning && (
-              <div className="mt-2">
-                <div className="w-full bg-[#111620] rounded-full h-2 overflow-hidden">
+              <div>
+                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                   <div
-                    className="h-full bg-violet-500 rounded-full transition-all duration-300"
+                    className="h-full bg-accent rounded-full transition-all duration-300"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
-                <p className="text-xs text-gray-400 mt-2">{progressLabel}</p>
-                <p className="text-[11px] text-gray-500 mt-1">{metrics}</p>
+                <p className="text-xs text-text-secondary mt-2">{progressLabel}</p>
+                <p className="text-[11px] text-text-tertiary mt-1">{metrics}</p>
               </div>
             )}
           </div>
         </div>
 
         {/* Camera Config */}
-        <div className="bg-[#171d2b] border border-white/[0.06] rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-white mb-4">相机参数设置</h3>
+        <div className="bg-white rounded-lg shadow-card border border-gray-100 p-6">
+          <h3 className="text-[15px] font-semibold text-text-primary mb-4">相机参数设置</h3>
           <div className="grid grid-cols-2 gap-3">
             {[1, 2, 3, 4].map(camId => (
               <Button
                 key={camId}
                 variant="secondary"
                 onClick={() => setCameraConfigCamId(camId)}
-                className="!py-4 !text-sm !font-semibold !justify-start"
+                className="!py-3 !text-sm !font-medium !justify-start"
               >
-                📷 Cam {camId}
+                相机 {camId}
               </Button>
             ))}
           </div>
-          <p className="text-[11px] text-gray-600 mt-3">需要技术员或以上权限</p>
+          <p className="text-[11px] text-text-tertiary mt-3">需要技术员或以上权限</p>
         </div>
 
         {/* Hardware & Device */}
         {hwInfo && (
-          <div className="bg-[#171d2b] border border-white/[0.06] rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-4">硬件 & 运行设备</h3>
+          <div className="bg-white rounded-lg shadow-card border border-gray-100 p-6">
+            <h3 className="text-[15px] font-semibold text-text-primary mb-4">硬件 & 运行设备</h3>
 
-            {/* Hardware status */}
             <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="bg-[#111620] rounded-lg p-3">
-                <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">CPU</div>
-                <div className="text-[12px] text-white font-medium truncate">{hwInfo.cpu.model || hwInfo.cpu.arch || '未知'}</div>
-                {hwInfo.cpu.cores && <div className="text-[10px] text-gray-600 mt-0.5">{hwInfo.cpu.cores} 核</div>}
+              <div className="bg-gray-50 rounded-md p-3">
+                <div className="text-[10px] text-text-tertiary uppercase tracking-wide mb-1">CPU</div>
+                <div className="text-xs text-text-primary font-medium truncate">{hwInfo.cpu.model || hwInfo.cpu.arch || '未知'}</div>
+                {hwInfo.cpu.cores && <div className="text-[10px] text-text-tertiary mt-0.5">{hwInfo.cpu.cores} 核</div>}
               </div>
-              <div className="bg-[#111620] rounded-lg p-3">
-                <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">GPU</div>
+              <div className="bg-gray-50 rounded-md p-3">
+                <div className="text-[10px] text-text-tertiary uppercase tracking-wide mb-1">GPU</div>
                 {hwInfo.gpu.cuda_available ? (
                   <>
-                    <div className="text-[12px] text-emerald-400 font-medium truncate">{hwInfo.gpu.name || 'NVIDIA GPU'}</div>
-                    <div className="text-[10px] text-gray-600 mt-0.5">
+                    <div className="text-xs text-ok font-medium truncate">{hwInfo.gpu.name || 'NVIDIA GPU'}</div>
+                    <div className="text-[10px] text-text-tertiary mt-0.5">
                       CUDA {hwInfo.gpu.cuda_version} · {hwInfo.gpu.memory_mb ? `${(hwInfo.gpu.memory_mb / 1024).toFixed(1)} GB` : ''} · {hwInfo.gpu.count} 卡
                     </div>
                   </>
                 ) : (
-                  <div className="text-[12px] text-rose-400 font-medium">不可用</div>
+                  <div className="text-xs text-ng font-medium">不可用</div>
                 )}
               </div>
             </div>
 
-            {/* PyTorch info */}
-            <div className="text-[10px] text-gray-600 mb-4">PyTorch {hwInfo.pytorch_version}</div>
+            <div className="text-[10px] text-text-tertiary mb-4">PyTorch {hwInfo.pytorch_version}</div>
 
-            {/* Device selectors */}
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-3">
-                <span className="text-gray-400 text-[12px] w-14 shrink-0">训练设备</span>
+                <span className="text-text-secondary text-xs w-14 shrink-0">训练设备</span>
                 <select
                   value={trainingDevice}
                   onChange={e => setTrainingDevice(e.target.value)}
-                  className="bg-[#111620] border border-white/[0.12] rounded-lg px-3 py-2 text-[12px] text-white flex-1 focus:outline-none focus:ring-2 focus:ring-[#5b6ef5]/50"
+                  className="bg-white border border-gray-300 rounded-md px-3 py-2 text-xs text-text-primary flex-1 outline-none focus:border-accent"
                 >
                   <option value="cpu">CPU</option>
                   {hwInfo.gpu.cuda_available && <option value="cuda">GPU (CUDA)</option>}
                 </select>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-gray-400 text-[12px] w-14 shrink-0">推理设备</span>
+                <span className="text-text-secondary text-xs w-14 shrink-0">推理设备</span>
                 <select
                   value={inferenceDevice}
                   onChange={e => setInferenceDevice(e.target.value)}
-                  className="bg-[#111620] border border-white/[0.12] rounded-lg px-3 py-2 text-[12px] text-white flex-1 focus:outline-none focus:ring-2 focus:ring-[#5b6ef5]/50"
+                  className="bg-white border border-gray-300 rounded-md px-3 py-2 text-xs text-text-primary flex-1 outline-none focus:border-accent"
                 >
                   <option value="cpu">CPU</option>
                   {hwInfo.gpu.cuda_available && <option value="cuda">GPU (CUDA)</option>}
@@ -315,9 +310,4 @@ export const SettingsTab: React.FC = () => {
       </div>
     </div>
   );
-};
-
-export const settingsConfirmLearning = (uprightPath: string, invertedPath: string, folderPath: string) => {
-  // This will be connected via the LearnConfirmModal
-  return { uprightPath, invertedPath, folderPath };
 };

@@ -39,7 +39,7 @@ const App: React.FC = () => {
     api.envCheck().then(data => {
       setEnvResult(data);
       if (!(data as { passed: boolean }).passed) {
-        showMessage(`⚠️ 环境检测: ${(data as { summary: string }).summary}`);
+        showMessage(`环境检测: ${(data as { summary: string }).summary}`);
       }
     }).catch(() => {});
   }, []);
@@ -47,7 +47,7 @@ const App: React.FC = () => {
   // Storage info
   useEffect(() => {
     const info = storage.getStorageInfo();
-    showMessage(info.type === 'encrypted' ? `🔒 加密存储: ${info.path}` : `⚠️ 明文存储: ${info.path}`);
+    showMessage(info.type === 'encrypted' ? `加密存储: ${info.path}` : `明文存储: ${info.path}`);
   }, []);
 
   // ESC key handler
@@ -76,28 +76,21 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#090c12] text-[#f1f5f9] font-sans overflow-hidden antialiased">
-      {/* Background glow */}
-      <div className="fixed inset-0 pointer-events-none z-0"
-        style={{
-          background: 'radial-gradient(ellipse at 20% 50%, rgba(91,110,245,0.03) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.02) 0%, transparent 50%)',
-        }}
-      />
-
+    <div className="w-full h-full flex flex-col bg-white text-text-primary font-sans overflow-hidden antialiased">
       <TopBar />
       <TabBar />
 
       {/* Content */}
-      <main className="flex-1 overflow-hidden relative z-[1]">
-        <div className="w-full h-full overflow-auto p-6">
+      <main className="flex-1 overflow-hidden relative">
+        <div className="w-full h-full overflow-auto p-8">
           {renderTabContent()}
         </div>
       </main>
 
       {/* Status Bar */}
-      <footer className="flex items-center justify-between h-8 px-7 bg-[#111620] border-t border-white/[0.06] shrink-0 text-[11.5px] text-gray-500 z-[100] relative">
+      <footer className="flex items-center justify-between h-8 px-8 bg-surface border-t border-gray-200 shrink-0 text-[11px] text-text-tertiary relative">
         <span>{statusMessage}</span>
-        <span>{storage.getStorageInfo().type === 'encrypted' ? `🔒 ${storage.getStorageInfo().path}` : `⚠️ ${storage.getStorageInfo().path}`}</span>
+        <span>{storage.getStorageInfo().type === 'encrypted' ? `加密存储: ${storage.getStorageInfo().path}` : `明文存储: ${storage.getStorageInfo().path}`}</span>
       </footer>
 
       {/* Modals */}

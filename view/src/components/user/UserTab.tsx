@@ -4,6 +4,10 @@ import { useAppStore } from '../../store/useAppStore';
 import { Button, Badge } from '../common/Modal';
 import type { User } from '../../types';
 
+const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors placeholder:text-text-tertiary';
+const labelClass = 'text-xs text-text-secondary mb-1.5 block';
+const thClass = 'px-4 py-2.5 text-left text-[11px] font-medium text-text-tertiary uppercase tracking-wide';
+
 const levelLabels: Record<string, string> = { admin: '管理员', tech: '技术员', operator: '操作员' };
 
 export const UserTab: React.FC = () => {
@@ -18,7 +22,6 @@ export const UserTab: React.FC = () => {
 
   const refreshUsers = () => setUsers([...storage.getUsers()]);
 
-  // 自动刷新用户列表（每10秒）
   useEffect(() => {
     const interval = setInterval(refreshUsers, 10000);
     return () => clearInterval(interval);
@@ -68,39 +71,39 @@ export const UserTab: React.FC = () => {
     <div className="flex gap-6 h-full overflow-auto">
       {/* Left: Create/Delete */}
       <div className="w-[380px] shrink-0 flex flex-col gap-5">
-        <div className="bg-[#171d2b] border border-white/[0.06] rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-white mb-4">新建账户</h3>
-          <div className="flex flex-col gap-3">
+        <div className="bg-white rounded-lg shadow-card border border-gray-100 p-6">
+          <h3 className="text-[15px] font-semibold text-text-primary mb-4">新建账户</h3>
+          <div className="flex flex-col gap-4">
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">名称</label>
+              <label className={labelClass}>名称</label>
               <input
                 type="text" placeholder="输入用户名" value={newName}
                 onChange={e => setNewName(e.target.value)}
-                className="w-full bg-[#111620] border border-white/[0.09] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#5b6ef5] focus:shadow-[0_0_0_3px_rgba(91,110,245,0.25)]"
+                className={inputClass}
               />
             </div>
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">密码设置</label>
+              <label className={labelClass}>密码设置</label>
               <input
                 type="password" placeholder="输入密码" value={newPwd}
                 onChange={e => setNewPwd(e.target.value)}
-                className="w-full bg-[#111620] border border-white/[0.09] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#5b6ef5] focus:shadow-[0_0_0_3px_rgba(91,110,245,0.25)]"
+                className={inputClass}
               />
             </div>
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">密码确认</label>
+              <label className={labelClass}>密码确认</label>
               <input
                 type="password" placeholder="再次输入密码" value={newPwd2}
                 onChange={e => setNewPwd2(e.target.value)}
-                className="w-full bg-[#111620] border border-white/[0.09] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#5b6ef5] focus:shadow-[0_0_0_3px_rgba(91,110,245,0.25)]"
+                className={inputClass}
               />
             </div>
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">用户级别</label>
+              <label className={labelClass}>用户级别</label>
               <select
                 value={newLevel}
                 onChange={e => setNewLevel(e.target.value as 'admin' | 'tech' | 'operator')}
-                className="w-full bg-[#111620] border border-white/[0.09] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#5b6ef5] focus:shadow-[0_0_0_3px_rgba(91,110,245,0.25)] appearance-none"
+                className={`${inputClass} appearance-none`}
               >
                 <option value="admin">管理员</option>
                 <option value="tech">技术员</option>
@@ -114,36 +117,41 @@ export const UserTab: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-[#171d2b] border border-white/[0.06] rounded-xl p-5 text-xs text-gray-500 leading-relaxed">
-          <p className="text-gray-400 font-semibold mb-2">权限说明</p>
-          <p className="mb-1"><span className="text-rose-400">管理员</span> — 最高权限，可操作所有功能</p>
-          <p className="mb-1"><span className="text-blue-400">技术员</span> — 启停设备 + 相机设置</p>
-          <p><span className="text-emerald-400">操作员</span> — 仅启动 / 停止设备</p>
+        <div className="bg-gray-50 rounded-lg border border-gray-100 p-5 text-xs text-text-secondary leading-relaxed">
+          <p className="text-text-primary font-medium mb-2 text-[13px]">权限说明</p>
+          <p className="mb-1"><span className="font-medium text-text-primary">管理员</span> — 最高权限，可操作所有功能</p>
+          <p className="mb-1"><span className="font-medium text-text-primary">技术员</span> — 启停设备 + 相机设置</p>
+          <p><span className="font-medium text-text-primary">操作员</span> — 仅启动 / 停止设备</p>
         </div>
       </div>
 
       {/* Right: User List */}
       <div className="flex-1 flex flex-col">
-        <h3 className="text-sm font-semibold text-white mb-3">现有账户列表</h3>
-        <div className="border border-white/[0.06] rounded-xl overflow-auto flex-1 bg-[#171d2b]">
+        <h3 className="text-[15px] font-semibold text-text-primary mb-4">现有账户列表</h3>
+        <div className="bg-white rounded-lg shadow-card border border-gray-100 overflow-auto flex-1">
           <table className="w-full text-[13px] border-collapse">
-            <thead className="bg-[#1e2534] sticky top-0 z-10">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-3 text-left text-gray-400 font-medium">ID</th>
-                <th className="px-4 py-3 text-left text-gray-400 font-medium">用户名</th>
-                <th className="px-4 py-3 text-left text-gray-400 font-medium">用户级别</th>
+                <th className={thClass}>ID</th>
+                <th className={thClass}>用户名</th>
+                <th className={thClass}>角色</th>
               </tr>
             </thead>
             <tbody>
               {users.map(u => (
-                <tr key={u.id} className="border-t border-white/[0.04]">
-                  <td className="px-4 py-3 text-gray-500">{u.id}</td>
-                  <td className="px-4 py-3 text-white">{u.name}</td>
+                <tr key={u.id} className="border-t border-gray-100">
+                  <td className="px-4 py-3 text-text-tertiary">{u.id}</td>
+                  <td className="px-4 py-3 font-medium text-text-primary">{u.name}</td>
                   <td className="px-4 py-3">
-                    <Badge variant={u.level}>{levelLabels[u.level]}</Badge>
+                    <Badge variant={u.level as 'admin' | 'tech' | 'operator'}>{levelLabels[u.level]}</Badge>
                   </td>
                 </tr>
               ))}
+              {users.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="px-4 py-8 text-center text-text-tertiary text-xs">暂无可管理账户</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

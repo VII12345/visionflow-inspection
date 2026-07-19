@@ -20,28 +20,31 @@ export const EnvCheckModal: React.FC = () => {
     <Modal open={true} onClose={() => setModal('envCheck', false)} title="环境检测" width="600px"
       footer={<Button variant="secondary" onClick={() => setModal('envCheck', false)}>关闭</Button>}
     >
-      <div className={`px-4 py-3 rounded-lg mb-4 text-sm font-semibold ${result.passed ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+      <div className={`px-4 py-3 rounded-md mb-4 text-sm font-medium ${result.passed ? 'bg-emerald-50 text-ok' : 'bg-amber-50 text-warn'}`}>
         {result.summary}
       </div>
       <table className="w-full text-[13px]">
         <tbody>
           {result.results.map((r, i) => {
-            const icon = r.passed ? '✅' : (r.level === 'error' ? '❌' : '⚠️');
+            const statusText = r.passed ? '通过' : (r.level === 'error' ? '错误' : '警告');
+            const statusColor = r.passed ? 'text-ok' : (r.level === 'error' ? 'text-ng' : 'text-warn');
             return (
               <tr key={i}
                 onClick={() => r.detail && setSelectedDetail(r.detail)}
-                className={`border-b border-white/[0.04] ${selectedDetail === r.detail ? 'bg-[#1e2534]' : ''} ${r.detail ? 'cursor-pointer hover:bg-white/[0.02]' : ''}`}
+                className={`border-b border-gray-100 ${selectedDetail === r.detail ? 'bg-blue-50' : ''} ${r.detail ? 'cursor-pointer hover:bg-gray-50' : ''}`}
               >
-                <td className="px-3 py-2.5 text-center text-base">{icon}</td>
-                <td className="px-3 py-2.5 text-white">{r.name}</td>
-                <td className={`px-3 py-2.5 ${r.passed ? 'text-emerald-400' : r.level === 'error' ? 'text-rose-400' : 'text-amber-400'}`}>{r.message}</td>
+                <td className="px-3 py-2.5 text-xs font-medium w-16">
+                  <span className={statusColor}>{statusText}</span>
+                </td>
+                <td className="px-3 py-2.5 text-text-primary font-medium">{r.name}</td>
+                <td className={`px-3 py-2.5 ${r.passed ? 'text-text-secondary' : r.level === 'error' ? 'text-ng' : 'text-warn'}`}>{r.message}</td>
               </tr>
             );
           })}
         </tbody>
       </table>
       {selectedDetail && (
-        <p className="mt-4 text-xs text-gray-400 bg-[#111620] p-3 rounded-lg">💡 {selectedDetail}</p>
+        <p className="mt-4 text-xs text-text-secondary bg-gray-50 p-3 rounded-md">{selectedDetail}</p>
       )}
     </Modal>
   );

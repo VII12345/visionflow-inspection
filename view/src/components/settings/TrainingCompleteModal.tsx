@@ -22,10 +22,10 @@ interface Props {
 }
 
 const MetricRow: React.FC<{ label: string; value: number; suffix?: string; color?: string }> = ({
-  label, value, suffix = '%', color = 'text-white',
+  label, value, suffix = '%', color = 'text-text-primary',
 }) => (
-  <div className="flex justify-between items-center py-2 border-b border-white/[0.05]">
-    <span className="text-gray-400 text-[13px]">{label}</span>
+  <div className="flex justify-between items-center py-2.5 border-b border-gray-100">
+    <span className="text-text-secondary text-[13px]">{label}</span>
     <span className={`text-[13px] font-semibold ${color}`}>
       {Number.isFinite(value) ? (value * 100).toFixed(1) : '--'}{suffix}
     </span>
@@ -44,72 +44,71 @@ export const TrainingCompleteModal: React.FC<Props> = ({
     <Modal
       open={open}
       onClose={onClose}
-      title={isError ? '⚠️ 训练失败' : '✅ 训练完成'}
+      title={isError ? '训练失败' : '训练完成'}
       width="520px"
       footer={<Button variant="primary" onClick={onClose}>确定</Button>}
     >
       <div className="flex flex-col gap-4">
         {/* Header info */}
-        <div className="bg-[#1a1f2e] rounded-lg p-4">
+        <div className="bg-gray-50 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs text-gray-500">产品型号</span>
-            <span className="text-sm font-semibold text-white">{modelName || '--'}</span>
+            <span className="text-xs text-text-tertiary">产品型号</span>
+            <span className="text-sm font-semibold text-text-primary">{modelName || '--'}</span>
           </div>
           {(trainCount > 0 || valCount > 0) && (
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs text-gray-500">数据分布</span>
-              <span className="text-xs text-gray-400">训练集 {trainCount} 张 · 验证集 {valCount} 张（用于评估）</span>
+              <span className="text-xs text-text-tertiary">数据分布</span>
+              <span className="text-xs text-text-secondary">训练集 {trainCount} 张 · 验证集 {valCount} 张（用于评估）</span>
             </div>
           )}
           {modelPath && (
             <div className="flex items-start gap-2">
-              <span className="text-xs text-gray-500 shrink-0">保存位置</span>
-              <span className="text-xs text-gray-400 break-all font-mono">{modelPath}</span>
+              <span className="text-xs text-text-tertiary shrink-0">保存位置</span>
+              <span className="text-xs text-text-secondary break-all font-mono">{modelPath}</span>
             </div>
           )}
         </div>
 
         {isError ? (
-          /* Error display */
-          <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-4">
-            <p className="text-rose-400 text-[13px]">{errorMessage}</p>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-ng text-[13px]">{errorMessage}</p>
           </div>
         ) : (
           <>
             {/* Evaluation metrics */}
             <div>
-              <h4 className="text-xs text-gray-500 mb-2 uppercase tracking-wider">评估指标</h4>
-              <div className="bg-[#1a1f2e] rounded-lg px-4">
-                <MetricRow label="准确率 (Accuracy)" value={evalResult?.accuracy ?? 0} color="text-emerald-400" />
-                <MetricRow label="精确率 (Precision)" value={evalResult?.precision ?? 0} color="text-blue-400" />
-                <MetricRow label="召回率 (Recall)" value={evalResult?.recall ?? 0} color="text-violet-400" />
-                <MetricRow label="F1 分数" value={evalResult?.f1 ?? 0} color="text-amber-400" />
+              <h4 className="text-xs text-text-tertiary mb-2 uppercase tracking-wide">评估指标</h4>
+              <div className="bg-gray-50 rounded-lg px-4">
+                <MetricRow label="准确率 (Accuracy)" value={evalResult?.accuracy ?? 0} color="text-ok" />
+                <MetricRow label="精确率 (Precision)" value={evalResult?.precision ?? 0} color="text-accent" />
+                <MetricRow label="召回率 (Recall)" value={evalResult?.recall ?? 0} color="text-accent" />
+                <MetricRow label="F1 分数" value={evalResult?.f1 ?? 0} color="text-accent" />
               </div>
             </div>
 
             {/* Confusion matrix */}
             {cm && (
               <div>
-                <h4 className="text-xs text-gray-500 mb-2 uppercase tracking-wider">混淆矩阵</h4>
+                <h4 className="text-xs text-text-tertiary mb-2 uppercase tracking-wide">混淆矩阵</h4>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-center">
-                    <div className="text-[11px] text-gray-500">TP (真正例)</div>
-                    <div className="text-lg font-bold text-emerald-400">{cm.TP}</div>
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
+                    <div className="text-[11px] text-text-tertiary">TP (真正例)</div>
+                    <div className="text-lg font-bold text-ok">{cm.TP}</div>
                   </div>
-                  <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-3 text-center">
-                    <div className="text-[11px] text-gray-500">FP (假正例)</div>
-                    <div className="text-lg font-bold text-rose-400">{cm.FP}</div>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                    <div className="text-[11px] text-text-tertiary">FP (假正例)</div>
+                    <div className="text-lg font-bold text-ng">{cm.FP}</div>
                   </div>
-                  <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-3 text-center">
-                    <div className="text-[11px] text-gray-500">FN (假反例)</div>
-                    <div className="text-lg font-bold text-rose-400">{cm.FN}</div>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                    <div className="text-[11px] text-text-tertiary">FN (假反例)</div>
+                    <div className="text-lg font-bold text-ng">{cm.FN}</div>
                   </div>
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-center">
-                    <div className="text-[11px] text-gray-500">TN (真反例)</div>
-                    <div className="text-lg font-bold text-emerald-400">{cm.TN}</div>
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
+                    <div className="text-[11px] text-text-tertiary">TN (真反例)</div>
+                    <div className="text-lg font-bold text-ok">{cm.TN}</div>
                   </div>
                 </div>
-                <p className="text-[11px] text-gray-600 mt-2 text-right">验证集总样本: {cm.TP + cm.TN + cm.FP + cm.FN} 张（训练集 {trainCount} 张未在此评估）</p>
+                <p className="text-[11px] text-text-tertiary mt-2 text-right">验证集总样本: {cm.TP + cm.TN + cm.FP + cm.FN} 张（训练集 {trainCount} 张未在此评估）</p>
               </div>
             )}
           </>

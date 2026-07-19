@@ -18,7 +18,7 @@ export const RunTab: React.FC = () => {
   const poppedOutCam = useAppStore(s => s.poppedOutCam);
   const setPoppedOutCam = useAppStore(s => s.setPoppedOutCam);
 
-  // 监听系统窗口关闭事件
+  // Listen for camera popout close events
   useEffect(() => {
     if (window.electronAPI?.onCameraPopoutClosed) {
       window.electronAPI.onCameraPopoutClosed((camId: number) => {
@@ -50,7 +50,6 @@ export const RunTab: React.FC = () => {
     if (!user) { setModal('login', true); return; }
     if (isRunning) { showMessage('系统已在运行中'); return; }
     try {
-      // 构建摄像头→产品名称映射（传给后端，每个摄像头用对应产品的模型）
       const cfg = storage.getLineConfig();
       const prods = storage.getProducts();
       const camProducts: Record<number, string> = {};
@@ -102,19 +101,22 @@ export const RunTab: React.FC = () => {
   return (
     <div className="flex flex-col h-full overflow-auto">
       {/* Controls */}
-      <div className="flex items-center gap-4 mb-5 shrink-0">
-        <Button variant="start" size="lg" onClick={startSystem} disabled={isRunning}>▶ 启动</Button>
-        <Button variant="stop" size="lg" onClick={stopSystem} disabled={!isRunning}>■ 停止</Button>
-        <span className={`text-sm font-semibold ${isRunning ? 'text-emerald-400' : 'text-gray-500'}`}>
-          ● {isRunning ? '运行中' : '系统已停止'}
+      <div className="flex items-center gap-4 mb-6 shrink-0">
+        <Button variant="start" size="lg" onClick={startSystem} disabled={isRunning}>启动</Button>
+        <Button variant="stop" size="lg" onClick={stopSystem} disabled={!isRunning}>停止</Button>
+        <span className={`text-sm font-medium ${isRunning ? 'text-ok' : 'text-text-tertiary'}`}>
+          <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${isRunning ? 'bg-ok' : 'bg-gray-300'}`} />
+          {isRunning ? '运行中' : '系统已停止'}
         </span>
-        <span className="ml-auto text-xs text-gray-400 bg-[#171d2b] px-4 py-1.5 rounded-lg border border-white/[0.06]">
-          OK: {totalStats.ok} &nbsp; NG: {totalStats.ng} &nbsp; 总计: {totalStats.total}
-        </span>
+        <div className="ml-auto flex items-center gap-6 text-xs text-text-secondary bg-surface rounded-lg px-5 py-2">
+          <span>OK <span className="text-ok font-semibold ml-1">{totalStats.ok}</span></span>
+          <span>NG <span className="text-ng font-semibold ml-1">{totalStats.ng}</span></span>
+          <span>总计 <span className="text-text-primary font-semibold ml-1">{totalStats.total}</span></span>
+        </div>
       </div>
 
       {/* Camera Grid */}
-      <div className="grid grid-cols-2 gap-4 flex-1 min-h-0">
+      <div className="grid grid-cols-2 gap-5 flex-1 min-h-0">
         {Array.from({ length: CAM_COUNT }, (_, i) => i + 1).map(camId => {
           const cfg = lineConfig[camId - 1];
           const prod = products.find(p => p.id === cfg?.productId);
@@ -123,7 +125,7 @@ export const RunTab: React.FC = () => {
           const frameUrl = frames[camId];
 
           let badgeVariant: 'pending' | 'ok' | 'ng' | 'error' = 'pending';
-          let badgeText = '等待检测';
+          let badgeText = '待检测';
           let resultText = '--';
           let resultColor = '';
 
@@ -131,58 +133,60 @@ export const RunTab: React.FC = () => {
             badgeVariant = camStatus.result.label === '正' ? 'ok' : 'ng';
             badgeText = camStatus.result.label;
             resultText = `结果: ${camStatus.result.label} (${Math.round(camStatus.result.confidence * 100)}%)`;
-            resultColor = camStatus.result.label === '正' ? 'text-emerald-400' : 'text-rose-400';
+            resultColor = camStatus.result.label === '正' ? 'text-ok' : 'text-ng';
           } else if (camStatus?.state === 'running') {
             badgeText = '等待触发';
-            resultText = `触发模式 — 等待传感器信号... (已触发 ${camStatus.totalTriggers || 0} 次)`;
-            resultColor = 'text-amber-500';
+            resultText = `触发模式 - 等待传感器信号... (已触发 ${camStatus.totalTriggers || 0} 次)`;
+            resultColor = 'text-warn';
           } else if (camStatus?.state === 'error') {
             badgeVariant = 'error';
             badgeText = '错误';
             resultText = camStatus.error || '未知错误';
-            resultColor = 'text-rose-400';
+            resultColor = 'text-ng';
           }
 
           return (
-            <div key={camId} className="bg-[#171d2b] border border-white/[0.06] rounded-xl overflow-hidden flex flex-col">
+            <div key={camId} className="bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden flex flex-col">
               {/* Header */}
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
                 <span className="text-[13px]">
-                  <span className="text-white font-semibold">Cam{camId}</span>
-                  <span className="text-gray-500 ml-2">线体 {camId}</span>
-                  <span className="text-gray-500 ml-1">| 型号: {modelName}</span>
+                  <span className="text-text-primary font-semibold">Cam {camId}</span>
+                  <span className="text-text-tertiary mx-2">|</span>
+                  <span className="text-text-secondary">线体 {camId}</span>
+                  <span className="text-text-tertiary mx-1">|</span>
+                  <span className="text-text-secondary">型号: {modelName}</span>
                   {poppedOutCam === camId && (
-                    <span className="text-[#7b8cf8] ml-2 text-[11px]">(已弹出)</span>
+                    <span className="text-accent ml-2 text-[11px]">(已弹出)</span>
                   )}
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <button
                     onClick={() => handlePopout(camId)}
-                    className={`text-xs px-2 py-0.5 rounded transition-colors ${
+                    className={`text-xs transition-colors ${
                       poppedOutCam === camId
-                        ? 'text-[#7b8cf8] bg-[#5b6ef5]/15'
-                        : 'text-gray-500 hover:text-[#7b8cf8] hover:bg-white/[0.05]'
+                        ? 'text-accent font-medium'
+                        : 'text-text-tertiary hover:text-accent'
                     }`}
                     title="弹出独立窗口"
                   >
-                    {poppedOutCam === camId ? '收回' : '⊞ 弹出'}
+                    {poppedOutCam === camId ? '收回' : '弹出'}
                   </button>
                   <button
                     onClick={() => openDynamicTab(`cam-detail-${camId}`)}
-                    className="text-xs text-gray-500 hover:text-[#7b8cf8] transition-colors"
+                    className="text-xs text-text-tertiary hover:text-accent transition-colors"
                   >
-                    详情 &gt;
+                    详情
                   </button>
                 </div>
               </div>
 
               {/* Image Area */}
-              <div className="relative flex-1 bg-[#0d1117] flex items-center justify-center min-h-[180px]">
-                <div className={`absolute top-3 left-3 z-10 px-3 py-1 rounded-lg text-xs font-semibold ${
-                  badgeVariant === 'ok' ? 'bg-emerald-500/15 text-emerald-400' :
-                  badgeVariant === 'ng' ? 'bg-rose-500/15 text-rose-400' :
-                  badgeVariant === 'error' ? 'bg-rose-500/15 text-rose-400' :
-                  'bg-gray-500/15 text-gray-400'
+              <div className="relative flex-1 bg-gray-50 flex items-center justify-center min-h-[180px]">
+                <div className={`absolute top-3 left-3 z-10 px-2.5 py-1 rounded text-[11px] font-medium ${
+                  badgeVariant === 'ok' ? 'bg-emerald-50 text-ok' :
+                  badgeVariant === 'ng' ? 'bg-red-50 text-ng' :
+                  badgeVariant === 'error' ? 'bg-red-50 text-ng' :
+                  'bg-gray-100 text-text-tertiary'
                 }`}>
                   {badgeText}
                 </div>
@@ -192,14 +196,14 @@ export const RunTab: React.FC = () => {
                   className={`max-w-full max-h-full object-contain ${frameUrl ? 'opacity-100' : 'hidden'}`}
                 />
                 {!frameUrl && (
-                  <span className="text-gray-700 text-xs">等待相机信号...</span>
+                  <span className="text-text-tertiary text-xs">等待相机信号...</span>
                 )}
               </div>
 
               {/* Footer */}
-              <div className="flex items-center justify-between px-4 py-2 border-t border-white/[0.06] text-xs">
-                <span className={resultColor || 'text-gray-500'}>{resultText}</span>
-                <span className="text-gray-600 text-[11px]">{camStatus?.lastFrameTime || ''}</span>
+              <div className="flex items-center justify-between px-5 py-2.5 border-t border-gray-100 text-xs">
+                <span className={resultColor || 'text-text-tertiary'}>{resultText}</span>
+                <span className="text-text-tertiary">{camStatus?.lastFrameTime || ''}</span>
               </div>
             </div>
           );
