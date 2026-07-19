@@ -99,7 +99,11 @@ def reload_all_models(device_str=None):
 
 
 def inference_worker():
-    """推理 worker 线程 — 每个摄像头使用对应产品的模型"""
+    """推理 worker 线程 — 微批处理模式
+
+    收到第一帧后快速排空队列（5ms 窗口），将同模型的帧合并为一个 batch，
+    一次 GPU 前向传播处理多帧。单帧时无额外延迟。
+    """
     global model_loaded
 
     # 预加载默认模型
@@ -108,20 +112,57 @@ def inference_worker():
         logger.error("推理 worker 启动失败：模型未加载")
         return
 
-    logger.info("推理 worker 启动")
+    logger.info("推理 worker 启动（微批处理模式，批窗口 5ms）")
 
-    from .training import classify_single
+    from .training import classify_frames_batch, classify_single
+
+    BATCH_WINDOW = 0.005  # 5ms 批收集窗口
 
     while True:
         try:
+            # 等第一帧
             cam_id, image, timestamp = inference_queue.get(timeout=1)
-            # 获取该摄像头对应的产品模型，没有则用默认
-            product_model = camera_product_map.get(cam_id)
-            cam_model = get_model_for_product(product_model) if product_model else m
-            label, confidence = classify_single(cam_model, image)
-            result_queues[cam_id].put(
-                {"label": label, "confidence": confidence, "timestamp": timestamp}
-            )
+
+            # 快速收集窗口内的其他帧（非阻塞排空队列）
+            items = [(cam_id, image, timestamp)]
+            deadline = time.perf_counter() + BATCH_WINDOW
+            while time.perf_counter() < deadline:
+                try:
+                    extra = inference_queue.get_nowait()
+                    items.append(extra)
+                except queue.Empty:
+                    break
+
+            # 按模型分组
+            groups: dict[
+                str, list[tuple[int, float]]
+            ] = {}  # model_key → [(cam_id, timestamp), ...]
+            frames_by_group: dict[str, list[Image.Image]] = {}
+            for cid, img, ts in items:
+                product_model = camera_product_map.get(cid)
+                key = product_model or "__default__"
+                if key not in groups:
+                    groups[key] = []
+                    frames_by_group[key] = []
+                groups[key].append((cid, ts))
+                frames_by_group[key].append(img)
+
+            # 每组批量推理
+            for key, meta_list in groups.items():
+                cam_model = get_model_for_product(None if key == "__default__" else key)
+                frames = frames_by_group[key]
+                if len(frames) == 1:
+                    # 单帧走快速路径
+                    label, confidence = classify_single(cam_model, frames[0])
+                    batch_results = [(label, confidence)]
+                else:
+                    batch_results = classify_frames_batch(cam_model, frames)
+
+                for (cid, ts), (label, confidence) in zip(meta_list, batch_results):
+                    result_queues[cid].put(
+                        {"label": label, "confidence": confidence, "timestamp": ts}
+                    )
+
         except queue.Empty:
             continue
         except Exception as e:

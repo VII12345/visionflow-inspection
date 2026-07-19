@@ -606,23 +606,37 @@ def classify_single(model, pil_image: Image.Image) -> tuple[str, float]:
     return label, confidence
 
 
-def classify_batch(model, paths):
-    """并行加载 → 一次 batch 推理"""
-    t0 = time.perf_counter()
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        tensors = list(pool.map(load_and_prepare, paths))
+def classify_frames_batch(model, frames: list[Image.Image]) -> list[tuple[str, float]]:
+    """批量推理：多张 PIL Image 合并为一个 batch，一次 GPU 前向传播。
 
-    valid = [(i, t) for i, t in enumerate(tensors) if t is not None]
-    if not valid:
-        elapsed = (time.perf_counter() - t0) * 1000
-        return [(p, "读取失败", 0.0) for p in paths], elapsed
+    比逐帧 classify_single 快很多（减少 GPU kernel launch 次数，利用 GPU 并行）。
+    """
+    if not frames:
+        return []
+    if len(frames) == 1:
+        result = classify_single(model, frames[0])
+        return [result]
 
-    batch = torch.from_numpy(np.stack([t for _, t in valid])).to(_get_device())
+    model_device = next(model.parameters()).device
+
+    # 并行预处理所有帧
+    tensors = []
+    for img in frames:
+        arr = preprocess(img, augment=False)
+        tensors.append(torch.from_numpy(arr))
+    batch = torch.stack(tensors).to(model_device)
+
     with torch.no_grad():
         logits = model(batch)
         probs = torch.softmax(logits, dim=1)
 
-    results = [("读取失败", 0.0) for _ in range(len(paths))]
+    results = []
+    for i in range(len(frames)):
+        pred = int(probs[i].argmax())
+        label = "正" if pred == 0 else "反"
+        confidence = float(probs[i][pred])
+        results.append((label, confidence))
+    return results
     for j, (pi, _) in enumerate(valid):
         p = probs[j]
         pred = int(p.argmax())

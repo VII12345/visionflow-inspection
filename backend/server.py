@@ -6,6 +6,7 @@ Flask HTTP 服务器
 import io
 import json
 import os
+import queue
 import threading
 import time
 from datetime import datetime, timedelta
@@ -861,6 +862,68 @@ def trigger_cleanup():
     )
 
 
+# ========== 异步存盘队列 ==========
+# 存盘操作（BMP 写入磁盘）移到独立线程，不阻塞抓帧→推理→结果返回的快速路径
+
+_save_queue = queue.Queue()
+_save_queue_running = False
+
+
+def _save_worker():
+    """异步存盘 worker — 后台慢慢写盘，不拖慢推理结果返回"""
+    global _save_queue_running
+    logger.info("异步存盘 worker 启动")
+    _save_queue_running = True
+    while _save_queue_running:
+        try:
+            item = _save_queue.get(timeout=1)
+            if item is None:  # 停止信号
+                break
+            frame, save_path = item
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            frame.save(save_path, "BMP")
+            logger.debug(f"异步存盘完成: {save_path.name}")
+        except queue.Empty:
+            continue
+        except Exception as e:
+            logger.error(f"异步存盘失败: {e}")
+    # 退出前把队列里剩余的写完
+    while not _save_queue.empty():
+        try:
+            frame, save_path = _save_queue.get_nowait()
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            frame.save(save_path, "BMP")
+        except Exception:
+            pass
+    logger.info("异步存盘 worker 停止")
+
+
+def _submit_save(frame, save_path):
+    """提交存盘任务（非阻塞，队列满了就丢弃）"""
+    try:
+        _save_queue.put((frame, save_path), timeout=0.05)
+        return True
+    except queue.Full:
+        logger.warning(f"存盘队列已满，丢弃: {save_path.name}")
+        return False
+
+
+def _start_save_worker():
+    """启动异步存盘线程"""
+    t = threading.Thread(target=_save_worker, daemon=True)
+    t.start()
+
+
+def _stop_save_worker():
+    """停止异步存盘线程"""
+    global _save_queue_running
+    _save_queue_running = False
+    try:
+        _save_queue.put(None, timeout=0.1)
+    except queue.Full:
+        pass
+
+
 # ========== 相机工作线程 ==========
 
 
@@ -931,11 +994,10 @@ def camera_worker(cam_id):
                 logger.warning(f"Camera {cam_id}: 模型未就绪，无法推理")
                 stats[cam_id]["detected"] += 1
 
-            # 照片存盘 — 文件名编码检测结果
+            # 照片存盘 — 异步写入，不阻塞抓帧循环
             try:
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
                 millis = int((time.time() * 1000) % 1000)
-                # 根据推理结果分目录存储
                 if submitted and result:
                     tag = "OK" if result["label"] == "正" else "NG"
                 else:
@@ -943,11 +1005,10 @@ def camera_worker(cam_id):
                 subdir = "正" if tag == "OK" else ("反" if tag == "NG" else "未分类")
                 filename = f"CAM{cam_id}_{timestamp}_{millis:03d}.bmp"
                 save_path = Config.CAPTURE_DIR / f"cam{cam_id}" / subdir / filename
-                save_path.parent.mkdir(parents=True, exist_ok=True)
-                frame.save(save_path, "BMP")
-                logger.info(f"Camera {cam_id}: 原图已保存 → {save_path.name}")
+                # 异步提交存盘（非阻塞，存盘在后台线程慢慢写）
+                _submit_save(frame.copy(), save_path)
             except Exception as e:
-                logger.error(f"Camera {cam_id}: 保存照片失败: {e}")
+                logger.error(f"Camera {cam_id}: 提交存盘失败: {e}")
 
             # 更新状态
             camera_states[cam_id]["lastFrameTime"] = time.strftime("%Y-%m-%dT%H:%M:%S")
@@ -1293,6 +1354,9 @@ def run_server():
 
     # 启动推理 worker
     start_inference_worker()
+
+    # 启动异步存盘 worker
+    _start_save_worker()
 
     # 启动时运行一次照片清理
     cleanup_photos()
