@@ -1072,10 +1072,17 @@ def _run_training(folder_path, model_name, upright_path=None, inverted_path=None
             train_set,
             batch_size=adaptive_batch,
             shuffle=True,
-            drop_last=True,  # 训练集丢弃最后不完整 batch（避免 batchnorm 问题）
+            drop_last=True,
+            num_workers=0,  # Windows 多进程在 daemon 线程中有问题，用 0
+            pin_memory=True,  # 加速 CPU→GPU 传输
         )
-        # 验证集不使用 drop_last，确保所有样本都被评估
-        val_ldr = DataLoader(val_set, batch_size=adaptive_batch, drop_last=False)
+        val_ldr = DataLoader(
+            val_set,
+            batch_size=adaptive_batch,
+            drop_last=False,
+            num_workers=0,
+            pin_memory=True,
+        )
 
         model_path = Config.DATA_DIR / f"jar_classifier_{model_name}.pth"
 

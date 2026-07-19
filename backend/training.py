@@ -69,6 +69,33 @@ TRAIN_AUGMENT = transforms.Compose(
 
 VAL_TRANSFORM = transforms.Compose([])
 
+# ── 张量增强：在预计算好的 tensor 上快速做几何增强，避免每轮重复 PIL 解码 ──
+# 注意: ColorJitter 需要 [0,1] 范围输入，几何变换对任意范围都正确
+TENSOR_GEOMETRIC_AUGMENT = transforms.Compose(
+    [
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomVerticalFlip(p=0.1),
+        transforms.RandomRotation(
+            degrees=15, interpolation=transforms.InterpolationMode.BILINEAR
+        ),
+        transforms.RandomAffine(degrees=0, translate=(0.08, 0.08), scale=(0.9, 1.1)),
+        transforms.RandomPerspective(distortion_scale=0.1, p=0.3),
+    ]
+)
+
+
+def _tensor_color_jitter(x: torch.Tensor) -> torch.Tensor:
+    """对 [-1,1] 范围的 tensor 做颜色抖动（先转 [0,1] 再做，再转回）"""
+    # [-1, 1] → [0, 1]
+    x01 = (x + 1.0) / 2.0
+    # ColorJitter on [0,1]
+    jitter = transforms.ColorJitter(
+        brightness=0.3, contrast=0.3, saturation=0.2, hue=0.05
+    )
+    x01 = jitter(x01)
+    # [0, 1] → [-1, 1]
+    return x01 * 2.0 - 1.0
+
 
 def preprocess(img: Image.Image, augment: bool = False) -> np.ndarray:
     """PIL Image → crop + square → resize 224 → float32[-1,1] CHW"""
@@ -158,7 +185,8 @@ class JarDataset(Dataset):
     - 标注模式（双目录）：upright_dir + inverted_dir 分别指定
     - 自动模式：所有图片 → label=0, 旋转180° → label=1
 
-    图像在 __getitem__ 中实时预处理+增强，确保每个 epoch 看到不同的增强结果。
+    __init__ 中预计算基础 tensor（无增强），__getitem__ 中快速做张量增强。
+    大幅减少 PIL 开销，让 GPU 不再等待 CPU 预处理。
     """
 
     def __init__(
@@ -176,7 +204,6 @@ class JarDataset(Dataset):
         # 收集样本
         samples = []
         if upright_dir and inverted_dir:
-            # 模式：分别指定正/反目录
             self.mode = "labeled_split"
             for p in upright_dir.glob("*"):
                 if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
@@ -185,13 +212,11 @@ class JarDataset(Dataset):
                 if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
                     samples.append((p, 1, False))
         else:
-            # 尝试标注模式（正/ 反/ 子目录）
             labeled = _find_labeled_images(folder)
             if labeled:
                 self.mode = "labeled"
                 samples = [(p, lbl, False) for p, lbl in labeled]
             else:
-                # 自动模式降级：所有图片 → label=0, 旋转180° → label=1
                 self.mode = "auto"
                 auto_samples, _ = _find_auto_images(folder)
                 for img_path, _ in auto_samples:
@@ -206,8 +231,8 @@ class JarDataset(Dataset):
         picked = idxs[:cutoff] if train else idxs[cutoff:]
         self.samples = [samples[i] for i in picked]
 
-        # 预加载 PIL 图像到内存（避免反复读磁盘），但增强仍在 __getitem__ 中实时进行
-        self.images: list[Image.Image] = []
+        # ── 预计算基础 tensor（无增强），只做一次 PIL 预处理 ──
+        self.base_tensors: list[torch.Tensor] = []
         self.labels: list[int] = []
         failed = 0
         import logging
@@ -219,29 +244,34 @@ class JarDataset(Dataset):
                 img = Image.open(item[0]).convert("RGB")
                 if self.mode == "auto" and item[2]:
                     img = img.transpose(Image.ROTATE_180)
-                self.images.append(img)
+                # 基础预处理（无增强），结果存入 CPU tensor
+                t = torch.from_numpy(preprocess(img, augment=False))
+                self.base_tensors.append(t)
                 self.labels.append(item[1])
             except Exception:
                 failed += 1
         if failed > 0:
             _log.warning(
-                f"数据集预加载: {len(self.samples)} 张图片中 {failed} 张加载失败（已跳过），成功 {len(self.images)} 张"
+                f"数据集预加载: {len(self.samples)} 张图片中 {failed} 张加载失败（已跳过），成功 {len(self.base_tensors)} 张"
             )
 
-        if len(self.images) == 0:
+        if len(self.base_tensors) == 0:
             _log.warning(
                 f"数据集为空！请检查路径: folder={folder}, upright={upright_dir}, inverted={inverted_dir}"
             )
 
     def __len__(self):
-        return len(self.images)
+        return len(self.base_tensors)
 
     def __getitem__(self, idx):
-        """每次取样本时实时预处理+增强，确保每个 epoch 增强不同"""
-        img = self.images[idx]
-        label = self.labels[idx]
-        tensor = torch.from_numpy(preprocess(img, augment=self.do_augment))
-        return tensor, label
+        """对预计算 tensor 快速做张量增强（避免每轮 PIL 解码）"""
+        x = self.base_tensors[idx].clone()  # clone 防止修改缓存
+        if self.do_augment:
+            # 几何增强（直接作用于 [-1,1] tensor，非常快）
+            x = TENSOR_GEOMETRIC_AUGMENT(x)
+            # 颜色增强（需要在 [0,1] 范围）
+            x = _tensor_color_jitter(x)
+        return x, self.labels[idx]
 
 
 # ─── 模型 ──────────────────────────────────────────────────
