@@ -1037,9 +1037,14 @@ def _run_training(folder_path, model_name, upright_path=None, inverted_path=None
         from torch.utils.data import DataLoader
 
         train_ldr = DataLoader(
-            train_set, batch_size=Config.TRAINING_BATCH_SIZE, shuffle=True
+            train_set,
+            batch_size=Config.TRAINING_BATCH_SIZE,
+            shuffle=True,
+            drop_last=True,
         )
-        val_ldr = DataLoader(val_set, batch_size=Config.TRAINING_BATCH_SIZE)
+        val_ldr = DataLoader(
+            val_set, batch_size=Config.TRAINING_BATCH_SIZE, drop_last=True
+        )
 
         model_path = Config.DATA_DIR / f"jar_classifier_{model_name}.pth"
 

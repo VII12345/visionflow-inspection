@@ -241,7 +241,7 @@ class JarClassifier(nn.Module):
         self.backbone.classifier[-1] = nn.Identity()
         self.head = nn.Sequential(
             nn.Linear(in_dim, 128),
-            nn.BatchNorm1d(128),
+            nn.LayerNorm(128),
             nn.ReLU(),
             nn.Dropout(0.4),
             nn.Linear(128, 2),
