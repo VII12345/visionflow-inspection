@@ -6,6 +6,7 @@ const TABS: { id: TabId; label: string; fixed: boolean }[] = [
   { id: 'run', label: '运行', fixed: true },
   { id: 'file', label: '文件', fixed: true },
   { id: 'settings', label: '设置', fixed: true },
+  { id: 'test', label: '测试', fixed: true },
   { id: 'user', label: '用户', fixed: true },
 ];
 

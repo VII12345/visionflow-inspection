@@ -89,4 +89,4 @@ export interface EnvCheckResult {
   results: { name: string; message: string; passed: boolean; level: string; detail?: string }[];
 }
 
-export type TabId = 'run' | 'file' | 'settings' | 'user' | `cam-detail-${number}`;
+export type TabId = 'run' | 'file' | 'settings' | 'test' | 'user' | `cam-detail-${number}`;

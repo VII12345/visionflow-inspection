@@ -54,12 +54,46 @@ export const api = {
   // Models
   getModels: () => backendFetch<{ success: boolean; models: { name: string }[] }>('/api/models'),
 
+  // Model testing
+  testModel: (params: { model_name: string; mode: 'labeled' | 'unlabeled'; upright_path?: string; inverted_path?: string; folder_path?: string }) =>
+    backendFetch<{
+      success: boolean;
+      message?: string;
+      mode: string;
+      model_name: string;
+      total: number;
+      correct?: number;
+      accuracy?: number;
+      upright_total?: number;
+      upright_correct?: number;
+      upright_accuracy?: number | null;
+      inverted_total?: number;
+      inverted_correct?: number;
+      inverted_accuracy?: number | null;
+      timing?: { avg_ms: number; min_ms: number; max_ms: number; total_ms: number };
+      results: { filename: string; expected?: string; predicted: string; confidence: number; correct?: boolean; time_ms?: number }[];
+    }>('/api/test', { method: 'POST', body: params }),
+
   // Photos
   getPhotos: (camId: number) => backendFetch<{ success: boolean; photos: { filename: string; mtime: string; size: number; result: string; timestamp: number }[]; okCount: number; ngCount: number }>(`/api/photos/${camId}`),
   getPhotoUrl: (camId: number, filename: string) => `${API_BASE}/api/photos/${camId}/${filename}`,
 
   // Hardware & Device
-  getHardware: () => backendFetch<{ success: boolean; hardware: { cpu: { model: string | null; cores: number | null; arch: string | null }; gpu: { name: string | null; memory_mb: number | null; cuda_available: boolean; cuda_version: string | null; count: number }; pytorch_version: string; training_device: string; inference_device: string } }>('/api/hardware'),
+  getHardware: () => backendFetch<{
+    success: boolean;
+    hardware: {
+      system: { os: string | null; os_version: string | null; os_release: string | null; hostname: string | null; python_version: string | null };
+      cpu: { model: string | null; physical_cores: number | null; logical_cores: number | null; max_freq_mhz: number | null; current_freq_mhz: number | null; arch: string | null; usage_percent: number | null };
+      memory: { total_gb: number | null; available_gb: number | null; used_gb: number | null; percent: number | null; speed_mhz: number | null };
+      gpu: { name: string | null; memory_total_mb: number | null; memory_free_mb: number | null; memory_used_mb: number | null; cuda_available: boolean; cuda_version: string | null; count: number; compute_capability: string | null };
+      disk: { project_drive: string | null; total_gb: number | null; used_gb: number | null; free_gb: number | null; percent: number | null; filesystem: string | null };
+      network: { name: string; type: string; up: boolean; speed_mbps: number | null; speed_rx_mbps?: number | null; speed_tx_mbps?: number | null; ipv4: string[] }[];
+      pytorch_version: string;
+      training_device: string;
+      inference_device: string;
+      checks: Record<string, { label: string; pass: boolean; detail: string }>;
+    }
+  }>('/api/hardware'),
   getDeviceConfig: () => backendFetch<{ success: boolean; config: { training_device: string; inference_device: string } }>('/api/settings/device'),
   saveDeviceConfig: (config: { training_device: string; inference_device: string }) =>
     backendFetch<{ success: boolean; message?: string; config?: { training_device: string; inference_device: string } }>('/api/settings/device', { method: 'POST', body: config }),

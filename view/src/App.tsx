@@ -6,6 +6,7 @@ import { RunTab } from './components/run/RunTab';
 import { FileTab } from './components/file/FileTab';
 import { SettingsTab } from './components/settings/SettingsTab';
 import { UserTab } from './components/user/UserTab';
+import { TestTab } from './components/test/TestTab';
 import { CameraDetailTab } from './components/camera/CameraDetailTab';
 import { CameraConfigModal } from './components/camera/CameraConfigModal';
 import { LoginModal, ChangePwdModal, AddProductModal, LearnConfirmModal } from './components/common/Modals';
@@ -68,6 +69,7 @@ const App: React.FC = () => {
     if (activeTab === 'file') return <FileTab />;
     if (activeTab === 'settings') return <SettingsTab />;
     if (activeTab === 'user') return <UserTab />;
+    if (activeTab === 'test') return <TestTab />;
     if (activeTab.startsWith('cam-detail-')) {
       const camId = parseInt(activeTab.replace('cam-detail-', ''));
       return <CameraDetailTab camId={camId} />;
