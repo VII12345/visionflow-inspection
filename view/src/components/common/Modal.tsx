@@ -7,15 +7,16 @@ interface ModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   width?: string;
+  closeOnBackdrop?: boolean;
 }
 
-export const Modal: React.FC<ModalProps> = ({ open, onClose, title, children, footer, width = '440px' }) => {
+export const Modal: React.FC<ModalProps> = ({ open, onClose, title, children, footer, width = '440px', closeOnBackdrop = true }) => {
   if (!open) return null;
 
   return (
     <div
       className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/30"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { if (closeOnBackdrop && e.target === e.currentTarget) onClose(); }}
     >
       <div
         className="bg-white rounded-xl shadow-modal animate-in"

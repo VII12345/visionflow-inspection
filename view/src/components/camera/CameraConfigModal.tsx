@@ -90,7 +90,7 @@ export const CameraConfigModal: React.FC<Props> = ({ camId, open, onClose }) => 
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={`相机 ${camId} 设置`} width="520px"
+    <Modal open={open} onClose={onClose} title={`相机 ${camId} 设置`} width="520px" closeOnBackdrop={false}
       footer={<>
         <Button variant="secondary" onClick={testRejectSignal} disabled={testingSignal}>{testingSignal ? '测试中...' : `测试 MB${camId - 1} 写入`}</Button>
         <Button variant="primary" onClick={save}>保存配置</Button>
