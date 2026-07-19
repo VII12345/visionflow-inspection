@@ -18,10 +18,13 @@ export const SettingsTab: React.FC = () => {
   const [products, setProducts] = useState<Product[]>(storage.getProducts());
   const [filter, setFilter] = useState('');
   const [selectedModel, setSelectedModel] = useState<{ model: string; id: number } | null>(null);
-  const [learning, setLearning] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [progressLabel, setProgressLabel] = useState('准备中...');
-  const [metrics, setMetrics] = useState('--');
+
+  // Training progress from store (persists across tab switches)
+  const trainingRunning = useAppStore(s => s.trainingRunning);
+  const trainingProgress = useAppStore(s => s.trainingProgress);
+  const trainingProgressLabel = useAppStore(s => s.trainingProgressLabel);
+  const trainingMetrics = useAppStore(s => s.trainingMetrics);
+  const setTrainingProgress = useAppStore(s => s.setTrainingProgress);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [hwInfo, setHwInfo] = useState<{
@@ -57,6 +60,13 @@ export const SettingsTab: React.FC = () => {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  // Resume polling on mount if training was running (survives tab switch)
+  useEffect(() => {
+    if (trainingRunning && !pollRef.current) {
+      pollTraining();
+    }
+  }, [trainingRunning]);
 
   useEffect(() => {
     (async () => {
@@ -98,29 +108,22 @@ export const SettingsTab: React.FC = () => {
     setModal('learnConfirm', true);
   };
 
-  const confirmLearning = async (uprightPath: string, invertedPath: string, folderPath: string) => {
-    if (!uprightPath && !invertedPath && !folderPath) {
-      showMessage('请至少选择正罐/倒罐图片目录，或指定父目录');
-      return;
-    }
-    if ((uprightPath && !invertedPath) || (!uprightPath && invertedPath)) {
-      showMessage('正罐和倒罐目录需要同时指定');
+  const confirmLearning = async (uprightPath: string, invertedPath: string) => {
+    if (!uprightPath || !invertedPath) {
+      showMessage('请指定正罐和倒罐图片目录');
       return;
     }
     setModal('learnConfirm', false);
     try {
       const result = await api.startTraining({
-        uprightPath, invertedPath, folderPath,
+        uprightPath, invertedPath,
         modelName: selectedModel!.model,
       });
       if (!(result as { success: boolean }).success) {
         showMessage('启动训练失败: ' + (result as { message?: string }).message);
         return;
       }
-      setLearning(true);
-      setProgress(0);
-      setProgressLabel('正在初始化...');
-      setMetrics('--');
+      setTrainingProgress({ running: true, progress: 0, label: '正在初始化...', metrics: '--' });
       pollTraining();
       showMessage(`开始学习 ${selectedModel!.model}`);
     } catch (e) {
@@ -133,17 +136,19 @@ export const SettingsTab: React.FC = () => {
     pollRef.current = setInterval(async () => {
       try {
         const status = await api.trainingStatus();
-        setProgress(status.progress);
-        setProgressLabel(status.message || `学习中... ${status.progress}%`);
+        const label = status.message || `学习中... ${status.progress}%`;
+        let metricsText = '--';
         if (status.epoch > 0) {
-          setMetrics(`Epoch ${status.epoch}/${status.total_epochs} | 训练Loss: ${status.train_loss.toFixed(4)} | 验证Loss: ${status.val_loss.toFixed(4)} | 验证Acc: ${(status.val_acc * 100).toFixed(1)}%`);
+          metricsText = `Epoch ${status.epoch}/${status.total_epochs} | 训练Loss: ${status.train_loss.toFixed(4)} | 验证Loss: ${status.val_loss.toFixed(4)} | 验证Acc: ${(status.val_acc * 100).toFixed(1)}%`;
         } else {
-          setMetrics(status.message || '准备中...');
+          metricsText = status.message || '准备中...';
         }
+        setTrainingProgress({ progress: status.progress, label, metrics: metricsText });
+
         if (!status.running) {
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
-          setLearning(false);
+          setTrainingProgress({ running: false });
           const isFailed = status.message && status.message.includes('失败');
           setTrainingResult({
             modelName: selectedModel?.model || '',
@@ -161,11 +166,11 @@ export const SettingsTab: React.FC = () => {
   };
 
   const stopLearning = async () => {
-    if (!learning) return;
+    if (!trainingRunning) return;
     try { await api.stopTraining(); } catch { /* ignore */ }
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = null;
-    setLearning(false);
+    setTrainingProgress({ running: false });
   };
 
   return (
@@ -223,19 +228,19 @@ export const SettingsTab: React.FC = () => {
               </span>
             </div>
             <div className="flex gap-3">
-              <Button variant="learn" onClick={startLearning} disabled={learning}>开始学习</Button>
-              <Button variant="secondary" size="sm" onClick={stopLearning} disabled={!learning}>停止</Button>
+              <Button variant="learn" onClick={startLearning} disabled={trainingRunning}>开始学习</Button>
+              <Button variant="secondary" size="sm" onClick={stopLearning} disabled={!trainingRunning}>停止</Button>
             </div>
-            {learning && (
+            {trainingRunning && (
               <div>
                 <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                   <div
                     className="h-full bg-accent rounded-full transition-all duration-300"
-                    style={{ width: `${progress}%` }}
+                    style={{ width: `${trainingProgress}%` }}
                   />
                 </div>
-                <p className="text-xs text-text-secondary mt-2">{progressLabel}</p>
-                <p className="text-[11px] text-text-tertiary mt-1">{metrics}</p>
+                <p className="text-xs text-text-secondary mt-2">{trainingProgressLabel}</p>
+                <p className="text-[11px] text-text-tertiary mt-1">{trainingMetrics}</p>
               </div>
             )}
           </div>

@@ -147,10 +147,9 @@ export const AddProductModal: React.FC = () => {
   );
 };
 
-export const LearnConfirmModal: React.FC<{ onConfirm: (upright: string, inverted: string, folder: string) => void }> = ({ onConfirm }) => {
+export const LearnConfirmModal: React.FC<{ onConfirm: (upright: string, inverted: string) => void }> = ({ onConfirm }) => {
   const [upright, setUpright] = useState('');
   const [inverted, setInverted] = useState('');
-  const [folder, setFolder] = useState('');
   const setModal = useAppStore(s => s.setModal);
 
   const browseFolder = async (setter: (v: string) => void) => {
@@ -163,26 +162,27 @@ export const LearnConfirmModal: React.FC<{ onConfirm: (upright: string, inverted
   return (
     <Modal open={true} onClose={() => setModal('learnConfirm', false)} title="确认学习参数" width="520px"
       footer={<>
-        <Button variant="learn" onClick={() => onConfirm(upright, inverted, folder)}>确认开始学习</Button>
+        <Button variant="learn" onClick={() => onConfirm(upright, inverted)}>确认开始学习</Button>
         <Button variant="secondary" onClick={() => setModal('learnConfirm', false)}>取消</Button>
       </>}
     >
       <div className="flex flex-col gap-4">
-        <p className="text-xs text-text-secondary">请指定正罐/倒罐图片目录，或指定包含 正/反/ 子目录的父目录</p>
-        <div className="flex gap-2">
-          <input type="text" placeholder="正罐图片目录" value={upright} onChange={e => setUpright(e.target.value)}
-            className={`${inputClass} flex-1`} />
-          <Button variant="secondary" size="sm" onClick={() => browseFolder(setUpright)}>浏览</Button>
+        <p className="text-xs text-text-secondary">请指定正罐和倒罐图片目录</p>
+        <div>
+          <label className={labelClass}>正罐图片目录</label>
+          <div className="flex gap-2">
+            <input type="text" placeholder="正罐图片文件夹" value={upright} onChange={e => setUpright(e.target.value)}
+              className={`${inputClass} flex-1`} />
+            <Button variant="secondary" size="sm" onClick={() => browseFolder(setUpright)}>浏览</Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <input type="text" placeholder="倒罐图片目录" value={inverted} onChange={e => setInverted(e.target.value)}
-            className={`${inputClass} flex-1`} />
-          <Button variant="secondary" size="sm" onClick={() => browseFolder(setInverted)}>浏览</Button>
-        </div>
-        <div className="flex gap-2">
-          <input type="text" placeholder="父目录（含正/反/子目录）" value={folder} onChange={e => setFolder(e.target.value)}
-            className={`${inputClass} flex-1`} />
-          <Button variant="secondary" size="sm" onClick={() => browseFolder(setFolder)}>浏览</Button>
+        <div>
+          <label className={labelClass}>倒罐图片目录</label>
+          <div className="flex gap-2">
+            <input type="text" placeholder="倒罐图片文件夹" value={inverted} onChange={e => setInverted(e.target.value)}
+              className={`${inputClass} flex-1`} />
+            <Button variant="secondary" size="sm" onClick={() => browseFolder(setInverted)}>浏览</Button>
+          </div>
         </div>
       </div>
     </Modal>

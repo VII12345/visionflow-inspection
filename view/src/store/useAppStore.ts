@@ -44,6 +44,13 @@ interface AppState {
   trainingResult: TrainingResult;
   setTrainingResult: (result: TrainingResult) => void;
 
+  // Training progress (persists across tab switches)
+  trainingRunning: boolean;
+  trainingProgress: number;
+  trainingProgressLabel: string;
+  trainingMetrics: string;
+  setTrainingProgress: (data: { running?: boolean; progress?: number; label?: string; metrics?: string }) => void;
+
   // Messages
   statusMessage: string;
   showMessage: (msg: string) => void;
@@ -57,8 +64,8 @@ interface AppState {
   setEnvResult: (r: unknown) => void;
 
   // Learn confirm callback (for SettingsTab <-> LearnConfirmModal communication)
-  learnCallback: ((upright: string, inverted: string, folder: string) => void) | null;
-  setLearnCallback: (cb: ((upright: string, inverted: string, folder: string) => void) | null) => void;
+  learnCallback: ((upright: string, inverted: string) => void) | null;
+  setLearnCallback: (cb: ((upright: string, inverted: string) => void) | null) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -82,6 +89,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   trainingResult: { modelName: '', modelPath: null, evalResult: null, errorMessage: null, trainCount: 0, valCount: 0 },
   setTrainingResult: (result) => set({ trainingResult: result }),
+
+  trainingRunning: false,
+  trainingProgress: 0,
+  trainingProgressLabel: '准备中...',
+  trainingMetrics: '--',
+  setTrainingProgress: (data) => set((state) => ({
+    trainingRunning: data.running ?? state.trainingRunning,
+    trainingProgress: data.progress ?? state.trainingProgress,
+    trainingProgressLabel: data.label ?? state.trainingProgressLabel,
+    trainingMetrics: data.metrics ?? state.trainingMetrics,
+  })),
 
   login: (name, password) => {
     const users = storage.getUsers();

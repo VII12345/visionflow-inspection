@@ -60,8 +60,8 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  const handleLearnConfirm = useCallback((upright: string, inverted: string, folder: string) => {
-    if (learnCallback) learnCallback(upright, inverted, folder);
+  const handleLearnConfirm = useCallback((upright: string, inverted: string) => {
+    if (learnCallback) learnCallback(upright, inverted);
   }, [learnCallback]);
 
   const renderTabContent = () => {
