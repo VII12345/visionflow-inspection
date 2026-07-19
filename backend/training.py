@@ -157,6 +157,8 @@ class JarDataset(Dataset):
     - 标注模式（单目录）：folder/正/*.jpg (label=0), folder/反/*.jpg (label=1)
     - 标注模式（双目录）：upright_dir + inverted_dir 分别指定
     - 自动模式：所有图片 → label=0, 旋转180° → label=1
+
+    图像在 __getitem__ 中实时预处理+增强，确保每个 epoch 看到不同的增强结果。
     """
 
     def __init__(
@@ -168,7 +170,8 @@ class JarDataset(Dataset):
         upright_dir: Path | None = None,
         inverted_dir: Path | None = None,
     ):
-        self.augment = augment and train
+        self.train = train
+        self.do_augment = augment and train
 
         # 收集样本
         samples = []
@@ -177,18 +180,18 @@ class JarDataset(Dataset):
             self.mode = "labeled_split"
             for p in upright_dir.glob("*"):
                 if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
-                    samples.append((p, 0))
+                    samples.append((p, 0, False))
             for p in inverted_dir.glob("*"):
                 if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
-                    samples.append((p, 1))
+                    samples.append((p, 1, False))
         else:
             # 尝试标注模式（正/ 反/ 子目录）
             labeled = _find_labeled_images(folder)
             if labeled:
                 self.mode = "labeled"
-                samples = labeled
+                samples = [(p, lbl, False) for p, lbl in labeled]
             else:
-                # 自动模式降级
+                # 自动模式降级：所有图片 → label=0, 旋转180° → label=1
                 self.mode = "auto"
                 auto_samples, _ = _find_auto_images(folder)
                 for img_path, _ in auto_samples:
@@ -196,37 +199,49 @@ class JarDataset(Dataset):
                     samples.append((img_path, 1, True))
 
         # 划分训练/验证集
-        np.random.seed(42)
+        rng = np.random.RandomState(42)
         idxs = list(range(len(samples)))
-        np.random.shuffle(idxs)
+        rng.shuffle(idxs)
         cutoff = int(len(idxs) * split)
         picked = idxs[:cutoff] if train else idxs[cutoff:]
         self.samples = [samples[i] for i in picked]
 
-        # 预加载
-        self.x, self.y = [], []
+        # 预加载 PIL 图像到内存（避免反复读磁盘），但增强仍在 __getitem__ 中实时进行
+        self.images: list[Image.Image] = []
+        self.labels: list[int] = []
         failed = 0
+        import logging
+
+        _log = logging.getLogger("vision")
+
         for item in self.samples:
             try:
                 img = Image.open(item[0]).convert("RGB")
-                if self.mode == "auto" and len(item) > 2 and item[2]:
+                if self.mode == "auto" and item[2]:
                     img = img.transpose(Image.ROTATE_180)
-                self.x.append(torch.from_numpy(preprocess(img, augment=self.augment)))
-                self.y.append(item[1])
+                self.images.append(img)
+                self.labels.append(item[1])
             except Exception:
                 failed += 1
         if failed > 0:
-            import logging
+            _log.warning(
+                f"数据集预加载: {len(self.samples)} 张图片中 {failed} 张加载失败（已跳过），成功 {len(self.images)} 张"
+            )
 
-            logging.getLogger("vision").warning(
-                f"数据集预加载: {len(self.samples)} 张图片中 {failed} 张加载失败（已跳过），成功 {len(self.x)} 张"
+        if len(self.images) == 0:
+            _log.warning(
+                f"数据集为空！请检查路径: folder={folder}, upright={upright_dir}, inverted={inverted_dir}"
             )
 
     def __len__(self):
-        return len(self.x)
+        return len(self.images)
 
     def __getitem__(self, idx):
-        return self.x[idx], self.y[idx]
+        """每次取样本时实时预处理+增强，确保每个 epoch 增强不同"""
+        img = self.images[idx]
+        label = self.labels[idx]
+        tensor = torch.from_numpy(preprocess(img, augment=self.do_augment))
+        return tensor, label
 
 
 # ─── 模型 ──────────────────────────────────────────────────
@@ -305,6 +320,16 @@ def evaluate_model(model, loader):
             all_preds.extend(preds.tolist())
             all_labels.extend(y.numpy().tolist())
 
+    if len(all_labels) == 0:
+        return {
+            "accuracy": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "confusion_matrix": {"TP": 0, "TN": 0, "FP": 0, "FN": 0},
+            "total": 0,
+        }
+
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
 
@@ -337,7 +362,9 @@ def _eval_acc(model, loader):
             x, y = x.to(_get_device()), y.to(_get_device())
             corr += (model(x).argmax(1) == y).sum().item()
             tot += y.size(0)
-    return corr / max(tot, 1)
+    if tot == 0:
+        return 0.0  # 空 loader，返回 0（上层已有 warning）
+    return corr / tot
 
 
 # ─── 训练 V2 ───────────────────────────────────────────────
@@ -354,12 +381,47 @@ def train_model_v2(
     freeze_epochs=10,
     early_stop_patience=15,
     status_callback=None,
+    stop_flag_fn=None,
 ):
     """GPU 增强训练 + 标签平滑 + 混合精度
 
     Args:
         status_callback: fn(epoch, total_epochs, train_loss, val_loss, val_acc, message)
+        stop_flag_fn: callable() -> bool, 返回 True 时立即停止训练
     """
+    import logging
+
+    _log = logging.getLogger("vision")
+
+    # 检查数据加载器是否为空
+    if len(train_ldr) == 0:
+        msg = "❌ 训练集为空（batch_size 可能大于数据集大小，且 drop_last=True），无法训练"
+        _log.error(msg)
+        if status_callback:
+            status_callback(-1, epochs, 0, 0, 0, msg)
+        return model, {
+            "train_loss": [],
+            "val_loss": [],
+            "val_acc": [],
+            "lr": [],
+            "best_epoch": 0,
+            "eval": {
+                "accuracy": 0,
+                "precision": 0,
+                "recall": 0,
+                "f1": 0,
+                "confusion_matrix": {"TP": 0, "TN": 0, "FP": 0, "FN": 0},
+                "total": 0,
+            },
+            "total_epochs": 0,
+        }
+
+    if len(val_ldr) == 0:
+        _log.warning(
+            "⚠️ 验证集为空（batch_size 可能大于验证集大小，且 drop_last=True），验证指标将不准确"
+        )
+        _log.warning("   建议减小 batch_size 或设置 drop_last=False")
+
     msg = f"设备: {_get_device()}" + (" (GPU 混合精度)" if _use_amp() else " (CPU)")
     if status_callback:
         status_callback(0, epochs, 0, 0, 0, msg)
@@ -380,6 +442,13 @@ def train_model_v2(
     backbone_unfrozen = False
 
     for ep in range(epochs):
+        # 检查外部停止标志
+        if stop_flag_fn and stop_flag_fn():
+            if status_callback:
+                status_callback(ep + 1, epochs, 0, 0, 0, "训练已被用户停止")
+            _log.info("训练被停止标志中断")
+            break
+
         if ep == freeze_epochs and not backbone_unfrozen:
             model.unfreeze_backbone()
             optimizer = torch.optim.AdamW(
@@ -490,9 +559,14 @@ def train_model_v2(
 
 
 def classify_single(model, pil_image: Image.Image) -> tuple[str, float]:
-    """单帧推理：返回 (label, confidence)"""
+    """单帧推理：返回 (label, confidence)
+
+    自动使用模型参数所在设备，避免与训练设备混淆。
+    """
+    # 自动检测模型所在设备（而非依赖全局 _device）
+    model_device = next(model.parameters()).device
     arr = preprocess(pil_image, augment=False)
-    tensor = torch.from_numpy(arr).unsqueeze(0).to(_get_device())
+    tensor = torch.from_numpy(arr).unsqueeze(0).to(model_device)
     with torch.no_grad():
         logits = model(tensor)
         probs = torch.softmax(logits, dim=1)[0]

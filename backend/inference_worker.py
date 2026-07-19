@@ -75,6 +75,29 @@ def get_model_for_product(model_name=None):
     return models.get(cache_key)
 
 
+def reload_all_models(device_str=None):
+    """热切换所有已缓存模型到指定设备。device_str=None 时使用 Config.DEVICE。"""
+    global models, model_loaded
+    if device_str is None:
+        device_str = Config.DEVICE
+
+    target_device = torch.device(device_str)
+    reloaded = 0
+    for cache_key, m in list(models.items()):
+        try:
+            # 移动模型参数和缓冲区到目标设备
+            m.to(target_device)
+            m.eval()
+            reloaded += 1
+            logger.info(f"模型 '{cache_key}' 已切换到 {target_device}")
+        except Exception as e:
+            logger.error(f"模型 '{cache_key}' 切换设备失败: {e}")
+
+    if reloaded > 0:
+        model_loaded = True
+        logger.info(f"推理设备已切换至 {target_device}，共重载 {reloaded} 个模型")
+
+
 def inference_worker():
     """推理 worker 线程 — 每个摄像头使用对应产品的模型"""
     global model_loaded

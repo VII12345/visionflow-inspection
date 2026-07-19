@@ -140,7 +140,7 @@ def hardware_info():
     if torch.cuda.is_available():
         try:
             info["gpu"]["name"] = torch.cuda.get_device_name(0)
-            mem = torch.cuda.get_device_properties(0).total_mem
+            mem = torch.cuda.get_device_properties(0).total_memory
             info["gpu"]["memory_mb"] = round(mem / 1024 / 1024)
         except Exception:
             pass
@@ -209,8 +209,28 @@ def update_device_config():
     else:
         setattr(Config, "TRAINING_DEVICE", training_device)
 
-    logger.info(f"设备配置已更新: 训练={training_device}, 推理={inference_device}")
-    return jsonify({"success": True, "message": "设备配置已保存", "config": cfg})
+    # ── 即时生效：同步训练模块的全局设备 ──
+    try:
+        from .training import set_training_device
+
+        set_training_device(training_device)
+    except Exception as e:
+        logger.warning(f"同步训练设备失败: {e}")
+
+    # ── 即时生效：重载推理模型到新设备 ──
+    try:
+        from .inference_worker import reload_all_models
+
+        reload_all_models(inference_device)
+    except Exception as e:
+        logger.warning(f"重载推理模型失败: {e}")
+
+    logger.info(
+        f"设备配置已更新并生效: 训练={training_device}, 推理={inference_device}"
+    )
+    return jsonify(
+        {"success": True, "message": "设备配置已保存并即时生效", "config": cfg}
+    )
 
 
 @app.route("/api/cameras", methods=["GET"])
@@ -1036,17 +1056,32 @@ def _run_training(folder_path, model_name, upright_path=None, inverted_path=None
 
         from torch.utils.data import DataLoader
 
+        # 自适应 batch size：不超过训练集大小的 1/2，也不超过验证集大小
+        adaptive_batch = min(
+            Config.TRAINING_BATCH_SIZE,
+            max(2, len(train_set) // 2),
+            max(2, len(val_set)),
+        )
+        if adaptive_batch < Config.TRAINING_BATCH_SIZE:
+            logger.info(
+                f"数据集较小，batch_size 自动调整为 {adaptive_batch} "
+                f"(原 {Config.TRAINING_BATCH_SIZE}, 训练集={len(train_set)}, 验证集={len(val_set)})"
+            )
+
         train_ldr = DataLoader(
             train_set,
-            batch_size=Config.TRAINING_BATCH_SIZE,
+            batch_size=adaptive_batch,
             shuffle=True,
-            drop_last=True,
+            drop_last=True,  # 训练集丢弃最后不完整 batch（避免 batchnorm 问题）
         )
-        val_ldr = DataLoader(
-            val_set, batch_size=Config.TRAINING_BATCH_SIZE, drop_last=True
-        )
+        # 验证集不使用 drop_last，确保所有样本都被评估
+        val_ldr = DataLoader(val_set, batch_size=adaptive_batch, drop_last=False)
 
         model_path = Config.DATA_DIR / f"jar_classifier_{model_name}.pth"
+
+        # 传递停止标志检查函数
+        def _check_stop():
+            return _training_stop_flag
 
         model, history = train_model_v2(
             JarClassifier(),
@@ -1059,6 +1094,7 @@ def _run_training(folder_path, model_name, upright_path=None, inverted_path=None
             freeze_epochs=Config.TRAINING_FREEZE_EPOCHS,
             early_stop_patience=Config.TRAINING_EARLY_STOP,
             status_callback=_training_status_callback,
+            stop_flag_fn=_check_stop,
         )
 
         logger.info(f"模型已保存: {model_path}")
@@ -1204,6 +1240,30 @@ def run_server():
     global env_check_result
 
     Config.ensure_directories()
+
+    # ========== 加载已保存的设备配置 ==========
+    try:
+        saved_cfg = _load_device_config()
+        td = saved_cfg.get("training_device", Config.TRAINING_DEVICE)
+        idd = saved_cfg.get("inference_device", Config.DEVICE)
+        import torch as _torch
+
+        valid_devices = ["cpu"]
+        if _torch.cuda.is_available():
+            valid_devices.append("cuda")
+        if td in valid_devices:
+            Config.TRAINING_DEVICE = td
+        if idd in valid_devices:
+            Config.DEVICE = idd
+        # 同步训练模块的全局设备
+        from .training import set_training_device
+
+        set_training_device(Config.TRAINING_DEVICE)
+        logger.info(
+            f"已加载设备配置: 训练={Config.TRAINING_DEVICE}, 推理={Config.DEVICE}"
+        )
+    except Exception as e:
+        logger.warning(f"加载设备配置失败，使用默认值: {e}")
 
     # ========== 环境检测 ==========
     logger.info("正在运行环境检测...")
