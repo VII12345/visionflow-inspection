@@ -42,10 +42,10 @@ def load_model(model_name=None):
         from .training import JarClassifier
 
         model_path = Config.get_active_model_path(model_name)
-        logger.info(f"加载模型: {model_path} (请求: {model_name or '自动'})")
+        logger.info(f"加载模型: {model_path or '无'} (请求: {model_name or '自动'})")
 
         m = JarClassifier().to(Config.DEVICE)
-        if model_path.exists():
+        if model_path is not None and model_path.exists():
             state_dict = torch.load(
                 model_path, map_location=Config.DEVICE, weights_only=True
             )

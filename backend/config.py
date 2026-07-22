@@ -72,15 +72,7 @@ class Config:
                 pass
 
     # 模型路径优先级：
-    # 1) 数据目录下已训练的模型（持久化，exe 同目录）
-    # 2) PyInstaller 打包内嵌的种子模型
-    # 3) 开发模式项目根目录
-    if getattr(sys, "frozen", False):
-        _SEED_MODEL = Path(sys._MEIPASS) / "jar_classifier.pth"
-    else:
-        _SEED_MODEL = Path(__file__).parent.parent / "jar_classifier.pth"
-
-    # MODEL_PATH 在 DATA_DIR 确定后动态计算（见下方）
+    # 模型路径在 DATA_DIR 确定后动态计算（见下方 get_active_model_path）
 
     # ========== 存储配置 ==========
     # 数据目录优先级：环境变量 > exe同目录(打包) > 项目根目录(开发)
@@ -108,7 +100,7 @@ class Config:
         trained = sorted(cls.DATA_DIR.glob("jar_classifier_*.pth"))
         if trained:
             return trained[0]
-        return cls._SEED_MODEL
+        return None
 
     # ========== 照片管理 ==========
     MAX_PHOTO_AGE_DAYS = 30

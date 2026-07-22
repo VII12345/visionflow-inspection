@@ -10,7 +10,6 @@ a = Analysis(
     binaries=[],
     datas=[
         ('backend/*.py', 'backend'),
-        ('jar_classifier.pth', '.'),
     ],
     hiddenimports=[
         'flask',

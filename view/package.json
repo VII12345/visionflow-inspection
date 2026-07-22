@@ -51,8 +51,7 @@
       "assets/**/*"
     ],
     "extraResources": [
-      { "from": "resources/backend", "to": "backend" },
-      { "from": "resources/jar_classifier.pth", "to": "jar_classifier.pth" }
+      { "from": "resources/backend", "to": "backend" }
     ],
     "win": {
       "target": [

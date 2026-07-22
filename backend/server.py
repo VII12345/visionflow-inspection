@@ -1546,9 +1546,9 @@ def test_model():
 
         # 加载模型
         model_path = Config.get_active_model_path(model_name)
-        if not model_path.exists():
+        if model_path is None or not model_path.exists():
             return jsonify(
-                {"success": False, "message": f"模型文件不存在: {model_path}"}
+                {"success": False, "message": f"模型 '{model_name}' 不存在"}
             ), 404
 
         device = Config.DEVICE

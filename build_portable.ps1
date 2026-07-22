@@ -150,13 +150,6 @@ else {
     Write-Host "  ✓ 复制 backend.exe" -ForegroundColor Gray
 }
 
-# 复制模型文件
-$modelPath = Join-Path $ProjectRoot "jar_classifier.pth"
-if (Test-Path $modelPath) {
-    Copy-Item $modelPath -Destination (Join-Path $ProjectRoot "view\resources\jar_classifier.pth") -Force
-    Write-Host "  ✓ 复制 jar_classifier.pth" -ForegroundColor Gray
-}
-
 if (-not (Test-Path (Join-Path $ProjectRoot "view\assets\icon.png"))) {
     New-Item -ItemType Directory -Path (Join-Path $ProjectRoot "view\assets") -Force | Out-Null
     Write-Host "  ! 未找到 icon.png，将使用默认图标" -ForegroundColor Yellow
