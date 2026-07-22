@@ -15,30 +15,22 @@ export const RunTab: React.FC = () => {
   const setRunning = useAppStore(s => s.setRunning);
   const setActiveTab = useAppStore(s => s.setActiveTab);
   const openDynamicTab = useAppStore(s => s.openDynamicTab);
-  const poppedOutCam = useAppStore(s => s.poppedOutCam);
-  const setPoppedOutCam = useAppStore(s => s.setPoppedOutCam);
+  const poppedOutCams = useAppStore(s => s.poppedOutCams);
+  const togglePopoutCam = useAppStore(s => s.togglePopoutCam);
 
-  // Listen for camera popout close events
+  // Listen for camera popout close events (from main process)
   useEffect(() => {
     if (window.electronAPI?.onCameraPopoutClosed) {
       window.electronAPI.onCameraPopoutClosed((camId: number) => {
-        setPoppedOutCam(null);
+        togglePopoutCam(camId);
       });
     }
-  }, []);
+  }, [togglePopoutCam]);
 
   const handlePopout = useCallback((camId: number) => {
-    if (poppedOutCam === camId) {
-      window.electronAPI?.closeCameraPopout(camId);
-      setPoppedOutCam(null);
-    } else {
-      if (poppedOutCam) {
-        window.electronAPI?.closeCameraPopout(poppedOutCam);
-      }
-      window.electronAPI?.openCameraPopout(camId);
-      setPoppedOutCam(camId);
-    }
-  }, [poppedOutCam, setPoppedOutCam]);
+    window.electronAPI?.openCameraPopout(camId);
+    togglePopoutCam(camId);
+  }, [togglePopoutCam]);
 
   const status = useSystemPolling(isRunning);
   const frames = useFrameUpdater(isRunning);
@@ -185,7 +177,7 @@ export const RunTab: React.FC = () => {
                       }
                     </span>
                   )}
-                  {poppedOutCam === camId && (
+                  {poppedOutCams.has(camId) && (
                     <span className="text-accent ml-2 text-[11px]">(已弹出)</span>
                   )}
                 </span>
@@ -193,13 +185,13 @@ export const RunTab: React.FC = () => {
                   <button
                     onClick={() => handlePopout(camId)}
                     className={`text-xs transition-colors ${
-                      poppedOutCam === camId
+                      poppedOutCams.has(camId)
                         ? 'text-accent font-medium'
                         : 'text-text-tertiary hover:text-accent'
                     }`}
                     title="弹出独立窗口"
                   >
-                    {poppedOutCam === camId ? '收回' : '弹出'}
+                    弹出
                   </button>
                   <button
                     onClick={() => openDynamicTab(`cam-detail-${camId}`)}

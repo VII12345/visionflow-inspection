@@ -56,8 +56,8 @@ interface AppState {
   showMessage: (msg: string) => void;
 
   // Camera pop-out
-  poppedOutCam: number | null;
-  setPoppedOutCam: (camId: number | null) => void;
+  poppedOutCams: Set<number>;
+  togglePopoutCam: (camId: number) => void;
 
   // Environment
   envResult: unknown;
@@ -153,6 +153,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setEnvResult: (r) => set({ envResult: r }),
-  poppedOutCam: null,
-  setPoppedOutCam: (camId) => set({ poppedOutCam: camId }),
+  poppedOutCams: new Set<number>(),
+  togglePopoutCam: (camId) => set(state => {
+    const next = new Set(state.poppedOutCams);
+    if (next.has(camId)) next.delete(camId);
+    else next.add(camId);
+    return { poppedOutCams: next };
+  }),
 }));

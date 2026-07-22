@@ -277,9 +277,9 @@ let mainWindow;
 let cameraPopouts = {}; // { camId: BrowserWindow }
 
 function createCameraPopoutWindow(camId) {
+  // Allow multiple popouts per camera — always create a new window
   if (cameraPopouts[camId]) {
     cameraPopouts[camId].focus();
-    return;
   }
 
   const popout = new BrowserWindow({
@@ -305,19 +305,19 @@ function createCameraPopoutWindow(camId) {
 <title>Cam ${camId}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100%;background:#0d1117;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+html,body{width:100%;height:100%;background:#f8f9fa;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif}
 .container{display:flex;flex-direction:column;height:100%}
-.header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#171d2b;border-bottom:1px solid rgba(255,255,255,0.06)}
-.header .title{color:#fff;font-size:14px;font-weight:600}
+.header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#fff;border-bottom:1px solid #e5e7eb}
+.header .title{color:#111827;font-size:14px;font-weight:600}
 .header .badge{padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600}
-.badge-ok{background:rgba(16,185,129,0.15);color:#34d399}
-.badge-ng{background:rgba(244,63,94,0.15);color:#f8717a}
-.badge-wait{background:rgba(100,100,100,0.15);color:#888}
-.badge-error{background:rgba(244,63,94,0.15);color:#f8717a}
-.image-area{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.badge-ok{background:#ecfdf5;color:#059669}
+.badge-ng{background:#fef2f2;color:#dc2626}
+.badge-wait{background:#f3f4f6;color:#9ca3af}
+.badge-error{background:#fef2f2;color:#dc2626}
+.image-area{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fff}
 .image-area img{max-width:100%;max-height:100%;object-fit:contain}
-.image-area .placeholder{color:#555;font-size:14px}
-.footer{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:#171d2b;border-top:1px solid rgba(255,255,255,0.06);color:#888;font-size:12px}
+.image-area .placeholder{color:#9ca3af;font-size:14px}
+.footer{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#fff;border-top:1px solid #e5e7eb;color:#6b7280;font-size:12px}
 </style></head>
 <body><div class="container">
 <div class="header"><span class="title">📷 Cam ${camId}</span><span class="badge badge-wait" id="badge">等待检测</span></div>
@@ -327,7 +327,7 @@ html,body{width:100%;height:100%;background:#0d1117;overflow:hidden;font-family:
 <script>
 var camId=${camId},frameEl=document.getElementById('frame'),placeholderEl=document.getElementById('placeholder'),badgeEl=document.getElementById('badge'),resultEl=document.getElementById('result'),timeEl=document.getElementById('time');
 async function updateFrame(){try{var res=await fetch('http://127.0.0.1:5000/api/frame/'+camId);if(!res.ok)return;var blob=await res.blob(),url=URL.createObjectURL(blob);frameEl.src=url;frameEl.style.display='';placeholderEl.style.display='none';setTimeout(function(){URL.revokeObjectURL(url)},2000)}catch(e){}}
-async function updateStatus(){try{var res=await fetch('http://127.0.0.1:5000/api/status');var data=await res.json(),cs=data.cameras&&data.cameras[camId];if(!cs)return;timeEl.textContent=cs.lastFrameTime||'';if(cs.state==='running'&&cs.result){var isOk=cs.result.label==='正';badgeEl.textContent=cs.result.label;badgeEl.className='badge '+(isOk?'badge-ok':'badge-ng');resultEl.textContent='结果: '+cs.result.label+' ('+Math.round(cs.result.confidence*100)+'%)';resultEl.style.color=isOk?'#34d399':'#f8717a'}else if(cs.state==='running'){badgeEl.textContent='等待触发';badgeEl.className='badge badge-wait';resultEl.textContent='已触发 '+(cs.totalTriggers||0)+' 次';resultEl.style.color='#f59e0b'}else if(cs.state==='error'){badgeEl.textContent='错误';badgeEl.className='badge badge-error';resultEl.textContent=cs.error||'未知错误';resultEl.style.color='#f8717a'}}catch(e){}}
+async function updateStatus(){try{var res=await fetch('http://127.0.0.1:5000/api/status');var data=await res.json(),cs=data.cameras&&data.cameras[camId];if(!cs)return;timeEl.textContent=cs.lastFrameTime||'';resultEl.style.color='#6b7280';if(cs.state==='running'&&cs.result){var isOk=cs.result.label==='正';badgeEl.textContent=cs.result.label;badgeEl.className='badge '+(isOk?'badge-ok':'badge-ng');resultEl.textContent=cs.result.label+' ('+Math.round(cs.result.confidence*100)+'%)';resultEl.style.color=isOk?'#059669':'#dc2626'}else if(cs.state==='running'){badgeEl.textContent='等待触发';badgeEl.className='badge badge-wait';resultEl.textContent='已触发 '+(cs.totalTriggers||0)+' 次';resultEl.style.color='#d97706'}else if(cs.state==='error'){badgeEl.textContent='错误';badgeEl.className='badge badge-error';resultEl.textContent=cs.error||'未知错误';resultEl.style.color='#dc2626'}}catch(e){}}
 updateFrame();updateStatus();setInterval(updateFrame,1000);setInterval(updateStatus,500);
 </script></body></html>`;
 

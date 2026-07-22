@@ -92,9 +92,9 @@ export const TestTab: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-6 overflow-auto">
+    <div className="h-full overflow-auto">
       {/* Config */}
-      <div className="bg-white rounded-lg shadow-card border border-gray-100 p-6">
+      <div className="bg-white rounded-lg shadow-card border border-gray-100 p-6 mb-6">
         <h3 className="text-[15px] font-semibold text-text-primary mb-4">模型测试</h3>
 
         {/* Model + Mode */}
@@ -239,7 +239,7 @@ export const TestTab: React.FC = () => {
             <div className="text-[10px] text-text-tertiary uppercase tracking-wide mb-2">
               图片详情 ({result.results.length} 张)
             </div>
-            <div className="border border-gray-100 rounded-md overflow-hidden max-h-[400px] overflow-auto">
+            <div className="border border-gray-100 rounded-md max-h-[400px] overflow-y-auto">
               <table className="w-full text-[12px] border-collapse">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>

@@ -37,10 +37,6 @@ export const SettingsTab: React.FC = () => {
     pytorch_version: string;
     checks: Record<string, { label: string; pass: boolean; detail: string }>;
   } | null>(null);
-  const [trainingDevice, setTrainingDevice] = useState('cpu');
-  const [inferenceDevice, setInferenceDevice] = useState('cpu');
-  const [deviceSaving, setDeviceSaving] = useState(false);
-
   const refresh = useCallback(async () => {
     try {
       const data = await api.getModels();
@@ -73,11 +69,6 @@ export const SettingsTab: React.FC = () => {
       try {
         const hw = await api.getHardware();
         if (hw.success) setHwInfo(hw.hardware);
-        const dev = await api.getDeviceConfig();
-        if (dev.success) {
-          setTrainingDevice(dev.config.training_device || 'cpu');
-          setInferenceDevice(dev.config.inference_device || 'cpu');
-        }
       } catch { /* ignore */ }
     })();
   }, []);
@@ -88,17 +79,6 @@ export const SettingsTab: React.FC = () => {
   }, [refresh]);
 
   const filtered = products.filter(p => p.model.toLowerCase().includes(filter.toLowerCase()));
-
-  const saveDeviceConfig = async () => {
-    if (!user || user.level !== 'admin') { showMessage('需要管理员权限才能修改设备配置'); return; }
-    setDeviceSaving(true);
-    try {
-      const r = await api.saveDeviceConfig({ training_device: trainingDevice, inference_device: inferenceDevice });
-      if (r.success) showMessage('设备配置已保存');
-      else showMessage('保存失败: ' + (r as { message?: string }).message);
-    } catch (e) { showMessage('保存失败: ' + (e as Error).message); }
-    finally { setDeviceSaving(false); }
-  };
 
   const startLearning = () => {
     if (!user) { setModal('login', true); return; }
@@ -545,34 +525,6 @@ export const SettingsTab: React.FC = () => {
               </div>
             )}
 
-            {/* Device selectors */}
-            <div className="border-t border-gray-100 pt-4 flex flex-col gap-3">
-              <div className="flex items-center gap-3">
-                <span className="text-text-secondary text-xs w-14 shrink-0">训练设备</span>
-                <select
-                  value={trainingDevice}
-                  onChange={e => setTrainingDevice(e.target.value)}
-                  className="bg-white border border-gray-300 rounded-md px-3 py-2 text-xs text-text-primary flex-1 outline-none focus:border-accent"
-                >
-                  <option value="cpu">CPU</option>
-                  {hwInfo.gpu.cuda_available && <option value="cuda">GPU (CUDA)</option>}
-                </select>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-text-secondary text-xs w-14 shrink-0">推理设备</span>
-                <select
-                  value={inferenceDevice}
-                  onChange={e => setInferenceDevice(e.target.value)}
-                  className="bg-white border border-gray-300 rounded-md px-3 py-2 text-xs text-text-primary flex-1 outline-none focus:border-accent"
-                >
-                  <option value="cpu">CPU</option>
-                  {hwInfo.gpu.cuda_available && <option value="cuda">GPU (CUDA)</option>}
-                </select>
-              </div>
-              <Button variant="secondary" size="sm" onClick={saveDeviceConfig} disabled={deviceSaving}>
-                {deviceSaving ? '保存中...' : '保存设备设置'}
-              </Button>
-            </div>
           </div>
         )}
       </div>
