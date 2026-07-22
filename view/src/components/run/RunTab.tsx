@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useSystemPolling, useFrameUpdater } from '../../hooks/useSystem';
 import { api } from '../../services/api';
 import { storage } from '../../services/storage';
-import { Button } from '../common/Modal';
+import { Button, Badge } from '../common/Modal';
 
 const CAM_COUNT = 4;
 
@@ -43,8 +43,30 @@ export const RunTab: React.FC = () => {
   const status = useSystemPolling(isRunning);
   const frames = useFrameUpdater(isRunning);
 
+  // Sync model learned status from backend
+  const [products, setProducts] = React.useState(storage.getProducts());
+  const syncModelStatus = useCallback(async () => {
+    try {
+      const data = await api.getModels();
+      if ((data as { success: boolean; models?: { name: string }[] }).success && (data as { models: { name: string }[] }).models) {
+        const trainedNames = new Set((data as { models: { name: string }[] }).models.map(m => m.name));
+        const prods = storage.getProducts();
+        let changed = false;
+        for (const p of prods) {
+          const was = p.learned;
+          p.learned = trainedNames.has(p.model);
+          if (p.learned !== was) changed = true;
+        }
+        if (changed) {
+          storage.saveProducts(prods);
+          setProducts([...prods]);
+        }
+      }
+    } catch { /* backend may not be ready */ }
+  }, []);
+  useEffect(() => { syncModelStatus(); const iv = setInterval(syncModelStatus, 10000); return () => clearInterval(iv); }, [syncModelStatus]);
+
   const lineConfig = storage.getLineConfig();
-  const products = storage.getProducts();
 
   const startSystem = useCallback(async () => {
     if (!user) { setModal('login', true); return; }
@@ -155,6 +177,14 @@ export const RunTab: React.FC = () => {
                   <span className="text-text-secondary">线体 {camId}</span>
                   <span className="text-text-tertiary mx-1">|</span>
                   <span className="text-text-secondary">型号: {modelName}</span>
+                  {prod && (
+                    <span className="ml-2">
+                      {prod.learned
+                        ? <Badge variant="learned">已学习</Badge>
+                        : <Badge variant="unlearned">未学习</Badge>
+                      }
+                    </span>
+                  )}
                   {poppedOutCam === camId && (
                     <span className="text-accent ml-2 text-[11px]">(已弹出)</span>
                   )}
