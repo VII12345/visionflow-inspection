@@ -366,7 +366,7 @@ export const RunTab: React.FC = () => {
               </div>
 
               {/* Image Area */}
-              <div className="relative flex-1 bg-gray-50 flex items-center justify-center min-h-[180px]">
+              <div className="relative flex-1 min-h-0 min-w-0 bg-gray-50 flex items-center justify-center overflow-hidden px-2 py-3">
                 <div className={`absolute top-3 left-3 z-10 px-2.5 py-1 rounded text-[11px] font-medium ${
                   badgeVariant === 'ok' ? 'bg-emerald-50 text-ok' :
                   badgeVariant === 'ng' ? 'bg-red-50 text-ng' :
@@ -381,13 +381,13 @@ export const RunTab: React.FC = () => {
                   className={`max-w-full max-h-full object-contain ${frameUrl ? 'opacity-100' : 'hidden'}`}
                 />
                 {!frameUrl && (
-                  <span className="text-text-tertiary text-xs">等待相机信号...</span>
+                  <span className="text-text-tertiary text-xs text-center leading-5 whitespace-normal break-words max-w-full px-1">等待相机信号...</span>
                 )}
               </div>
 
               {/* Footer */}
-              <div className="flex items-center justify-between px-5 py-2.5 border-t border-gray-100 text-xs">
-                <span className={resultColor || 'text-text-tertiary'}>{resultText}</span>
+              <div className="flex items-center justify-between gap-2 min-h-0 px-5 py-2.5 border-t border-gray-100 text-xs">
+                <span className={`${resultColor || 'text-text-tertiary'} min-w-0 break-words text-center`}>{resultText}</span>
                 <span className="text-text-tertiary">{camStatus?.lastFrameTime || ''}</span>
               </div>
               {layout.id === 'custom' && (
