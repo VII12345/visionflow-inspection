@@ -25,20 +25,33 @@ export const TabBar: React.FC = () => {
   const [inferenceDevice, setInferenceDevice] = useState('cpu');
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
+      // 先读取已保存配置：如果用户此前已经选择了 GPU，即使硬件详情接口
+      // 暂时失败/返回旧格式，也不能把当前选项从下拉框中隐藏掉。
       try {
         const dev = await api.getDeviceConfig();
-        if ((dev as { success: boolean }).success && (dev as { config: Record<string, string> }).config) {
-          const cfg = (dev as { config: Record<string, string> }).config;
-          setTrainingDevice(cfg.training_device || 'cpu');
-          setInferenceDevice(cfg.inference_device || 'cpu');
+        const response = dev as { success?: boolean; config?: { training_device?: string; inference_device?: string } };
+        const cfg = response.config;
+        if (!cancelled && response.success && cfg) {
+          const nextTraining = cfg.training_device || 'cpu';
+          const nextInference = cfg.inference_device || 'cpu';
+          setTrainingDevice(nextTraining);
+          setInferenceDevice(nextInference);
+          if (nextTraining === 'cuda' || nextInference === 'cuda') setGpuAvailable(true);
         }
+      } catch { /* 后端尚未就绪时继续尝试硬件检测 */ }
+
+      try {
         const hw = await api.getHardware();
-        if ((hw as { success: boolean }).success) {
-          setGpuAvailable((hw as { hardware: { gpu: { cuda_available: boolean } } }).hardware.gpu.cuda_available);
+        const response = hw as { success?: boolean; hardware?: { gpu?: { cuda_available?: boolean } } };
+        if (!cancelled && response.success && response.hardware?.gpu) {
+          // 只要 CUDA 可用就显示 GPU；GPU 名称/显存信息不是选择器显示的前置条件。
+          setGpuAvailable(previous => previous || response.hardware!.gpu!.cuda_available === true);
         }
       } catch { /* backend may not be ready */ }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   const saveDevice = async (key: string, value: string) => {
