@@ -12,6 +12,13 @@ export interface Product {
   learned: boolean;
 }
 
+export type RunLayoutId = 'auto' | 'single' | 'two' | 'three' | 'four' | 'focus' | 'custom';
+
+export interface RunLayout {
+  id: RunLayoutId;
+  columns: number;
+  order: number[];
+}
 export interface LineConfig {
   line: number;
   productId: number | null;
@@ -90,3 +97,4 @@ export interface EnvCheckResult {
 }
 
 export type TabId = 'run' | 'file' | 'settings' | 'test' | 'user' | `cam-detail-${number}`;
+

@@ -1,4 +1,4 @@
-import type { User, Product, LineConfig, CameraConfig, CameraStats, SaveSettings, Photo } from '../types';
+import type { User, Product, LineConfig, CameraConfig, CameraStats, SaveSettings, Photo, RunLayout } from '../types';
 
 const isElectron = () => typeof window !== 'undefined' && window.electronAPI;
 
@@ -27,6 +27,7 @@ const defaults = {
   users: [{ id: 1, name: 'admin', password: 'admin', level: 'admin' }] as User[],
   products: [] as Product[],
   lineCount: 4,
+  runLayout: { id: 'two', columns: 2, order: [] } as RunLayout,
   lineConfig: [
     { line: 1, productId: null, model: '-' },
     { line: 2, productId: null, model: '-' },
@@ -82,6 +83,8 @@ export const storage = {
     });
   },
   saveLineConfig: (cfg: LineConfig[]) => set('lineConfig', cfg),
+  getRunLayout: () => get('runLayout', defaults.runLayout),
+  saveRunLayout: (layout: RunLayout) => set('runLayout', layout),
 
   getCameraConfig: () => get('cameraConfig', defaults.cameraConfig),
   saveCameraConfig: (cfg: Record<number, Partial<CameraConfig>>) => set('cameraConfig', cfg),

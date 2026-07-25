@@ -1,14 +1,30 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { useSystemPolling, useFrameUpdater } from '../../hooks/useSystem';
 import { api } from '../../services/api';
 import { storage } from '../../services/storage';
 import { Button, Badge } from '../common/Modal';
+import type { RunLayout, RunLayoutId } from '../../types';
 
 
 
+const LAYOUT_OPTIONS: { id: RunLayoutId; label: string; columns: number }[] = [
+  { id: 'auto', label: '自适应网格', columns: 0 },
+  { id: 'single', label: '单列大图', columns: 1 },
+  { id: 'two', label: '双列标准', columns: 2 },
+  { id: 'three', label: '三列紧凑', columns: 3 },
+  { id: 'four', label: '四列总览', columns: 4 },
+  { id: 'focus', label: '主视图 + 缩略图', columns: 3 },
+  { id: 'custom', label: '自定义布局', columns: 2 },
+];
+
+const clampColumns = (columns: number) => Math.min(4, Math.max(1, Math.round(columns) || 2));
 export const RunTab: React.FC = () => {
   const isRunning = useAppStore(s => s.isRunning);
+  const [layout, setLayout] = useState<RunLayout>(() => storage.getRunLayout());
+  const [customColumnsDraft, setCustomColumnsDraft] = useState(String(layout.columns || 2));
+  const [customOrderDraft, setCustomOrderDraft] = useState(layout.order.join(', '));
+  const [showCustomLayout, setShowCustomLayout] = useState(layout.id === 'custom');
   const lineCount = useAppStore(s => s.lineCount);
   const user = useAppStore(s => s.user);
   const setModal = useAppStore(s => s.setModal);
@@ -60,6 +76,46 @@ export const RunTab: React.FC = () => {
   useEffect(() => { syncModelStatus(); const iv = setInterval(syncModelStatus, 10000); return () => clearInterval(iv); }, [syncModelStatus]);
 
   const lineConfig = storage.getLineConfig();
+  const effectiveColumns = useMemo(() => {
+    if (layout.id === 'auto') return Math.min(4, Math.max(1, Math.ceil(Math.sqrt(lineCount))));
+    return clampColumns(layout.columns);
+  }, [layout, lineCount]);
+
+  const orderedCamIds = useMemo(() => {
+    const all = Array.from({ length: lineCount }, (_, i) => i + 1);
+    if (!layout.order.length) return all;
+    const customOrder = layout.order.filter(camId => all.includes(camId));
+    return [...customOrder, ...all.filter(camId => !customOrder.includes(camId))];
+  }, [layout.order, lineCount]);
+
+  const selectLayout = (id: RunLayoutId) => {
+    if (id === 'custom') {
+      setShowCustomLayout(true);
+      setLayout(current => ({ ...current, id: 'custom' }));
+      return;
+    }
+    const option = LAYOUT_OPTIONS.find(item => item.id === id);
+    const nextLayout: RunLayout = { id, columns: option?.columns || 2, order: [] };
+    setLayout(nextLayout);
+    setShowCustomLayout(false);
+    storage.saveRunLayout(nextLayout);
+  };
+
+  const applyCustomLayout = () => {
+    const columns = Number(customColumnsDraft);
+    if (!Number.isInteger(columns) || columns < 1 || columns > 4) {
+      showMessage('自定义列数请输入 1-4 的整数');
+      return;
+    }
+    const order = customOrderDraft
+      .split(/[,，\s]+/)
+      .map(value => Number(value))
+      .filter((value, index, values) => Number.isInteger(value) && value >= 1 && value <= lineCount && values.indexOf(value) === index);
+    const nextLayout: RunLayout = { id: 'custom', columns, order };
+    setLayout(nextLayout);
+    storage.saveRunLayout(nextLayout);
+    showMessage(`已保存自定义布局：${columns} 列`);
+  };
 
   const startSystem = useCallback(async () => {
     if (!user) { setModal('login', true); return; }
@@ -116,13 +172,23 @@ export const RunTab: React.FC = () => {
   return (
     <div className="flex flex-col h-full overflow-auto">
       {/* Controls */}
-      <div className="flex items-center gap-4 mb-6 shrink-0">
+      <div className="flex items-center gap-4 mb-4 shrink-0 flex-wrap">
         <Button variant="start" size="lg" onClick={startSystem} disabled={isRunning}>启动</Button>
         <Button variant="stop" size="lg" onClick={stopSystem} disabled={!isRunning}>停止</Button>
         <span className={`text-sm font-medium ${isRunning ? 'text-ok' : 'text-text-tertiary'}`}>
           <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${isRunning ? 'bg-ok' : 'bg-gray-300'}`} />
           {isRunning ? '运行中' : '系统已停止'}
         </span>
+        <label className="flex items-center gap-2 text-xs text-text-secondary">
+          CAM 布局
+          <select
+            value={layout.id}
+            onChange={e => selectLayout(e.target.value as RunLayoutId)}
+            className="bg-white border border-gray-200 rounded-md px-2.5 py-2 text-xs text-text-primary outline-none focus:border-accent"
+          >
+            {LAYOUT_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+          </select>
+        </label>
         <div className="ml-auto flex items-center gap-6 text-xs text-text-secondary bg-surface rounded-lg px-5 py-2">
           <span>OK <span className="text-ok font-semibold ml-1">{totalStats.ok}</span></span>
           <span>NG <span className="text-ng font-semibold ml-1">{totalStats.ng}</span></span>
@@ -130,9 +196,28 @@ export const RunTab: React.FC = () => {
         </div>
       </div>
 
+      {showCustomLayout && (
+        <div className="bg-white border border-gray-100 rounded-lg shadow-card px-4 py-3 mb-4 shrink-0 flex items-center gap-3 flex-wrap">
+          <span className="text-xs font-medium text-text-primary">自定义布局</span>
+          <label className="text-xs text-text-secondary flex items-center gap-2">
+            列数
+            <input type="number" min={1} max={4} value={customColumnsDraft} onChange={e => setCustomColumnsDraft(e.target.value)} className="w-16 bg-white border border-gray-200 rounded-md px-2 py-1.5 text-xs" />
+          </label>
+          <label className="text-xs text-text-secondary flex items-center gap-2 flex-1 min-w-[240px]">
+            CAM 顺序
+            <input value={customOrderDraft} onChange={e => setCustomOrderDraft(e.target.value)} placeholder="例如：1, 3, 2, 4" className="flex-1 bg-white border border-gray-200 rounded-md px-2 py-1.5 text-xs" />
+          </label>
+          <Button variant="primary" size="sm" onClick={applyCustomLayout}>应用布局</Button>
+          <span className="text-[11px] text-text-tertiary">未填写的 CAM 会自动追加到末尾</span>
+        </div>
+      )}
+
       {/* Camera Grid */}
-      <div className="grid grid-cols-2 gap-5 flex-1 min-h-0">
-        {Array.from({ length: lineCount }, (_, i) => i + 1).map(camId => {
+      <div
+        className="grid gap-5 flex-1 min-h-0"
+        style={{ gridTemplateColumns: `repeat(${effectiveColumns}, minmax(0, 1fr))` }}
+      >
+        {orderedCamIds.map(camId => {
           const cfg = lineConfig[camId - 1];
           const prod = products.find(p => p.id === cfg?.productId);
           const modelName = prod ? prod.model : '-';
@@ -161,7 +246,7 @@ export const RunTab: React.FC = () => {
           }
 
           return (
-            <div key={camId} className="bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden flex flex-col">
+            <div key={camId} className="bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden flex flex-col" style={layout.id === 'focus' && camId === orderedCamIds[0] && lineCount > 1 ? { gridColumn: 'span 2', gridRow: 'span 2' } : undefined}>
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
                 <span className="text-[13px]">
