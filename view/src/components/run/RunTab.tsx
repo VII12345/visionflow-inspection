@@ -27,6 +27,7 @@ export const RunTab: React.FC = () => {
   const [showCustomLayout, setShowCustomLayout] = useState(layout.id === 'custom');
   const [draggingCamId, setDraggingCamId] = useState<number | null>(null);
   const [dropTargetCamId, setDropTargetCamId] = useState<number | null>(null);
+  const [resizeSession, setResizeSession] = useState<{ camId: number; startX: number; startY: number; colSpan: number; rowSpan: number } | null>(null);
   const lineCount = useAppStore(s => s.lineCount);
   const user = useAppStore(s => s.user);
   const setModal = useAppStore(s => s.setModal);
@@ -81,6 +82,7 @@ export const RunTab: React.FC = () => {
   const lineConfig = storage.getLineConfig();
   const effectiveColumns = useMemo(() => {
     if (layout.id === 'auto') return Math.min(4, Math.max(1, Math.ceil(Math.sqrt(lineCount))));
+    if (layout.id === 'custom') return 12;
     return clampColumns(layout.columns);
   }, [layout, lineCount]);
 
@@ -118,8 +120,10 @@ export const RunTab: React.FC = () => {
   };
   const selectLayout = (id: RunLayoutId) => {
     if (id === 'custom') {
+      const nextLayout: RunLayout = { ...layout, id: 'custom', columns: 12, sizes: layout.sizes || {} };
       setShowCustomLayout(true);
-      setLayout(current => ({ ...current, id: 'custom' }));
+      setLayout(nextLayout);
+      storage.saveRunLayout(nextLayout);
       return;
     }
     const option = LAYOUT_OPTIONS.find(item => item.id === id);
@@ -129,20 +133,47 @@ export const RunTab: React.FC = () => {
     storage.saveRunLayout(nextLayout);
   };
 
-  const applyCustomLayout = () => {
-    const columns = Number(customColumnsDraft);
-    if (!Number.isInteger(columns) || columns < 1 || columns > 4) {
-      showMessage('自定义列数请输入 1-4 的整数');
-      return;
-    }
-    const order = customOrderDraft
-      .split(/[,，\s]+/)
-      .map(value => Number(value))
-      .filter((value, index, values) => Number.isInteger(value) && value >= 1 && value <= lineCount && values.indexOf(value) === index);
-    const nextLayout: RunLayout = { id: 'custom', columns, order };
+  useEffect(() => {
+    if (!resizeSession) return;
+    const handlePointerMove = (event: PointerEvent) => {
+      const deltaColumns = Math.round((event.clientX - resizeSession.startX) / 80);
+      const deltaRows = Math.round((event.clientY - resizeSession.startY) / 120);
+      const colSpan = Math.min(12, Math.max(1, resizeSession.colSpan + deltaColumns));
+      const rowSpan = Math.min(8, Math.max(1, resizeSession.rowSpan + deltaRows));
+      setLayout(current => ({
+        ...current,
+        id: 'custom',
+        columns: 12,
+        sizes: { ...current.sizes, [resizeSession.camId]: { colSpan, rowSpan } },
+      }));
+    };
+    const handlePointerUp = () => {
+      setLayout(current => {
+        storage.saveRunLayout(current);
+        return current;
+      });
+      setResizeSession(null);
+    };
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [resizeSession]);
+
+  const startCardResize = (event: React.PointerEvent<HTMLDivElement>, camId: number) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const size = layout.sizes?.[camId] || { colSpan: 4, rowSpan: 2 };
+    setResizeSession({ camId, startX: event.clientX, startY: event.clientY, colSpan: size.colSpan, rowSpan: size.rowSpan });
+  };
+
+  const resetCustomSizes = () => {
+    const nextLayout: RunLayout = { ...layout, id: 'custom', columns: 12, sizes: {} };
     setLayout(nextLayout);
     storage.saveRunLayout(nextLayout);
-    showMessage(`已保存自定义布局：${columns} 列`);
+    showMessage('已恢复自定义布局默认卡片大小');
   };
 
   const startSystem = useCallback(async () => {
@@ -244,24 +275,18 @@ export const RunTab: React.FC = () => {
 
       {showCustomLayout && (
         <div className="bg-white border border-gray-100 rounded-lg shadow-card px-4 py-3 mb-4 shrink-0 flex items-center gap-3 flex-wrap">
-          <span className="text-xs font-medium text-text-primary">自定义布局</span>
-          <label className="text-xs text-text-secondary flex items-center gap-2">
-            列数
-            <input type="number" min={1} max={4} value={customColumnsDraft} onChange={e => setCustomColumnsDraft(e.target.value)} className="w-16 bg-white border border-gray-200 rounded-md px-2 py-1.5 text-xs" />
-          </label>
-          <label className="text-xs text-text-secondary flex items-center gap-2 flex-1 min-w-[240px]">
-            CAM 顺序
-            <input value={customOrderDraft} onChange={e => setCustomOrderDraft(e.target.value)} placeholder="例如：1, 3, 2, 4" className="flex-1 bg-white border border-gray-200 rounded-md px-2 py-1.5 text-xs" />
-          </label>
-          <Button variant="primary" size="sm" onClick={applyCustomLayout}>应用布局</Button>
-          <span className="text-[11px] text-text-tertiary">未填写的 CAM 会自动追加到末尾；卡片可直接拖动交换位置</span>
+          <span className="text-xs font-medium text-text-primary">自由缩放布局</span>
+          <span className="text-[11px] text-text-tertiary">拖动卡片交换位置，拖动卡片右下角手柄自由缩放；页面会自动重新排布。</span>
+          <Button variant="secondary" size="sm" onClick={resetCustomSizes}>恢复默认大小</Button>
         </div>
       )}
 
       {/* Camera Grid */}
       <div
         className="grid gap-5 flex-1 min-h-0"
-        style={{ gridTemplateColumns: `repeat(${effectiveColumns}, minmax(0, 1fr))` }}
+        style={layout.id === 'custom'
+          ? { gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gridAutoRows: 'minmax(120px, 1fr)', alignItems: 'stretch' }
+          : { gridTemplateColumns: `repeat(${effectiveColumns}, minmax(0, 1fr))` }}
       >
         {orderedCamIds.map(camId => {
           const cfg = lineConfig[camId - 1];
@@ -290,9 +315,15 @@ export const RunTab: React.FC = () => {
             resultText = camStatus.error || '未知错误';
             resultColor = 'text-ng';
           }
+          const cardSize = layout.sizes?.[camId] || { colSpan: 4, rowSpan: 2 };
+          const cardStyle = layout.id === 'custom'
+            ? { gridColumn: `span ${cardSize.colSpan}`, gridRow: `span ${cardSize.rowSpan}` }
+            : layout.id === 'focus' && camId === orderedCamIds[0] && lineCount > 1
+              ? { gridColumn: 'span 2', gridRow: 'span 2' }
+              : undefined;
 
           return (
-            <div key={camId} draggable onDragStart={event => handleCamDragStart(event, camId)} onDragOver={event => { event.preventDefault(); setDropTargetCamId(camId); }} onDrop={event => handleCamDrop(event, camId)} onDragEnd={() => { setDraggingCamId(null); setDropTargetCamId(null); }} className={`bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden flex flex-col cursor-grab active:cursor-grabbing transition-shadow ${dropTargetCamId === camId && draggingCamId !== camId ? 'ring-2 ring-accent/50' : ''} ${draggingCamId === camId ? 'opacity-60' : ''}`} style={layout.id === 'focus' && camId === orderedCamIds[0] && lineCount > 1 ? { gridColumn: 'span 2', gridRow: 'span 2' } : undefined}>
+            <div key={camId} draggable onDragStart={event => handleCamDragStart(event, camId)} onDragOver={event => { event.preventDefault(); setDropTargetCamId(camId); }} onDrop={event => handleCamDrop(event, camId)} onDragEnd={() => { setDraggingCamId(null); setDropTargetCamId(null); }} className={`relative bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden flex flex-col cursor-grab active:cursor-grabbing transition-shadow ${dropTargetCamId === camId && draggingCamId !== camId ? 'ring-2 ring-accent/50' : ''} ${draggingCamId === camId ? 'opacity-60' : ''}`} style={cardStyle}>
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
                 <span className="text-[13px]">
@@ -359,7 +390,13 @@ export const RunTab: React.FC = () => {
                 <span className={resultColor || 'text-text-tertiary'}>{resultText}</span>
                 <span className="text-text-tertiary">{camStatus?.lastFrameTime || ''}</span>
               </div>
-            </div>
+              {layout.id === 'custom' && (
+                <div
+                  className="absolute right-1 bottom-1 z-20 w-4 h-4 rounded-sm cursor-nwse-resize bg-accent/40 hover:bg-accent/70"
+                  onPointerDown={event => startCardResize(event, camId)}
+                  title="拖动缩放卡片"
+                />
+              )}            </div>
           );
         })}
       </div>

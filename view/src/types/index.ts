@@ -18,6 +18,7 @@ export interface RunLayout {
   id: RunLayoutId;
   columns: number;
   order: number[];
+  sizes?: Record<number, { colSpan: number; rowSpan: number }>;
 }
 export interface LineConfig {
   line: number;
