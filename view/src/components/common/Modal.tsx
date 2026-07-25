@@ -15,15 +15,15 @@ export const Modal: React.FC<ModalProps> = ({ open, onClose, title, children, fo
 
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/30"
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/35 backdrop-blur-[3px] p-4"
       onClick={(e) => { if (closeOnBackdrop && e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="bg-white rounded-xl shadow-modal animate-in"
+        className="bg-white/95 rounded-lg shadow-modal animate-in border border-white/80"
         style={{ width, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}
       >
         {title && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100/80">
             <h3 className="text-[15px] font-semibold text-text-primary">{title}</h3>
             <button
               onClick={onClose}
@@ -35,7 +35,7 @@ export const Modal: React.FC<ModalProps> = ({ open, onClose, title, children, fo
         )}
         <div className="p-6">{children}</div>
         {footer && (
-          <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-surface rounded-b-xl">
+          <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-surface/80 rounded-b-lg">
             {footer}
           </div>
         )}
@@ -54,13 +54,13 @@ export const Button: React.FC<ButtonProps> = ({ variant = 'primary', size = 'md'
   const base = 'inline-flex items-center justify-center gap-1.5 font-medium rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none';
 
   const variants: Record<string, string> = {
-    primary: 'bg-accent text-white hover:bg-accent-dark',
-    secondary: 'bg-white text-text-primary border border-gray-300 hover:bg-gray-50',
-    start: 'bg-ok text-white hover:bg-emerald-700',
-    stop: 'bg-ng text-white hover:bg-red-700',
-    learn: 'bg-accent text-white hover:bg-accent-dark',
-    danger: 'bg-white text-ng border border-red-200 hover:bg-red-50',
-    ghost: 'bg-transparent text-text-secondary hover:text-text-primary hover:bg-gray-100',
+    primary: 'bg-accent text-white shadow-sm shadow-accent/20 hover:bg-accent-dark hover:shadow-md',
+    secondary: 'bg-white/90 text-text-primary border border-gray-200 shadow-sm hover:bg-gray-50 hover:border-gray-300',
+    start: 'bg-ok text-white shadow-sm shadow-emerald-500/20 hover:bg-emerald-700',
+    stop: 'bg-ng text-white shadow-sm shadow-red-500/20 hover:bg-red-700',
+    learn: 'bg-accent text-white shadow-sm shadow-accent/20 hover:bg-accent-dark',
+    danger: 'bg-white text-ng border border-red-200 hover:bg-red-50 hover:border-red-300',
+    ghost: 'bg-transparent text-text-secondary hover:text-text-primary hover:bg-accent/5',
   };
 
   const sizes: Record<string, string> = {
@@ -95,8 +95,9 @@ export const Badge: React.FC<BadgeProps> = ({ variant, children }) => {
   };
 
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${variants[variant]}`}>
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium ${variants[variant]}`}>
       {children}
     </span>
   );
 };
+

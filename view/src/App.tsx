@@ -78,19 +78,19 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-white text-text-primary font-sans overflow-hidden antialiased">
+    <div className="app-shell w-full h-full flex flex-col text-text-primary font-sans overflow-hidden antialiased">
       <TopBar />
       <TabBar />
 
       {/* Content */}
       <main className="flex-1 overflow-hidden relative">
-        <div className="w-full h-full overflow-auto p-8">
+        <div className="content-shell w-full h-full overflow-auto p-8">
           {renderTabContent()}
         </div>
       </main>
 
       {/* Status Bar */}
-      <footer className="flex items-center justify-between h-8 px-8 bg-surface border-t border-gray-200 shrink-0 text-[11px] text-text-tertiary relative">
+      <footer className="status-bar flex items-center justify-between h-8 px-8 bg-surface border-t border-gray-200 shrink-0 text-[11px] text-text-tertiary relative">
         <span>{statusMessage}</span>
         <span>{storage.getStorageInfo().type === 'encrypted' ? `加密存储: ${storage.getStorageInfo().path}` : `明文存储: ${storage.getStorageInfo().path}`}</span>
       </footer>

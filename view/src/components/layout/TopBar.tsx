@@ -11,24 +11,30 @@ export const TopBar: React.FC = () => {
   const setModal = useAppStore(s => s.setModal);
 
   return (
-    <header className="flex items-center justify-between h-14 px-8 bg-white border-b border-gray-200 shrink-0 relative">
-      <div className="flex items-center gap-5">
-        <h1 className="text-[15px] font-semibold text-text-primary tracking-tight">视觉检测系统</h1>
-        <span className={`inline-flex items-center gap-1.5 text-xs font-medium transition-colors ${
-          isRunning ? 'text-ok' : 'text-text-tertiary'
-        }`}>
-          <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-ok' : 'bg-gray-300'}`} />
+    <header className="top-bar flex items-center justify-between h-16 px-8 shrink-0 relative">
+      <div className="flex items-center gap-2.5">
+        <div className="flex flex-col gap-0.5">
+          <h1 className="text-[15px] font-semibold text-text-primary tracking-tight">视觉检测系统</h1>
+          <span className="text-[10px] uppercase tracking-[0.18em] text-text-tertiary">Vision Inspection</span>
+        </div>
+        <span className={`live-pill ml-3 text-xs font-medium ${isRunning ? 'text-ok' : 'text-text-tertiary'}`}>
+          <span className={`live-dot ${isRunning ? 'is-running' : ''}`} />
           {isRunning ? '运行中' : '已停止'}
         </span>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         {user ? (
           <>
-            <span className="text-sm text-text-secondary">
-              <span className="text-text-primary font-medium mr-2">{user.name}</span>
-              <span className="text-xs text-text-tertiary">{roleLabels[user.level]}</span>
-            </span>
+            <div className="hidden sm:flex items-center gap-2.5 mr-1 px-3 py-1.5 rounded-md bg-white/70 border border-gray-100">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-accent/10 text-accent text-xs font-semibold">
+                {user.name?.slice(0, 1) || 'U'}
+              </span>
+              <span className="flex flex-col leading-tight">
+                <span className="text-[12px] text-text-primary font-medium">{user.name}</span>
+                <span className="text-[10px] text-text-tertiary">{roleLabels[user.level]}</span>
+              </span>
+            </div>
             <Button variant="ghost" size="sm" onClick={() => setModal('changePwd', true)}>修改密码</Button>
             <Button variant="secondary" size="sm" onClick={logout}>登出</Button>
           </>
@@ -39,3 +45,6 @@ export const TopBar: React.FC = () => {
     </header>
   );
 };
+
+
+

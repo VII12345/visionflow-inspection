@@ -7,31 +7,28 @@ export default {
     theme: {
         extend: {
             colors: {
-                // Swiss minimalist palette — single blue accent, monochrome base
-                accent: '#2563eb',
-                'accent-light': '#3b82f6',
-                'accent-dark': '#1d4ed8',
-                // Surfaces
-                'surface': '#f8f9fa',
+                accent: '#5a7fe4',
+                'accent-light': '#7c9be9',
+                'accent-dark': '#496fce',
+                surface: '#f7f9fc',
                 'surface-elevated': '#ffffff',
-                // Text
-                'text-primary': '#111827',
-                'text-secondary': '#6b7280',
-                'text-tertiary': '#9ca3af',
-                // Status (minimal — only what's needed)
-                'ok': '#059669',
-                'ng': '#dc2626',
-                'warn': '#d97706',
+                'text-primary': '#2f3b4f',
+                'text-secondary': '#7c879a',
+                'text-tertiary': '#adb6c5',
+                ok: '#4b9a83',
+                ng: '#dc8992',
+                warn: '#c9a06a',
             },
             fontFamily: {
                 sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', '"PingFang SC"', '"Microsoft YaHei"', '"Noto Sans SC"', 'sans-serif'],
             },
             boxShadow: {
-                'card': '0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.06)',
-                'card-hover': '0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05)',
-                'modal': '0 20px 60px -12px rgba(0,0,0,0.15)',
+                card: '0 8px 24px rgba(31, 48, 84, 0.045), 0 1px 4px rgba(31, 48, 84, 0.035)',
+                'card-hover': '0 14px 30px rgba(31, 48, 84, 0.075), 0 3px 10px rgba(31, 48, 84, 0.045)',
+                modal: '0 18px 48px rgba(29, 45, 78, 0.11)',
             },
         },
     },
     plugins: [],
 };
+

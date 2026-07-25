@@ -11,7 +11,7 @@ const TABS: { id: TabId; label: string; fixed: boolean }[] = [
   { id: 'user', label: '用户', fixed: true },
 ];
 
-const selectClass = 'bg-white border border-gray-300 rounded-md px-2 py-1.5 text-[12px] text-text-primary outline-none focus:border-accent transition-colors';
+const selectClass = 'device-select bg-white/90 border border-gray-200 rounded-md px-2.5 py-1.5 text-[12px] text-text-primary outline-none focus:border-accent transition-colors';
 
 export const TabBar: React.FC = () => {
   const activeTab = useAppStore(s => s.activeTab);
@@ -53,16 +53,16 @@ export const TabBar: React.FC = () => {
   };
 
   return (
-    <nav className="flex items-center bg-white border-b border-gray-200 shrink-0 px-6 relative">
-      <div className="flex gap-0 flex-1">
+    <nav className="tab-bar flex items-center border-b shrink-0 px-6 relative">
+      <div className="tab-list flex gap-0 flex-1 overflow-x-auto">
         {TABS.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`relative inline-flex items-center px-5 py-3 text-[13px] font-medium transition-colors select-none ${
               activeTab === tab.id
-                ? 'text-accent after:absolute after:bottom-0 after:left-3 after:right-3 after:h-[2px] after:bg-accent after:rounded-full'
-                : 'text-text-secondary hover:text-text-primary'
+                ? 'tab-item is-active text-accent'
+                : 'tab-item text-text-secondary hover:text-text-primary'
             }`}
           >
             {tab.label}
@@ -77,8 +77,8 @@ export const TabBar: React.FC = () => {
               onClick={() => setActiveTab(tabId as TabId)}
               className={`relative inline-flex items-center gap-1.5 px-5 py-3 text-[13px] font-medium transition-colors select-none ${
                 activeTab === tabId
-                  ? 'text-accent after:absolute after:bottom-0 after:left-3 after:right-3 after:h-[2px] after:bg-accent after:rounded-full'
-                  : 'text-text-secondary hover:text-text-primary'
+                  ? 'tab-item is-active text-accent'
+                  : 'tab-item text-text-secondary hover:text-text-primary'
               }`}
             >
               Cam {camId} 详情
@@ -90,16 +90,16 @@ export const TabBar: React.FC = () => {
           );
         })}
       </div>
-      <div className="flex items-center gap-3 shrink-0 pr-2">
+      <div className="device-panel flex items-center gap-3 shrink-0 pr-2">
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] text-text-tertiary">训练</span>
+          <span className="text-[11px] text-text-tertiary font-medium">训练</span>
           <select value={trainingDevice} onChange={e => saveDevice('training', e.target.value)} className={selectClass}>
             <option value="cpu">CPU</option>
             {gpuAvailable && <option value="cuda">GPU</option>}
           </select>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] text-text-tertiary">推理</span>
+          <span className="text-[11px] text-text-tertiary font-medium">推理</span>
           <select value={inferenceDevice} onChange={e => saveDevice('inference', e.target.value)} className={selectClass}>
             <option value="cpu">CPU</option>
             {gpuAvailable && <option value="cuda">GPU</option>}
@@ -109,3 +109,4 @@ export const TabBar: React.FC = () => {
     </nav>
   );
 };
+
