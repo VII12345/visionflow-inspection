@@ -90,6 +90,12 @@ export interface Photo {
   subdir?: string;
 }
 
+export interface SystemAlarm {
+  title: string;
+  message: string;
+  details?: string[];
+  severity?: 'warning' | 'error';
+}
 export interface EnvCheckResult {
   passed: boolean;
   summary: string;

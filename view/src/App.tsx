@@ -11,6 +11,7 @@ import { CameraDetailTab } from './components/camera/CameraDetailTab';
 import { CameraConfigModal } from './components/camera/CameraConfigModal';
 import { LoginModal, ChangePwdModal, AddProductModal, LearnConfirmModal } from './components/common/Modals';
 import { EnvCheckModal } from './components/common/EnvCheckModal';
+import { SystemAlarm } from './components/common/SystemAlarm';
 import { TrainingCompleteModal } from './components/settings/TrainingCompleteModal';
 import { api } from './services/api';
 import { storage } from './services/storage';
@@ -32,18 +33,72 @@ const App: React.FC = () => {
   const showMessage = useAppStore(s => s.showMessage);
   const statusMessage = useAppStore(s => s.statusMessage);
   const setEnvResult = useAppStore(s => s.setEnvResult);
+  const raiseAlarm = useAppStore(s => s.raiseAlarm);
   const dynamicTabs = useAppStore(s => s.dynamicTabs);
   const learnCallback = useAppStore(s => s.learnCallback);
 
-  // Environment check on mount
+  // Startup health and environment checks. Failures are visible as a popup plus a restrained full-screen flash.
   useEffect(() => {
-    api.envCheck().then(data => {
-      setEnvResult(data);
-      if (!(data as { passed: boolean }).passed) {
-        showMessage(`环境检测: ${(data as { summary: string }).summary}`);
+    let cancelled = false;
+    const checkEnvironment = async () => {
+      try {
+        const data = await api.envCheck();
+        if (cancelled) return;
+        setEnvResult(data);
+        const result = data as { passed: boolean; summary: string; results?: { name: string; message: string; detail?: string; level: string; passed: boolean }[] };
+        if (!result.passed) {
+          showMessage(`环境检测: ${result.summary}`);
+          const abnormal = (result.results || []).filter(item =>
+            !item.passed && (item.level === 'error' || /网络|连接|相机|MVS|SDK|导入|初始化/i.test(`${item.name}${item.message}`))
+          );
+          if (abnormal.length > 0) {
+            raiseAlarm({
+              title: '启动环境异常',
+              message: result.summary || '系统启动检测发现异常，请检查设备和网络连接。',
+              severity: 'error',
+              details: abnormal.map(item => `${item.name}：${item.message}`),
+            });
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          raiseAlarm({
+            title: '检测引擎连接失败',
+            message: '系统启动时无法连接本地检测服务，请检查后端进程和 5000 端口。',
+            severity: 'error',
+            details: [(error as Error).message || '本地服务无响应'],
+          });
+        }
       }
-    }).catch(() => {});
-  }, []);
+    };
+    checkEnvironment();
+    return () => { cancelled = true; };
+  }, [raiseAlarm, setEnvResult, showMessage]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let failed = false;
+    const checkHealth = async () => {
+      try {
+        const data = await api.health();
+        if (cancelled) return;
+        if (data.status !== 'ok') throw new Error(`服务状态: ${data.status || '未知'}`);
+        failed = false;
+      } catch (error) {
+        if (cancelled || failed) return;
+        failed = true;
+        raiseAlarm({
+          title: '检测服务连接中断',
+          message: '无法连接本地检测引擎，系统当前不能正常工作。',
+          severity: 'error',
+          details: [(error as Error).message || '健康检查失败'],
+        });
+      }
+    };
+    checkHealth();
+    const interval = window.setInterval(checkHealth, 5000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [raiseAlarm]);
 
   // Storage info
   useEffect(() => {
@@ -95,6 +150,8 @@ const App: React.FC = () => {
         <span>{storage.getStorageInfo().type === 'encrypted' ? `加密存储: ${storage.getStorageInfo().path}` : `明文存储: ${storage.getStorageInfo().path}`}</span>
       </footer>
 
+      <SystemAlarm />
+
       {/* Modals */}
       {loginModal && <LoginModal />}
       {changePwdModal && <ChangePwdModal />}
@@ -125,3 +182,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+

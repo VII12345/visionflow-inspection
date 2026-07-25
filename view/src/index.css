@@ -344,4 +344,34 @@ button:disabled {
 .rounded-2xl {
     border-radius: var(--radius-lg) !important;
 }
+/* Startup/connection alarm: a restrained red wash rather than a harsh solid overlay. */
+@keyframes system-alarm-flash {
+    0%, 100% { opacity: 0; }
+    18%, 52% { opacity: 0.78; }
+    35%, 70% { opacity: 0.14; }
+}
+
+.system-alarm-flash {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    pointer-events: none;
+    background: rgba(220, 38, 38, 0.12);
+    box-shadow: inset 0 0 0 4px rgba(220, 38, 38, 0.18), inset 0 0 110px rgba(248, 113, 113, 0.12);
+    animation: system-alarm-flash 1.25s ease-in-out infinite;
+}
+
+.system-alarm-dialog {
+    animation: alarm-dialog-in 180ms ease-out;
+}
+
+.system-alarm-icon {
+    background: #fff1f2;
+    border: 1px solid #fecdd3;
+}
+
+@keyframes alarm-dialog-in {
+    from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
 

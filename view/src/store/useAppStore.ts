@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { User, TabId } from '../types';
+import type { User, TabId, SystemAlarm } from '../types';
 import { storage } from '../services/storage';
 
 interface TrainingResult {
@@ -65,6 +65,11 @@ interface AppState {
   envResult: unknown;
   setEnvResult: (r: unknown) => void;
 
+  // Startup / connection alarms
+  systemAlarm: SystemAlarm | null;
+  raiseAlarm: (alarm: SystemAlarm) => void;
+  clearAlarm: () => void;
+
   // Learn confirm callback (for SettingsTab <-> LearnConfirmModal communication)
   learnCallback: ((upright: string, inverted: string) => void) | null;
   setLearnCallback: (cb: ((upright: string, inverted: string) => void) | null) => void;
@@ -87,6 +92,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setCameraConfigCamId: (camId) => set({ cameraConfigCamId: camId, cameraConfigModal: camId !== null }),
   statusMessage: '系统就绪',
   envResult: null,
+  systemAlarm: null,
   learnCallback: null,
   setLearnCallback: (cb) => set({ learnCallback: cb }),
 
@@ -160,6 +166,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setEnvResult: (r) => set({ envResult: r }),
+  raiseAlarm: (alarm) => set({ systemAlarm: alarm }),
+  clearAlarm: () => set({ systemAlarm: null }),
   poppedOutCams: new Set<number>(),
   togglePopoutCam: (camId) => set(state => {
     const next = new Set(state.poppedOutCams);
