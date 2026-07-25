@@ -35,6 +35,8 @@ class Config:
 
     # ========== 相机配置 ==========
     CAMERA_COUNT = 4
+    MIN_CAMERA_COUNT = 1
+    MAX_CAMERA_COUNT = 16
     CAMERA_TIMEOUT_MS = 1000  # 抓帧超时（毫秒）- 连续模式
     CAMERA_TRIGGER_TIMEOUT_MS = 30000  # 触发模式等待超时（毫秒）- 等待传感器信号
     CAMERA_FPS_TARGET = 2.0  # 目标帧率（连续模式用）
@@ -85,7 +87,8 @@ class Config:
         DATA_DIR = Path(__file__).parent.parent / "data"
     CAPTURE_DIR = DATA_DIR / "captures"
     CONFIG_FILE = DATA_DIR / "backend_config.json"
-    CAMERA_CONFIG_FILE = DATA_DIR / "camera_config.json"
+    CAMERA_CONFIG_FILE = DATA_DIR / 'camera_config.json'
+    LINE_COUNT_FILE = DATA_DIR / 'line_count.json'
     LOG_FILE = DATA_DIR / "vision_system.log"
 
     # 活跃模型：优先用 data/ 下已训练的任意产品模型，否则用种子模型
@@ -178,3 +181,4 @@ class Config:
 
         os.environ["PATH"] = current_path
         return runtime_paths
+

@@ -20,6 +20,8 @@ interface AppState {
   // System
   isRunning: boolean;
   setRunning: (running: boolean) => void;
+  lineCount: number;
+  setLineCount: (count: number) => void;
 
   // Tabs
   activeTab: TabId;
@@ -71,6 +73,7 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   user: (() => { const u = storage.getCurrentUser(); return u ? { ...u, password: '' } : null; })(),
   isRunning: false,
+  lineCount: storage.getLineCount(),
   activeTab: 'run',
   dynamicTabs: new Set(),
   loginModal: false,
@@ -121,6 +124,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setRunning: (running) => set({ isRunning: running }),
+  setLineCount: (count) => {
+    const nextCount = storage.saveLineCount(count);
+    set({ lineCount: nextCount });
+  },
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
@@ -161,3 +168,4 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { poppedOutCams: next };
   }),
 }));
+

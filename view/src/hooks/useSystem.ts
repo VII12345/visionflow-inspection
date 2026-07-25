@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../services/api';
 import type { SystemStatus, CameraStatus } from '../types';
+import { useAppStore } from '../store/useAppStore';
 
 export function useSystemPolling(isRunning: boolean) {
   const [status, setStatus] = useState<SystemStatus>({ cameras: {} });
@@ -32,13 +33,14 @@ export function useSystemPolling(isRunning: boolean) {
 }
 
 export function useFrameUpdater(isRunning: boolean) {
+  const lineCount = useAppStore(s => s.lineCount);
   const [frames, setFrames] = useState<Record<number, string>>({});
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     async function updateFrames() {
       const newFrames: Record<number, string> = {};
-      for (let i = 1; i <= 4; i++) {
+      for (let i = 1; i <= lineCount; i++) {
         try {
           const buffer = await api.getFrame(i);
           const bytes = new Uint8Array(buffer as unknown as ArrayBuffer);
@@ -56,7 +58,8 @@ export function useFrameUpdater(isRunning: boolean) {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isRunning]);
+  }, [isRunning, lineCount]);
 
   return frames;
 }
+

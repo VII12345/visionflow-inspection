@@ -30,7 +30,7 @@ export const api = {
   health: () => backendFetch<{ status: string }>('/api/health'),
 
   // System control
-  start: (camProducts?: Record<number, string>) => backendFetch<{ success: boolean; message?: string }>('/api/start', { method: 'POST', body: { camProducts } }),
+  start: (camProducts?: Record<number, string>, lineCount?: number) => backendFetch<{ success: boolean; message?: string; errors?: string[] }>('/api/start', { method: 'POST', body: { camProducts, line_count: lineCount } }),
   stop: () => backendFetch<{ success: boolean; message?: string }>('/api/stop', { method: 'POST' }),
   status: () => backendFetch<{ cameras: Record<number, { state: string; result?: { label: string; confidence: number }; lastFrameTime?: string; totalTriggers?: number; stats?: { detected: number; defective: number }; error?: string }> }>('/api/status'),
 
@@ -98,8 +98,12 @@ export const api = {
   saveDeviceConfig: (config: { training_device: string; inference_device: string }) =>
     backendFetch<{ success: boolean; message?: string; config?: { training_device: string; inference_device: string } }>('/api/settings/device', { method: 'POST', body: config }),
 
+  getLineCount: () => backendFetch<{ success: boolean; line_count: number }>('/api/settings/line-count'),
+  saveLineCount: (line_count: number) =>
+    backendFetch<{ success: boolean; message?: string; line_count?: number }>('/api/settings/line-count', { method: 'POST', body: { line_count } }),
   // Environment
   envCheck: () => backendFetch<{ passed: boolean; summary: string; results: { name: string; message: string; passed: boolean; level: string; detail?: string }[] }>('/api/env-check'),
 };
 
 export default api;
+

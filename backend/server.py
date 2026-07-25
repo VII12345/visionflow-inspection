@@ -616,6 +616,56 @@ def hardware_info():
 import json as _json
 
 _device_config_path = Config.DATA_DIR / "device_config.json"
+_line_count_path = Config.LINE_COUNT_FILE
+
+
+def _normalize_line_count(value):
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        value = 4
+    return max(Config.MIN_CAMERA_COUNT, min(Config.MAX_CAMERA_COUNT, value))
+
+
+def _load_line_count():
+    if _line_count_path.exists():
+        try:
+            with open(_line_count_path, "r", encoding="utf-8") as f:
+                return _normalize_line_count(json.load(f).get("line_count"))
+        except Exception:
+            pass
+    return Config.CAMERA_COUNT
+
+
+def _apply_line_count(count):
+    """更新运行时线体/相机槽位数量，并补齐相机配置。"""
+    global stats
+    count = _normalize_line_count(count)
+    Config.CAMERA_COUNT = count
+    camera_config_manager.ensure_camera_slots(count)
+    stats = {
+        i: stats.get(i, {"detected": 0, "defective": 0})
+        for i in range(1, count + 1)
+    }
+    for cam_id in range(1, count + 1):
+        camera_states.setdefault(cam_id, {
+            "state": "disconnected",
+            "serial": None,
+            "model": None,
+            "ip": None,
+            "triggerMode": "hardware",
+            "fps": 0,
+            "totalTriggers": 0,
+            "lastFrameTime": None,
+            "error": None,
+        })
+    for cam_id in list(camera_states):
+        if cam_id > count and cam_id not in cameras:
+            camera_states.pop(cam_id, None)
+    _line_count_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(_line_count_path, "w", encoding="utf-8") as f:
+        json.dump({"line_count": count}, f, indent=2)
+    return count
 
 
 def _load_device_config():
@@ -633,6 +683,32 @@ def _save_device_config(cfg):
     with open(_device_config_path, "w", encoding="utf-8") as f:
         _json.dump(cfg, f, indent=2)
 
+
+@app.route("/api/settings/line-count", methods=["GET"])
+def get_line_count():
+    """获取当前线体数量"""
+    return jsonify({"success": True, "line_count": Config.CAMERA_COUNT})
+
+
+@app.route("/api/settings/line-count", methods=["POST"])
+def update_line_count():
+    """保存并应用线体数量（1-16），运行中禁止修改。"""
+    if system_running:
+        return jsonify({"success": False, "message": "系统运行中不能修改线体数量"}), 409
+    data = request.get_json(silent=True) or {}
+    raw_count = data.get("line_count")
+    try:
+        count = int(raw_count)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "线体数量必须是整数"}), 400
+    if not Config.MIN_CAMERA_COUNT <= count <= Config.MAX_CAMERA_COUNT:
+        return jsonify({"success": False, "message": f"线体数量应为 {Config.MIN_CAMERA_COUNT}-{Config.MAX_CAMERA_COUNT}"}), 400
+    try:
+        count = _apply_line_count(count)
+        return jsonify({"success": True, "message": "线体数量已保存", "line_count": count})
+    except Exception as e:
+        logger.error(f"保存线体数量失败: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route("/api/settings/device", methods=["GET"])
 def get_device_config():
@@ -858,6 +934,12 @@ def start_system():
         from .inference_worker import set_camera_product
 
         data = request.get_json(silent=True) or {}
+        requested_count = data.get("line_count")
+        if requested_count is not None:
+            try:
+                _apply_line_count(requested_count)
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "message": "线体数量无效"}), 400
         cam_products = data.get("camProducts", {})
         for cam_id_str, model_name in cam_products.items():
             set_camera_product(int(cam_id_str), model_name if model_name else None)
@@ -1985,6 +2067,12 @@ def run_server():
     """启动 Flask 服务器"""
     global env_check_result
 
+    # 启动前加载线体数量，确保环境检测和相机槽位与前端设置一致
+    try:
+        _apply_line_count(_load_line_count())
+    except Exception as e:
+        logger.warning(f"加载线体数量失败，使用默认值: {e}")
+
     Config.ensure_directories()
 
     # ========== 加载已保存的设备配置 ==========
@@ -2059,3 +2147,4 @@ def run_server():
 
 if __name__ == "__main__":
     run_server()
+

@@ -26,6 +26,7 @@ function set<T>(key: string, data: T): void {
 const defaults = {
   users: [{ id: 1, name: 'admin', password: 'admin', level: 'admin' }] as User[],
   products: [] as Product[],
+  lineCount: 4,
   lineConfig: [
     { line: 1, productId: null, model: '-' },
     { line: 2, productId: null, model: '-' },
@@ -55,7 +56,31 @@ export const storage = {
   getProducts: () => get('products', defaults.products),
   saveProducts: (products: Product[]) => set('products', products),
 
-  getLineConfig: () => get('lineConfig', defaults.lineConfig),
+  getLineCount: () => {
+    const raw = Number(get('lineCount', defaults.lineCount));
+    return Number.isFinite(raw) ? Math.min(16, Math.max(1, Math.round(raw))) : defaults.lineCount;
+  },
+  saveLineCount: (count: number) => {
+    const nextCount = Math.min(16, Math.max(1, Math.round(Number(count) || defaults.lineCount)));
+    set('lineCount', nextCount);
+    const current = get('lineConfig', defaults.lineConfig) as LineConfig[];
+    const next = Array.from({ length: nextCount }, (_, index) => current[index] || {
+      line: index + 1,
+      productId: null,
+      model: '-',
+    });
+    set('lineConfig', next);
+    return nextCount;
+  },
+  getLineConfig: () => {
+    const count = storage.getLineCount();
+    const current = get('lineConfig', defaults.lineConfig) as LineConfig[];
+    return Array.from({ length: count }, (_, index) => current[index] || {
+      line: index + 1,
+      productId: null,
+      model: '-',
+    });
+  },
   saveLineConfig: (cfg: LineConfig[]) => set('lineConfig', cfg),
 
   getCameraConfig: () => get('cameraConfig', defaults.cameraConfig),
@@ -108,3 +133,4 @@ export const storage = {
 };
 
 export default storage;
+

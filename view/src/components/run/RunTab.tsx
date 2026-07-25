@@ -5,10 +5,11 @@ import { api } from '../../services/api';
 import { storage } from '../../services/storage';
 import { Button, Badge } from '../common/Modal';
 
-const CAM_COUNT = 4;
+
 
 export const RunTab: React.FC = () => {
   const isRunning = useAppStore(s => s.isRunning);
+  const lineCount = useAppStore(s => s.lineCount);
   const user = useAppStore(s => s.user);
   const setModal = useAppStore(s => s.setModal);
   const showMessage = useAppStore(s => s.showMessage);
@@ -75,7 +76,7 @@ export const RunTab: React.FC = () => {
           }
         }
       }
-      const result = await api.start(camProducts);
+      const result = await api.start(camProducts, lineCount);
       if ((result as { success: boolean }).success) {
         setRunning(true);
         showMessage('系统已启动，开始检测');
@@ -103,7 +104,7 @@ export const RunTab: React.FC = () => {
   }, [isRunning, setRunning, showMessage]);
 
   const totalStats = { ok: 0, ng: 0, total: 0 };
-  for (let i = 1; i <= CAM_COUNT; i++) {
+  for (let i = 1; i <= lineCount; i++) {
     const s = status.cameras[i]?.stats;
     if (s) {
       totalStats.total += s.detected || 0;
@@ -131,7 +132,7 @@ export const RunTab: React.FC = () => {
 
       {/* Camera Grid */}
       <div className="grid grid-cols-2 gap-5 flex-1 min-h-0">
-        {Array.from({ length: CAM_COUNT }, (_, i) => i + 1).map(camId => {
+        {Array.from({ length: lineCount }, (_, i) => i + 1).map(camId => {
           const cfg = lineConfig[camId - 1];
           const prod = products.find(p => p.id === cfg?.productId);
           const modelName = prod ? prod.model : '-';
@@ -234,3 +235,4 @@ export const RunTab: React.FC = () => {
     </div>
   );
 };
+

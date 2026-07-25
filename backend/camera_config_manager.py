@@ -64,10 +64,20 @@ class CameraConfigManager:
                     "rejectDelay": 0,
                     "plcUrl": "http://127.0.0.1:8088",
                 }
-                for i in range(1, 5)
+                for i in range(1, Config.CAMERA_COUNT + 1)
             }
         }
 
+    def ensure_camera_slots(self, count):
+        """按线体数量补齐相机配置槽位，保留已有配置。"""
+        count = max(Config.MIN_CAMERA_COUNT, min(Config.MAX_CAMERA_COUNT, int(count)))
+        defaults = self._default_config()["cameras"]
+        cameras = self.config.setdefault("cameras", {})
+        for cam_id in range(1, count + 1):
+            key = str(cam_id)
+            if key not in cameras:
+                cameras[key] = defaults[key]
+        return self.save_config(self.config)
     def save_config(self, config):
         """保存配置到文件"""
         try:
@@ -108,3 +118,4 @@ class CameraConfigManager:
 
 # 全局实例
 camera_config_manager = CameraConfigManager()
+
