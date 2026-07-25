@@ -66,40 +66,16 @@ class EnvironmentChecker:
         return self.to_dict()
 
     def _check_python_arch(self):
-        """检测 Python 位数 vs MVS SDK 预期位数"""
+        """记录 Python 位数，不根据 MVS 安装目录名推断兼容性。"""
         py_bits = struct.calcsize("P") * 8
-
-        # MVS SDK 装在 Program Files (x86) → 32-bit SDK
-        # 检查实际安装路径的架构
         sdk_path = Path(Config.MVS_SDK_PATH)
-        is_x86_path = "(x86)" in str(sdk_path)
-
-        if is_x86_path and py_bits == 32:
-            self._add(
-                name="Python 位数匹配",
-                passed=True,
-                level="ok",
-                message=f"Python {py_bits} 位 ↔ MVS SDK 预期 32 位，匹配",
-                detail="",
-            )
-        elif is_x86_path and py_bits == 64:
-            self._add(
-                name="Python 位数匹配",
-                passed=False,
-                level="error",
-                message=f"Python 是 {py_bits} 位，但 MVS SDK 路径在 Program Files (x86) 下（32 位SDK），不匹配",
-                detail="请安装 32 位 Python，或重新安装 64 位版本的 MVS SDK",
-            )
-            return  # 架构不匹配，后续检测无意义
-        else:
-            # SDK 不在 x86 路径下，可能是 64 位 SDK
-            self._add(
-                name="Python 位数匹配",
-                passed=True,
-                level="ok",
-                message=f"Python {py_bits} 位",
-                detail="",
-            )
+        self._add(
+            name="Python 运行时",
+            passed=True,
+            level="ok",
+            message=f"Python {py_bits} 位，MVS SDK 路径: {sdk_path}",
+            detail="不以 Program Files (x86) 目录名判断 SDK 位数；实际兼容性以 MVS 接口导入和 SDK 初始化结果为准。",
+        )
 
     def _check_mvs_paths(self):
         """检测 MVS SDK 路径是否存在"""
@@ -198,7 +174,7 @@ class EnvironmentChecker:
                 level="error",
                 message=f"无法导入 MvCameraControl_class: {e}",
                 detail="可能原因:\n"
-                "1. Python 位数与 MVS SDK 不匹配（需要同为 32 位或同为 64 位）\n"
+                
                 "2. MVS 安装不完整\n"
                 "3. 缺少 VC++ 运行库",
             )
@@ -294,3 +270,4 @@ def run_environment_check():
     """运行环境检测并返回结果字典"""
     checker = EnvironmentChecker()
     return checker.run_all()
+
