@@ -25,6 +25,8 @@ export const RunTab: React.FC = () => {
   const [customColumnsDraft, setCustomColumnsDraft] = useState(String(layout.columns || 2));
   const [customOrderDraft, setCustomOrderDraft] = useState(layout.order.join(', '));
   const [showCustomLayout, setShowCustomLayout] = useState(layout.id === 'custom');
+  const [draggingCamId, setDraggingCamId] = useState<number | null>(null);
+  const [dropTargetCamId, setDropTargetCamId] = useState<number | null>(null);
   const lineCount = useAppStore(s => s.lineCount);
   const user = useAppStore(s => s.user);
   const setModal = useAppStore(s => s.setModal);
@@ -89,6 +91,31 @@ export const RunTab: React.FC = () => {
     return [...customOrder, ...all.filter(camId => !customOrder.includes(camId))];
   }, [layout.order, lineCount]);
 
+  const swapCamPosition = (sourceCamId: number, targetCamId: number) => {
+    if (sourceCamId === targetCamId) return;
+    const nextOrder = [...orderedCamIds];
+    const sourceIndex = nextOrder.indexOf(sourceCamId);
+    const targetIndex = nextOrder.indexOf(targetCamId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    [nextOrder[sourceIndex], nextOrder[targetIndex]] = [nextOrder[targetIndex], nextOrder[sourceIndex]];
+    const nextLayout: RunLayout = { ...layout, order: nextOrder };
+    setLayout(nextLayout);
+    storage.saveRunLayout(nextLayout);
+  };
+
+  const handleCamDragStart = (event: React.DragEvent<HTMLDivElement>, camId: number) => {
+    setDraggingCamId(camId);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(camId));
+  };
+
+  const handleCamDrop = (event: React.DragEvent<HTMLDivElement>, targetCamId: number) => {
+    event.preventDefault();
+    const sourceCamId = draggingCamId || Number(event.dataTransfer.getData('text/plain'));
+    if (sourceCamId) swapCamPosition(sourceCamId, targetCamId);
+    setDraggingCamId(null);
+    setDropTargetCamId(null);
+  };
   const selectLayout = (id: RunLayoutId) => {
     if (id === 'custom') {
       setShowCustomLayout(true);
@@ -227,7 +254,7 @@ export const RunTab: React.FC = () => {
             <input value={customOrderDraft} onChange={e => setCustomOrderDraft(e.target.value)} placeholder="例如：1, 3, 2, 4" className="flex-1 bg-white border border-gray-200 rounded-md px-2 py-1.5 text-xs" />
           </label>
           <Button variant="primary" size="sm" onClick={applyCustomLayout}>应用布局</Button>
-          <span className="text-[11px] text-text-tertiary">未填写的 CAM 会自动追加到末尾</span>
+          <span className="text-[11px] text-text-tertiary">未填写的 CAM 会自动追加到末尾；卡片可直接拖动交换位置</span>
         </div>
       )}
 
@@ -265,7 +292,7 @@ export const RunTab: React.FC = () => {
           }
 
           return (
-            <div key={camId} className="bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden flex flex-col" style={layout.id === 'focus' && camId === orderedCamIds[0] && lineCount > 1 ? { gridColumn: 'span 2', gridRow: 'span 2' } : undefined}>
+            <div key={camId} draggable onDragStart={event => handleCamDragStart(event, camId)} onDragOver={event => { event.preventDefault(); setDropTargetCamId(camId); }} onDrop={event => handleCamDrop(event, camId)} onDragEnd={() => { setDraggingCamId(null); setDropTargetCamId(null); }} className={`bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden flex flex-col cursor-grab active:cursor-grabbing transition-shadow ${dropTargetCamId === camId && draggingCamId !== camId ? 'ring-2 ring-accent/50' : ''} ${draggingCamId === camId ? 'opacity-60' : ''}`} style={layout.id === 'focus' && camId === orderedCamIds[0] && lineCount > 1 ? { gridColumn: 'span 2', gridRow: 'span 2' } : undefined}>
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
                 <span className="text-[13px]">
