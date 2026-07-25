@@ -27,6 +27,7 @@ export const RunTab: React.FC = () => {
   const [showCustomLayout, setShowCustomLayout] = useState(layout.id === 'custom');
   const [draggingCamId, setDraggingCamId] = useState<number | null>(null);
   const [dropTargetCamId, setDropTargetCamId] = useState<number | null>(null);
+  const [swapAnimatingIds, setSwapAnimatingIds] = useState<number[]>([]);
   const [resizeSession, setResizeSession] = useState<{ camId: number; startX: number; startY: number; colSpan: number; rowSpan: number } | null>(null);
   const lineCount = useAppStore(s => s.lineCount);
   const user = useAppStore(s => s.user);
@@ -101,6 +102,8 @@ export const RunTab: React.FC = () => {
     if (sourceIndex < 0 || targetIndex < 0) return;
     [nextOrder[sourceIndex], nextOrder[targetIndex]] = [nextOrder[targetIndex], nextOrder[sourceIndex]];
     const nextLayout: RunLayout = { ...layout, order: nextOrder };
+    setSwapAnimatingIds([sourceCamId, targetCamId]);
+    window.setTimeout(() => setSwapAnimatingIds([]), 420);
     setLayout(nextLayout);
     storage.saveRunLayout(nextLayout);
   };
@@ -323,7 +326,7 @@ export const RunTab: React.FC = () => {
               : undefined;
 
           return (
-            <div key={camId} draggable onDragStart={event => handleCamDragStart(event, camId)} onDragOver={event => { event.preventDefault(); setDropTargetCamId(camId); }} onDrop={event => handleCamDrop(event, camId)} onDragEnd={() => { setDraggingCamId(null); setDropTargetCamId(null); }} className={`relative bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden flex flex-col cursor-grab active:cursor-grabbing transition-shadow ${dropTargetCamId === camId && draggingCamId !== camId ? 'ring-2 ring-accent/50' : ''} ${draggingCamId === camId ? 'opacity-60' : ''}`} style={cardStyle}>
+            <div key={camId} draggable onDragStart={event => handleCamDragStart(event, camId)} onDragOver={event => { event.preventDefault(); setDropTargetCamId(camId); }} onDrop={event => handleCamDrop(event, camId)} onDragEnd={() => { setDraggingCamId(null); setDropTargetCamId(null); }} className={`relative bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden flex flex-col cursor-grab active:cursor-grabbing transition-shadow ${dropTargetCamId === camId && draggingCamId !== camId ? 'cam-card-drop-target' : ''} ${draggingCamId === camId ? 'cam-card-dragging' : ''} ${swapAnimatingIds.includes(camId) ? 'cam-card-swap' : ''}`} style={cardStyle}>
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
                 <span className="text-[13px]">
