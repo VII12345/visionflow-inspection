@@ -1,5 +1,12 @@
-const API_BASE = typeof window !== 'undefined' && window.location.protocol !== 'file:' && window.location.hostname
-  ? `${window.location.protocol}//${window.location.hostname}:5000`
+const isElectron = typeof window !== 'undefined' && Boolean(window.electronAPI);
+const isWebPage = typeof window !== 'undefined' && window.location.protocol !== 'file:' && !isElectron;
+const configuredBackend = typeof window !== 'undefined'
+  ? new URLSearchParams(window.location.search).get('backend')
+  : null;
+// Web 模式优先使用同源 /api，由 Vite web:dev/web:preview 代理到后端，
+// 避免局域网浏览器的 Private Network Access 预检拦截 POST 请求。
+const API_BASE = isWebPage
+  ? (configuredBackend || '')
   : 'http://127.0.0.1:5000';
 
 async function backendFetch<T = unknown>(url: string, options?: {
