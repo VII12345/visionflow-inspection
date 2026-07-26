@@ -135,8 +135,8 @@ export const CameraDetailTab: React.FC<Props> = ({ camId }) => {
 
   const filterTabs: { id: FilterTab; label: string; count: number }[] = [
     { id: 'all', label: '全部', count: photos.length },
-    { id: 'ok', label: '正罐', count: photoStats.ok },
-    { id: 'ng', label: '倒罐', count: photoStats.ng },
+    { id: 'ok', label: '类别A', count: photoStats.ok },
+    { id: 'ng', label: '类别B', count: photoStats.ng },
   ];
 
   return (
@@ -168,7 +168,7 @@ export const CameraDetailTab: React.FC<Props> = ({ camId }) => {
       <div className="w-[340px] shrink-0 flex flex-col gap-4">
         <div className="bg-white rounded-lg shadow-card border border-gray-100 p-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[13px] text-text-secondary">保存正罐照片</span>
+            <span className="text-[13px] text-text-secondary">保存类别A照片</span>
             <label className="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" className="sr-only peer"
                 checked={saveSettings[camId]?.saveGood ?? true}
@@ -178,7 +178,7 @@ export const CameraDetailTab: React.FC<Props> = ({ camId }) => {
             </label>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-text-secondary">保存倒罐照片</span>
+            <span className="text-[13px] text-text-secondary">保存类别B照片</span>
             <label className="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" className="sr-only peer"
                 checked={saveSettings[camId]?.saveBad ?? true}
@@ -206,7 +206,7 @@ export const CameraDetailTab: React.FC<Props> = ({ camId }) => {
             <div className="text-[11px] text-text-tertiary mb-2">单击预览 | 右键另存 | {isRunning ? '实时更新中' : '已暂停'}</div>
             {filteredPhotos.length === 0 ? (
               <p className="text-text-tertiary text-xs py-8 text-center">
-                {filterTab === 'all' ? '暂无检测记录' : filterTab === 'ok' ? '暂无正罐照片' : '暂无倒罐照片'}
+                {filterTab === 'all' ? '暂无检测记录' : filterTab === 'ok' ? '暂无类别A照片' : '暂无类别B照片'}
               </p>
             ) : (
               <div className="flex flex-col gap-1">
@@ -214,9 +214,9 @@ export const CameraDetailTab: React.FC<Props> = ({ camId }) => {
                   const isOk = p.result === 'OK';
                   const isNg = p.result === 'NG';
                   const badge = isOk
-                    ? { text: '正', cls: 'bg-emerald-50 text-ok' }
+                    ? { text: '类别A', cls: 'bg-emerald-50 text-ok' }
                     : isNg
-                    ? { text: '反', cls: 'bg-red-50 text-ng' }
+                    ? { text: '类别B', cls: 'bg-red-50 text-ng' }
                     : { text: '--', cls: 'bg-gray-100 text-text-tertiary' };
                   return (
                     <div key={p.id} onClick={() => setSelectedPhoto(p.id)}

@@ -29,10 +29,10 @@ const defaults = {
   lineCount: 4,
   runLayout: { id: 'two', columns: 2, order: [] } as RunLayout,
   lineConfig: [
-    { line: 1, productId: null, model: '-' },
-    { line: 2, productId: null, model: '-' },
-    { line: 3, productId: null, model: '-' },
-    { line: 4, productId: null, model: '-' },
+    { line: 1, name: '线体 1', productId: null, model: '-' },
+    { line: 2, name: '线体 2', productId: null, model: '-' },
+    { line: 3, name: '线体 3', productId: null, model: '-' },
+    { line: 4, name: '线体 4', productId: null, model: '-' },
   ] as LineConfig[],
   cameraConfig: {} as Record<number, Partial<CameraConfig>>,
   cameraStats: {
@@ -50,12 +50,40 @@ const defaults = {
   } as Record<number, SaveSettings>,
 };
 
+function normalizeProducts(raw: Product[]): Product[] {
+  return (Array.isArray(raw) ? raw : []).map(product => ({
+    ...product,
+    name: String(product.name || product.model || `产品 ${product.id}`),
+    model: String(product.model || product.name || `product_${product.id}`),
+  }));
+}
+
+function lineDefault(index: number): LineConfig {
+  return { line: index + 1, name: `线体 ${index + 1}`, productId: null, model: '-' };
+}
+
+function normalizeLineConfig(raw: LineConfig[], count: number): LineConfig[] {
+  const products = normalizeProducts(get('products', defaults.products));
+  return Array.from({ length: count }, (_, index) => {
+    const item = (Array.isArray(raw) ? raw[index] : undefined) || lineDefault(index);
+    const product = products.find(candidate => candidate.id === item.productId);
+    return {
+      ...lineDefault(index),
+      ...item,
+      line: index + 1,
+      name: String(item.name || `线体 ${index + 1}`),
+      model: product?.model || item.model || '-',
+    };
+  });
+}
+
 export const storage = {
   getUsers: () => get('users', defaults.users),
   saveUsers: (users: User[]) => set('users', users),
 
-  getProducts: () => get('products', defaults.products),
-  saveProducts: (products: Product[]) => set('products', products),
+  // 产品显示名可随时修改；model 保留为模型文件和后端训练任务的稳定关联键。
+  getProducts: () => normalizeProducts(get('products', defaults.products)),
+  saveProducts: (products: Product[]) => set('products', normalizeProducts(products)),
 
   getLineCount: () => {
     const raw = Number(get('lineCount', defaults.lineCount));
@@ -64,25 +92,18 @@ export const storage = {
   saveLineCount: (count: number) => {
     const nextCount = Math.min(16, Math.max(1, Math.round(Number(count) || defaults.lineCount)));
     set('lineCount', nextCount);
-    const current = get('lineConfig', defaults.lineConfig) as LineConfig[];
-    const next = Array.from({ length: nextCount }, (_, index) => current[index] || {
-      line: index + 1,
-      productId: null,
-      model: '-',
-    });
-    set('lineConfig', next);
+    const current = normalizeLineConfig(get('lineConfig', defaults.lineConfig), nextCount);
+    set('lineConfig', current);
     return nextCount;
   },
   getLineConfig: () => {
     const count = storage.getLineCount();
-    const current = get('lineConfig', defaults.lineConfig) as LineConfig[];
-    return Array.from({ length: count }, (_, index) => current[index] || {
-      line: index + 1,
-      productId: null,
-      model: '-',
-    });
+    return normalizeLineConfig(get('lineConfig', defaults.lineConfig), count);
   },
-  saveLineConfig: (cfg: LineConfig[]) => set('lineConfig', cfg),
+  saveLineConfig: (cfg: LineConfig[]) => {
+    const count = storage.getLineCount();
+    set('lineConfig', normalizeLineConfig(cfg, count));
+  },
   getRunLayout: () => get('runLayout', defaults.runLayout),
   saveRunLayout: (layout: RunLayout) => set('runLayout', layout),
 
@@ -127,13 +148,8 @@ export const storage = {
     return { type: 'localStorage' as const, path: '浏览器本地存储' };
   },
 
-  getCurrentUser: (): User | null => {
-    return get('currentUser', null);
-  },
-  setCurrentUser: (user: User | null) => {
-    set('currentUser', user);
-  },
+  getCurrentUser: (): User | null => get('currentUser', null),
+  setCurrentUser: (user: User | null) => set('currentUser', user),
 };
 
 export default storage;
-

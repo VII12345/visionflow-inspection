@@ -99,7 +99,7 @@ const STEP_EXPLANATIONS: Record<string, string> = {
   inference_batch_window_ms: 'Worker 为了形成微批次而等待更多图片的时间。单张测试时通常接近微批窗口上限。',
   model_prepare_ms: 'Worker 获取并确认本次任务使用的模型，必要时完成模型加载或设备准备。已缓存模型通常较快。',
   preprocess_ms: '将原图裁剪、缩放到模型输入尺寸，并进行归一化和训练/测试需要的图像预处理。',
-  model_call_ms: '调用 PyTorch 模型执行前向推理，得到正反分类的原始输出。GPU/CPU 性能会直接影响此项。',
+  model_call_ms: '调用 PyTorch 模型执行前向推理，得到类别分类的原始输出。GPU/CPU 性能会直接影响此项。',
   recognition_ms: '将模型输出转换为类别、置信度和最终标签，完成识别结果计算。',
   inference_result_wait_ms: '测试接口提交推理后，等待结果队列返回这一张图片结果的完整墙钟时间；它是外层汇总，不和下方子项重复展示。',
   inference_result_handoff_ms: '推理 Worker 的已拆分阶段结束后，结果入队、线程唤醒以及测试线程取回结果的剩余时间。',
@@ -258,24 +258,24 @@ export const TestTab: React.FC = () => {
   const [mode, setMode] = useState<TestMode>('labeled');
 
   // Labeled mode paths
-  const [uprightPath, setUprightPath] = useState('');
-  const [invertedPath, setInvertedPath] = useState('');
+  const [classAPath, setClassAPath] = useState('');
+  const [classBPath, setClassBPath] = useState('');
 
   // Unlabeled mode path
   const [folderPath, setFolderPath] = useState('');
-  const [pickerTarget, setPickerTarget] = useState<'upright' | 'inverted' | 'folder' | null>(null);
+  const [pickerTarget, setPickerTarget] = useState<'classA' | 'classB' | 'folder' | null>(null);
 
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<{
     total: number;
     correct?: number;
     accuracy?: number;
-    upright_total?: number;
-    upright_correct?: number;
-    upright_accuracy?: number | null;
-    inverted_total?: number;
-    inverted_correct?: number;
-    inverted_accuracy?: number | null;
+    class_a_total?: number;
+    class_a_correct?: number;
+    class_a_accuracy?: number | null;
+    class_b_total?: number;
+    class_b_correct?: number;
+    class_b_accuracy?: number | null;
     timing?: {
       avg_ms: number;
       min_ms: number;
@@ -311,8 +311,8 @@ export const TestTab: React.FC = () => {
   };
 
   const applyDirectory = (directory: BackendImageDirectory) => {
-    if (pickerTarget === 'upright') setUprightPath(directory.path);
-    if (pickerTarget === 'inverted') setInvertedPath(directory.path);
+    if (pickerTarget === 'classA') setClassAPath(directory.path);
+    if (pickerTarget === 'classB') setClassBPath(directory.path);
     if (pickerTarget === 'folder') setFolderPath(directory.path);
     setPickerTarget(null);
   };
@@ -324,15 +324,15 @@ export const TestTab: React.FC = () => {
     setTesting(true);
 
     try {
-      const params: { model_name: string; mode: 'labeled' | 'unlabeled'; upright_path?: string; inverted_path?: string; folder_path?: string } = {
+      const params: { model_name: string; mode: 'labeled' | 'unlabeled'; class_a_path?: string; class_b_path?: string; folder_path?: string } = {
         model_name: selectedModel,
         mode,
       };
 
       if (mode === 'labeled') {
-        if (!uprightPath && !invertedPath) { setError('请至少指定正罐或倒罐目录'); setTesting(false); return; }
-        params.upright_path = uprightPath;
-        params.inverted_path = invertedPath;
+        if (!classAPath && !classBPath) { setError('请至少指定类别A或类别B目录'); setTesting(false); return; }
+        params.class_a_path = classAPath;
+        params.class_b_path = classBPath;
       } else {
         if (!folderPath) { setError('请指定测试图片目录'); setTesting(false); return; }
         params.folder_path = folderPath;
@@ -391,7 +391,7 @@ export const TestTab: React.FC = () => {
           {mode === 'labeled' ? (
             <>
               <div className="text-xs font-semibold text-accent mb-1">分类测试：模型性能测试</div>
-              <p className="text-[11px] text-text-secondary leading-5">用于验证模型准确率、正罐/倒罐分类正确率和置信度表现。该模式重点关注识别结果是否正确，不代表真实产线的异步时序压力。</p>
+              <p className="text-[11px] text-text-secondary leading-5">用于验证模型准确率、类别A/类别B分类正确率和置信度表现。该模式重点关注识别结果是否正确，不代表真实产线的异步时序压力。</p>
             </>
           ) : (
             <>
@@ -405,26 +405,26 @@ export const TestTab: React.FC = () => {
         {mode === 'labeled' ? (
           <div className="flex flex-col gap-3">
             <div>
-              <label className="text-xs text-text-secondary mb-1.5 block">正罐图片目录（可留空）</label>
+              <label className="text-xs text-text-secondary mb-1.5 block">类别A图片目录（可留空）</label>
               <div className="flex gap-2">
-                <input type="text" placeholder="选择正罐图片文件夹" value={uprightPath} readOnly
+                <input type="text" placeholder="选择类别A图片文件夹" value={classAPath} readOnly
                   className={`${inputClass} flex-1 bg-gray-50 cursor-pointer`}
-                  onClick={() => browseLocalFolder(setUprightPath)} />
-                <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setUprightPath)}>选择本地目录</Button>
-                <Button variant="secondary" size="sm" onClick={() => setPickerTarget('upright')}>选择后端目录</Button>
+                  onClick={() => browseLocalFolder(setClassAPath)} />
+                <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setClassAPath)}>选择本地目录</Button>
+                <Button variant="secondary" size="sm" onClick={() => setPickerTarget('classA')}>选择后端目录</Button>
               </div>
             </div>
             <div>
-              <label className="text-xs text-text-secondary mb-1.5 block">倒罐图片目录（可留空）</label>
+              <label className="text-xs text-text-secondary mb-1.5 block">类别B图片目录（可留空）</label>
               <div className="flex gap-2">
-                <input type="text" placeholder="选择倒罐图片文件夹" value={invertedPath} readOnly
+                <input type="text" placeholder="选择类别B图片文件夹" value={classBPath} readOnly
                   className={`${inputClass} flex-1 bg-gray-50 cursor-pointer`}
-                  onClick={() => browseLocalFolder(setInvertedPath)} />
-                <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setInvertedPath)}>选择本地目录</Button>
-                <Button variant="secondary" size="sm" onClick={() => setPickerTarget('inverted')}>选择后端目录</Button>
+                  onClick={() => browseLocalFolder(setClassBPath)} />
+                <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setClassBPath)}>选择本地目录</Button>
+                <Button variant="secondary" size="sm" onClick={() => setPickerTarget('classB')}>选择后端目录</Button>
               </div>
             </div>
-            <p className="text-[11px] text-text-tertiary">正罐和倒罐目录可为空，系统自动识别。至少提供一个目录即可。网页版不能直接选择浏览器所在电脑的本地文件夹，测试图片需要位于后端电脑。</p>
+            <p className="text-[11px] text-text-tertiary">类别A和类别B目录可为空，系统自动识别。至少提供一个目录即可。网页版不能直接选择浏览器所在电脑的本地文件夹，测试图片需要位于后端电脑。</p>
           </div>
         ) : (
           <div>
@@ -436,7 +436,7 @@ export const TestTab: React.FC = () => {
               <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setFolderPath)}>选择本地目录</Button>
               <Button variant="secondary" size="sm" onClick={() => setPickerTarget('folder')}>选择后端目录</Button>
             </div>
-            <p className="text-[11px] text-text-tertiary mt-1">不限正反，按真实异步检测链路执行，并按文件名输出每张图片的结果和逐步延迟。网页版不能直接选择浏览器所在电脑的本地文件夹，测试图片需要位于后端电脑。</p>
+            <p className="text-[11px] text-text-tertiary mt-1">不限类别，按真实异步检测链路执行，并按文件名输出每张图片的结果和逐步延迟。网页版不能直接选择浏览器所在电脑的本地文件夹，测试图片需要位于后端电脑。</p>
           </div>
         )}
 
@@ -468,19 +468,19 @@ export const TestTab: React.FC = () => {
                 </div>
               </div>
             )}
-            {result.upright_accuracy != null && (
+            {result.class_a_accuracy != null && (
               <div className="bg-gray-50 rounded-md p-3 text-center">
-                <div className="text-[10px] text-text-tertiary uppercase tracking-wide">正罐正确率</div>
-                <div className={`text-lg font-bold mt-1 ${result.upright_accuracy >= 0.95 ? 'text-ok' : result.upright_accuracy >= 0.8 ? 'text-warn' : 'text-ng'}`}>
-                  {(result.upright_accuracy * 100).toFixed(1)}%
+                <div className="text-[10px] text-text-tertiary uppercase tracking-wide">类别A正确率</div>
+                <div className={`text-lg font-bold mt-1 ${result.class_a_accuracy >= 0.95 ? 'text-ok' : result.class_a_accuracy >= 0.8 ? 'text-warn' : 'text-ng'}`}>
+                  {(result.class_a_accuracy * 100).toFixed(1)}%
                 </div>
               </div>
             )}
-            {result.inverted_accuracy != null && (
+            {result.class_b_accuracy != null && (
               <div className="bg-gray-50 rounded-md p-3 text-center">
-                <div className="text-[10px] text-text-tertiary uppercase tracking-wide">倒罐正确率</div>
-                <div className={`text-lg font-bold mt-1 ${result.inverted_accuracy >= 0.95 ? 'text-ok' : result.inverted_accuracy >= 0.8 ? 'text-warn' : 'text-ng'}`}>
-                  {(result.inverted_accuracy * 100).toFixed(1)}%
+                <div className="text-[10px] text-text-tertiary uppercase tracking-wide">类别B正确率</div>
+                <div className={`text-lg font-bold mt-1 ${result.class_b_accuracy >= 0.95 ? 'text-ok' : result.class_b_accuracy >= 0.8 ? 'text-warn' : 'text-ng'}`}>
+                  {(result.class_b_accuracy * 100).toFixed(1)}%
                 </div>
               </div>
             )}
@@ -551,11 +551,11 @@ export const TestTab: React.FC = () => {
                       <td className="px-3 py-2 text-text-primary font-mono text-[11px] truncate max-w-[200px]">{r.filename}</td>
                       {r.expected != null && (
                         <td className="px-3 py-2">
-                          <span className={`text-[11px] font-medium ${r.expected === '正' ? 'text-ok' : 'text-ng'}`}>{r.expected}</span>
+                          <span className={`text-[11px] font-medium ${r.expected === '类别A' ? 'text-ok' : 'text-ng'}`}>{r.expected}</span>
                         </td>
                       )}
                       <td className="px-3 py-2">
-                        <span className={`text-[11px] font-medium ${r.predicted === '正' ? 'text-ok' : 'text-ng'}`}>{r.predicted}</span>
+                        <span className={`text-[11px] font-medium ${r.predicted === '类别A' ? 'text-ok' : 'text-ng'}`}>{r.predicted}</span>
                       </td>
                       <td className="px-3 py-2 text-text-secondary">{(r.confidence * 100).toFixed(1)}%</td>
                       {r.time_ms != null && (
@@ -586,7 +586,7 @@ export const TestTab: React.FC = () => {
       )}
       <BackendDirectoryPicker
         open={pickerTarget !== null}
-        title={pickerTarget === 'upright' ? '选择后端正罐图片目录' : pickerTarget === 'inverted' ? '选择后端倒罐图片目录' : '选择后端测试图片目录'}
+        title={pickerTarget === 'classA' ? '选择后端类别A图片目录' : pickerTarget === 'classB' ? '选择后端类别B图片目录' : '选择后端测试图片目录'}
         onClose={() => setPickerTarget(null)}
         onSelect={applyDirectory}
       />

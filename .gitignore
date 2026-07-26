@@ -21,7 +21,7 @@ releases/
 view/resources/backend/
 view/resources/elevate.exe
 view/resources/images/
-view/resources/jar_classifier.pth
+view/resources/model_classifier*.pth
 
 # Log files
 *.log
@@ -31,8 +31,8 @@ MvSDKLog/
 *.manifest
 
 # Model files at root (real ones are in data/)
-/jar_classifier.pth
-/jar_classifier_test.pth
+/model_classifier.pth
+/model_classifier_test.pth
 
 # Training outputs at root
 /training_history.json

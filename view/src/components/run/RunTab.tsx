@@ -30,6 +30,7 @@ export const RunTab: React.FC = () => {
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const [resizeSession, setResizeSession] = useState<{ camId: number; startX: number; startY: number; colSpan: number; rowSpan: number } | null>(null);
   const lineCount = useAppStore(s => s.lineCount);
+  const catalogRevision = useAppStore(s => s.catalogRevision);
   const user = useAppStore(s => s.user);
   const setModal = useAppStore(s => s.setModal);
   const showMessage = useAppStore(s => s.showMessage);
@@ -59,6 +60,7 @@ export const RunTab: React.FC = () => {
 
   // Sync model learned status from backend
   const [products, setProducts] = React.useState(storage.getProducts());
+  useEffect(() => { setProducts(storage.getProducts()); }, [catalogRevision]);
   const syncModelStatus = useCallback(async () => {
     try {
       const data = await api.getModels();
@@ -322,7 +324,8 @@ export const RunTab: React.FC = () => {
         {orderedCamIds.map(camId => {
           const cfg = lineConfig[camId - 1];
           const prod = products.find(p => p.id === cfg?.productId);
-          const modelName = prod ? prod.model : '-';
+          const modelName = prod ? (prod.name || prod.model) : '-';
+          const lineName = cfg?.name || `线体 ${camId}`;
           const camStatus = status.cameras[camId];
           const frameUrl = frames[camId];
 
@@ -332,10 +335,10 @@ export const RunTab: React.FC = () => {
           let resultColor = '';
 
           if (camStatus?.state === 'running' && camStatus.result) {
-            badgeVariant = camStatus.result.label === '正' ? 'ok' : 'ng';
+            badgeVariant = camStatus.result.label === '类别A' ? 'ok' : 'ng';
             badgeText = camStatus.result.label;
             resultText = `结果: ${camStatus.result.label} (${Math.round(camStatus.result.confidence * 100)}%)`;
-            resultColor = camStatus.result.label === '正' ? 'text-ok' : 'text-ng';
+            resultColor = camStatus.result.label === '类别A' ? 'text-ok' : 'text-ng';
           } else if (camStatus?.state === 'running') {
             badgeText = '等待触发';
             resultText = `触发模式 - 等待传感器信号... (已触发 ${camStatus.totalTriggers || 0} 次)`;
@@ -360,9 +363,9 @@ export const RunTab: React.FC = () => {
                 <span className="text-[13px]">
                   <span className="text-text-primary font-semibold">Cam {camId}</span>
                   <span className="text-text-tertiary mx-2">|</span>
-                  <span className="text-text-secondary">线体 {camId}</span>
+                  <span className="text-text-secondary">{lineName}</span>
                   <span className="text-text-tertiary mx-1">|</span>
-                  <span className="text-text-secondary">型号: {modelName}</span>
+                  <span className="text-text-secondary">产品: {modelName}</span>
                   {prod && (
                     <span className="ml-2">
                       {prod.learned

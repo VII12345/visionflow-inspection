@@ -105,19 +105,19 @@ export const SettingsTab: React.FC = () => {
       showMessage('保存线体数量失败: ' + (e as Error).message);
     }
   };
-  const filtered = products.filter(p => p.model.toLowerCase().includes(filter.toLowerCase()));
+  const filtered = products.filter(p => `${p.name || ''} ${p.model}`.toLowerCase().includes(filter.toLowerCase()));
 
   const startLearning = () => {
     if (!user) { setModal('login', true); return; }
     if (user.level !== 'admin') { showMessage('需要管理员权限才能进行AI学习'); return; }
-    if (!selectedModel) { showMessage('请先在左侧选择一个产品型号'); return; }
+    if (!selectedModel) { showMessage('请先在左侧选择一个产品'); return; }
     setLearnCallback(confirmLearning);
     setModal('learnConfirm', true);
   };
 
-  const confirmLearning = async (uprightPath: string, invertedPath: string) => {
-    if (!uprightPath || !invertedPath) {
-      showMessage('请指定正罐和倒罐图片目录');
+  const confirmLearning = async (classAPath: string, classBPath: string) => {
+    if (!classAPath || !classBPath) {
+      showMessage('请指定类别A和类别B图片目录');
       return;
     }
     try {
@@ -135,7 +135,7 @@ export const SettingsTab: React.FC = () => {
 
     try {
       const result = await api.startTraining({
-        uprightPath, invertedPath,
+        classAPath, classBPath,
         modelName: selectedModel!.model,
       });
       if (!result.success) {
@@ -146,7 +146,7 @@ export const SettingsTab: React.FC = () => {
       setModal('learnConfirm', false);
       setTrainingProgress({ running: true, progress: 0, label: '正在初始化...', metrics: '--' });
       pollTraining();
-      showMessage(`开始学习 ${selectedModel!.model}`);
+      showMessage(`开始学习 ${products.find(p => p.id === selectedModel!.id)?.name || selectedModel!.model}`);
     } catch (e) {
       showMessage('启动训练失败: ' + ((e as Error).message || '无法连接后端训练服务'));
     }
@@ -198,10 +198,10 @@ export const SettingsTab: React.FC = () => {
     <div className="flex gap-6 h-full overflow-auto">
       {/* Left: Model List */}
       <div className="w-1/2 flex flex-col">
-        <h3 className="text-[15px] font-semibold text-text-primary mb-4">已建立产品型号</h3>
+        <h3 className="text-[15px] font-semibold text-text-primary mb-4">已建立产品</h3>
         <input
           type="text"
-          placeholder="输入型号筛选..."
+          placeholder="输入产品名称或模型标识筛选..."
           value={filter}
           onChange={e => setFilter(e.target.value)}
           className={`${inputClass} mb-4`}
@@ -210,7 +210,8 @@ export const SettingsTab: React.FC = () => {
           <table className="w-full text-[13px] border-collapse">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
-                <th className={thClass}>型号</th>
+                <th className={thClass}>产品名称</th>
+                <th className={thClass}>模型标识</th>
                 <th className={thClass}>尺寸</th>
                 <th className={thClass}>状态</th>
               </tr>
@@ -245,7 +246,7 @@ export const SettingsTab: React.FC = () => {
             <div className="flex items-center gap-3">
               <span className="text-text-secondary text-[13px] w-16">当前型号</span>
               <span className="text-text-primary font-medium text-[13px] bg-gray-50 px-3 py-2 rounded-md flex-1">
-                {selectedModel?.model || '未选择'}
+                {products.find(p => p.id === selectedModel?.id)?.name || selectedModel?.model || '未选择'}
               </span>
             </div>
             <div className="flex gap-3">

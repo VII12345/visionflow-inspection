@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""罐子正反识别 — 深度学习 v8 (GPU + 高精度)
+"""产品类别识别 — 深度学习 v8 (GPU + 高精度)
 
 预处理:
   1. PIL 加载 → LANCZOS resize 短边=320
-  2. 按比例裁剪罐身
+  2. 按比例裁剪产品主体
   3. square pad + resize 到 224
   4. CHW float32 [-1,1]
 
@@ -59,7 +59,7 @@ def _use_amp():
 TRAIN_AUGMENT = transforms.Compose(
     [
         transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomVerticalFlip(p=0.1),  # 新增：罐子方向可能翻转
+        transforms.RandomVerticalFlip(p=0.1),  # 新增：产品方向可能翻转
         transforms.RandomRotation(degrees=15),  # 增大旋转角度
         transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.2, hue=0.05),
         transforms.RandomAffine(degrees=0, translate=(0.08, 0.08), scale=(0.9, 1.1)),
@@ -139,26 +139,26 @@ def load_and_prepare(img_path: str) -> np.ndarray | None:
 
 
 def _find_labeled_images(folder: Path):
-    """从标注目录加载：正(的)/ 和 反(的)/ 子目录"""
-    for up_name in ("正", "正的"):
-        upright_dir = folder / up_name
-        if upright_dir.is_dir():
+    """从标注目录加载：类别A(的)/ 和 类别B(的)/ 子目录"""
+    for class_a_name in ("类别A",)
+        class_a_dir = folder / class_a_name
+        if class_a_dir.is_dir():
             break
     else:
-        upright_dir = None
-    for inv_name in ("反", "反的"):
-        inverted_dir = folder / inv_name
-        if inverted_dir.is_dir():
+        class_a_dir = None
+    for class_b_name in ("类别B",)
+        class_b_dir = folder / class_b_name
+        if class_b_dir.is_dir():
             break
     else:
-        inverted_dir = None
+        class_b_dir = None
     samples = []
-    if upright_dir and upright_dir.is_dir():
-        for p in upright_dir.glob("*"):
+    if class_a_dir and class_a_dir.is_dir():
+        for p in class_a_dir.glob("*"):
             if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
                 samples.append((p, 0))
-    if inverted_dir and inverted_dir.is_dir():
-        for p in inverted_dir.glob("*"):
+    if class_b_dir and class_b_dir.is_dir():
+        for p in class_b_dir.glob("*"):
             if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
                 samples.append((p, 1))
     return samples
@@ -175,16 +175,16 @@ def _find_auto_images(image_dir: Path):
     )
     samples = []
     for p in paths:
-        samples.append((p, 0))  # 正
+        samples.append((p, 0))  # 类别A
     return samples, paths
 
 
-class JarDataset(Dataset):
-    """罐子分类数据集
+class ProductDataset(Dataset):
+    """产品分类数据集
 
     支持三种模式：
-    - 标注模式（单目录）：folder/正/*.jpg (label=0), folder/反/*.jpg (label=1)
-    - 标注模式（双目录）：upright_dir + inverted_dir 分别指定
+    - 标注模式（单目录）：folder/类别A/*.jpg (label=0), folder/类别B/*.jpg (label=1)
+    - 标注模式（双目录）：class_a_dir + class_b_dir 分别指定
     - 自动模式：所有图片 → label=0, 旋转180° → label=1
 
     __init__ 中预计算基础 tensor（无增强），__getitem__ 中快速做张量增强。
@@ -197,20 +197,20 @@ class JarDataset(Dataset):
         train: bool = True,
         split: float = 0.8,
         augment: bool = True,
-        upright_dir: Path | None = None,
-        inverted_dir: Path | None = None,
+        class_a_dir: Path | None = None,
+        class_b_dir: Path | None = None,
     ):
         self.train = train
         self.do_augment = augment and train
 
         # 收集样本
         samples = []
-        if upright_dir and inverted_dir:
+        if class_a_dir and class_b_dir:
             self.mode = "labeled_split"
-            for p in upright_dir.glob("*"):
+            for p in class_a_dir.glob("*"):
                 if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
                     samples.append((p, 0, False))
-            for p in inverted_dir.glob("*"):
+            for p in class_b_dir.glob("*"):
                 if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
                     samples.append((p, 1, False))
         else:
@@ -259,7 +259,7 @@ class JarDataset(Dataset):
 
         if len(self.base_tensors) == 0:
             _log.warning(
-                f"数据集为空！请检查路径: folder={folder}, upright={upright_dir}, inverted={inverted_dir}"
+                f"数据集为空！请检查路径: folder={folder}, classA={class_a_dir}, classB={class_b_dir}"
             )
 
     def __len__(self):
@@ -279,7 +279,7 @@ class JarDataset(Dataset):
 # ─── 模型 ──────────────────────────────────────────────────
 
 
-class JarClassifier(nn.Module):
+class ProductClassifier(nn.Module):
     def __init__(self):
         super().__init__()
         self.backbone = mobilenet_v3_large(weights=MobileNet_V3_Large_Weights.DEFAULT)
@@ -615,7 +615,7 @@ def classify_single(model, pil_image: Image.Image, timing: dict | None = None) -
     t0 = _time.perf_counter()
     probs = torch.softmax(logits, dim=1)[0]
     pred = int(probs.argmax())
-    label = "正" if pred == 0 else "反"
+    label = "类别A" if pred == 0 else "类别B"
     confidence = float(probs[pred])
     if timing is not None:
         timing["recognition_ms"] = (_time.perf_counter() - t0) * 1000
@@ -648,14 +648,14 @@ def classify_frames_batch(model, frames: list[Image.Image]) -> list[tuple[str, f
     results = []
     for i in range(len(frames)):
         pred = int(probs[i].argmax())
-        label = "正" if pred == 0 else "反"
+        label = "类别A" if pred == 0 else "类别B"
         confidence = float(probs[i][pred])
         results.append((label, confidence))
     return results
     for j, (pi, _) in enumerate(valid):
         p = probs[j]
         pred = int(p.argmax())
-        results[pi] = ("正" if pred == 0 else "反", float(p[pred]))
+        results[pi] = ("类别A" if pred == 0 else "类别B", float(p[pred]))
 
     elapsed = (time.perf_counter() - t0) * 1000
     return [(paths[i], *results[i]) for i in range(len(paths))], elapsed
@@ -666,23 +666,23 @@ def classify_frames_batch(model, frames: list[Image.Image]) -> list[tuple[str, f
 
 def main():
     img_dir = Path(__file__).parent / "images"
-    model_path = Path(__file__).parent / "jar_classifier.pth"
+    model_path = Path(__file__).parent / "model_classifier.pth"
 
     if model_path.exists():
         print(f"加载模型: {model_path}")
-        model = JarClassifier().to(_get_device())
+        model = ProductClassifier().to(_get_device())
         model.load_state_dict(
             torch.load(model_path, map_location=_get_device(), weights_only=True)
         )
         model.eval()
     else:
         print("训练新模型...")
-        train_set = JarDataset(img_dir, train=True, augment=True)
-        val_set = JarDataset(img_dir, train=False, augment=False)
+        train_set = ProductDataset(img_dir, train=True, augment=True)
+        val_set = ProductDataset(img_dir, train=False, augment=False)
         print(f"数据集模式: {train_set.mode}")
         print(f"训练 {len(train_set)}  验证 {len(val_set)}")
         model, history = train_model_v2(
-            JarClassifier(),
+            ProductClassifier(),
             DataLoader(train_set, batch_size=8, shuffle=True),
             DataLoader(val_set, batch_size=8),
             save_path=model_path,
@@ -713,19 +713,19 @@ def main():
 
     print(f"\n{'文件名':<52} {'结果':>4} {'置信度':>6}")
     print("-" * 66)
-    total = upright = inverted = 0
+    total = classA = classB = 0
     for _, label, conf in results:
         total += 1
-        if label == "正":
-            upright += 1
-        elif label == "反":
-            inverted += 1
+        if label == "类别A":
+            classA += 1
+        elif label == "类别B":
+            classB += 1
         c = f"{conf:.0%}" if conf > 0 else "-"
         pname = paths[total - 1].name if total <= len(paths) else ""
         print(f"{pname:<52} {label:>4} {c:>6}")
     print("-" * 66)
     print(
-        f"共 {total} 张 | 正 {upright} | 反 {inverted} | 耗时 {ms:.1f}ms ({ms_per:.1f}ms/张)"
+        f"共 {total} 张 | 类别A {classA} | 类别B {classB} | 耗时 {ms:.1f}ms ({ms_per:.1f}ms/张)"
     )
 
 

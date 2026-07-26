@@ -109,19 +109,24 @@ export const ChangePwdModal: React.FC = () => {
 };
 
 export const AddProductModal: React.FC = () => {
+  const [name, setName] = useState('');
   const [model, setModel] = useState('');
   const [size, setSize] = useState('');
   const setModal = useAppStore(s => s.setModal);
   const showMessage = useAppStore(s => s.showMessage);
+  const refreshCatalog = useAppStore(s => s.refreshCatalog);
 
   const handleAdd = () => {
-    if (!model || !size) { showMessage('请填写完整的产品信息'); return; }
+    const displayName = name.trim() || model.trim();
+    const modelKey = model.trim();
+    if (!displayName || !modelKey || !size.trim()) { showMessage('请填写完整的产品信息'); return; }
     const products = storage.getProducts();
-    if (products.find((p: { model: string }) => p.model === model)) { showMessage('该型号已存在'); return; }
-    products.push({ id: Date.now(), model, size, learned: false });
+    if (products.find(p => p.model === modelKey || p.name === displayName)) { showMessage('该产品名称或模型标识已存在'); return; }
+    products.push({ id: Date.now(), name: displayName, model: modelKey, size: size.trim(), learned: false });
     storage.saveProducts(products);
+    refreshCatalog();
     setModal('addProduct', false);
-    showMessage(`产品 ${model} 已新增`);
+    showMessage(`产品 ${displayName} 已新增`);
   };
 
   return (
@@ -133,8 +138,13 @@ export const AddProductModal: React.FC = () => {
     >
       <div className="flex flex-col gap-4">
         <div>
-          <label className={labelClass}>产品型号</label>
-          <input type="text" placeholder="例如: JAR-500ml" value={model} onChange={e => setModel(e.target.value)}
+          <label className={labelClass}>产品名称</label>
+          <input type="text" placeholder="例如：成品一号" value={name} onChange={e => setName(e.target.value)}
+            className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}>模型标识</label>
+          <input type="text" placeholder="例如：PRODUCT-500ml" value={model} onChange={e => setModel(e.target.value)}
             className={inputClass} />
         </div>
         <div>
@@ -147,10 +157,10 @@ export const AddProductModal: React.FC = () => {
   );
 };
 
-export const LearnConfirmModal: React.FC<{ onConfirm: (upright: string, inverted: string) => void }> = ({ onConfirm }) => {
-  const [upright, setUpright] = useState('');
-  const [inverted, setInverted] = useState('');
-  const [pickerTarget, setPickerTarget] = useState<'upright' | 'inverted' | null>(null);
+export const LearnConfirmModal: React.FC<{ onConfirm: (classA: string, classB: string) => void }> = ({ onConfirm }) => {
+  const [classA, setClassA] = useState('');
+  const [classB, setClassB] = useState('');
+  const [pickerTarget, setPickerTarget] = useState<'classA' | 'classB' | null>(null);
   const setModal = useAppStore(s => s.setModal);
   const showMessage = useAppStore(s => s.showMessage);
 
@@ -168,8 +178,8 @@ export const LearnConfirmModal: React.FC<{ onConfirm: (upright: string, inverted
   };
 
   const applyDirectory = (directory: BackendImageDirectory) => {
-    if (pickerTarget === 'upright') setUpright(directory.path);
-    if (pickerTarget === 'inverted') setInverted(directory.path);
+    if (pickerTarget === 'classA') setClassA(directory.path);
+    if (pickerTarget === 'classB') setClassB(directory.path);
     setPickerTarget(null);
   };
 
@@ -177,35 +187,35 @@ export const LearnConfirmModal: React.FC<{ onConfirm: (upright: string, inverted
     <>
       <Modal open={true} onClose={() => setModal('learnConfirm', false)} title="确认学习参数" width="520px"
         footer={<>
-          <Button variant="learn" onClick={() => onConfirm(upright, inverted)}>确认开始学习</Button>
+          <Button variant="learn" onClick={() => onConfirm(classA, classB)}>确认开始学习</Button>
           <Button variant="secondary" onClick={() => setModal('learnConfirm', false)}>取消</Button>
         </>}
       >
         <div className="flex flex-col gap-4">
-          <p className="text-xs text-text-secondary leading-5">请指定正罐和倒罐图片目录。网页版不能直接选择浏览器所在电脑的本地文件夹，训练读取的是后端电脑上的目录；可使用“选择后端目录”或手动输入后端路径。</p>
+          <p className="text-xs text-text-secondary leading-5">请指定类别A和类别B图片目录。网页版不能直接选择浏览器所在电脑的本地文件夹，训练读取的是后端电脑上的目录；可使用“选择后端目录”或手动输入后端路径。</p>
           <div>
-            <label className={labelClass}>正罐图片目录</label>
+            <label className={labelClass}>类别A图片目录</label>
             <div className="flex gap-2">
-              <input type="text" placeholder="正罐图片文件夹" value={upright} onChange={e => setUpright(e.target.value)}
+              <input type="text" placeholder="类别A图片文件夹" value={classA} onChange={e => setClassA(e.target.value)}
                 className={`${inputClass} flex-1`} />
-              <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setUpright)}>选择本地目录</Button>
-              <Button variant="secondary" size="sm" onClick={() => setPickerTarget('upright')}>选择后端目录</Button>
+              <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setClassA)}>选择本地目录</Button>
+              <Button variant="secondary" size="sm" onClick={() => setPickerTarget('classA')}>选择后端目录</Button>
             </div>
           </div>
           <div>
-            <label className={labelClass}>倒罐图片目录</label>
+            <label className={labelClass}>类别B图片目录</label>
             <div className="flex gap-2">
-              <input type="text" placeholder="倒罐图片文件夹" value={inverted} onChange={e => setInverted(e.target.value)}
+              <input type="text" placeholder="类别B图片文件夹" value={classB} onChange={e => setClassB(e.target.value)}
                 className={`${inputClass} flex-1`} />
-              <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setInverted)}>选择本地目录</Button>
-              <Button variant="secondary" size="sm" onClick={() => setPickerTarget('inverted')}>选择后端目录</Button>
+              <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setClassB)}>选择本地目录</Button>
+              <Button variant="secondary" size="sm" onClick={() => setPickerTarget('classB')}>选择后端目录</Button>
             </div>
           </div>
         </div>
       </Modal>
       <BackendDirectoryPicker
         open={pickerTarget !== null}
-        title={pickerTarget === 'upright' ? '选择后端正罐图片目录' : '选择后端倒罐图片目录'}
+        title={pickerTarget === 'classA' ? '选择后端类别A图片目录' : '选择后端类别B图片目录'}
         onClose={() => setPickerTarget(null)}
         onSelect={applyDirectory}
       />

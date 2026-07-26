@@ -67,7 +67,7 @@ export const api = {
     backendFetch<{ success: boolean; camera?: number; address?: string; value?: number; error?: string }>(`/api/cameras/${camId}/plc/test-reject`, { method: 'POST' }),
 
   // Training
-  startTraining: (params: { uprightPath?: string; invertedPath?: string; folderPath?: string; modelName: string }) =>
+  startTraining: (params: { classAPath?: string; classBPath?: string; folderPath?: string; modelName: string }) =>
     backendFetch<{ success: boolean; message?: string; error?: string }>('/api/training/start', { method: 'POST', body: params }),
   stopTraining: () => backendFetch('/api/training/stop', { method: 'POST' }),
   trainingStatus: () => backendFetch<{ running: boolean; progress: number; message: string; epoch: number; total_epochs: number; train_loss: number; val_loss: number; val_acc: number; modelPath?: string | null; evalResult?: Record<string, unknown> | null }>('/api/training/status'),
@@ -76,7 +76,7 @@ export const api = {
   getModels: () => backendFetch<{ success: boolean; models: { name: string }[] }>('/api/models'),
 
   // Model testing
-  testModel: (params: { model_name: string; mode: 'labeled' | 'unlabeled'; upright_path?: string; inverted_path?: string; folder_path?: string }) =>
+  testModel: (params: { model_name: string; mode: 'labeled' | 'unlabeled'; class_a_path?: string; class_b_path?: string; folder_path?: string }) =>
     backendFetch<{
       success: boolean;
       message?: string;
@@ -85,12 +85,12 @@ export const api = {
       total: number;
       correct?: number;
       accuracy?: number;
-      upright_total?: number;
-      upright_correct?: number;
-      upright_accuracy?: number | null;
-      inverted_total?: number;
-      inverted_correct?: number;
-      inverted_accuracy?: number | null;
+      class_a_total?: number;
+      class_a_correct?: number;
+      class_a_accuracy?: number | null;
+      class_b_total?: number;
+      class_b_correct?: number;
+      class_b_accuracy?: number | null;
       timing?: {
         avg_ms: number;
         min_ms: number;

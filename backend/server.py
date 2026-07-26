@@ -1373,7 +1373,7 @@ def list_image_directories():
 
 @app.route("/api/photos/<int:cam_id>", methods=["GET"])
 def list_photos(cam_id):
-    """获取相机照片列表（含正/反分类）"""
+    """获取相机照片列表（含类别A/类别B分类）"""
     if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
         return jsonify({"success": False, "error": "Invalid camera ID"}), 400
 
@@ -1384,8 +1384,8 @@ def list_photos(cam_id):
     photos = []
     ok_count = 0
     ng_count = 0
-    # 扫描子目录（正/反/未分类）
-    for sub in ["正", "反", "未分类"]:
+    # 扫描子目录（类别A/类别B/未分类）
+    for sub in ["类别A", "类别B", "未分类"]:
         subdir = capture_dir / sub
         if not subdir.exists():
             continue
@@ -1395,7 +1395,7 @@ def list_photos(cam_id):
             if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
                 stat = f.stat()
                 # 根据子目录确定分类
-                result_tag = "OK" if sub == "正" else ("NG" if sub == "反" else "--")
+                result_tag = "OK" if sub == "类别A" else ("NG" if sub == "类别B" else "--")
                 if result_tag == "OK":
                     ok_count += 1
                 elif result_tag == "NG":
@@ -1426,7 +1426,7 @@ def get_photo(cam_id, filename):
 
     safe_name = Path(filename).name
     # 在子目录中查找
-    for sub in ["正", "反", "未分类", ""]:
+    for sub in ["类别A", "类别B", "未分类", ""]:
         file_path = Config.CAPTURE_DIR / f"cam{cam_id}" / sub / safe_name
         if file_path.exists():
             break
@@ -1453,7 +1453,7 @@ def delete_photo(cam_id, filename):
 
     safe_name = Path(filename).name
     file_path = None
-    for sub in ["正", "反", "未分类", ""]:
+    for sub in ["类别A", "类别B", "未分类", ""]:
         candidate = Config.CAPTURE_DIR / f"cam{cam_id}" / sub / safe_name
         if candidate.exists() and candidate.is_file():
             file_path = candidate
@@ -1483,7 +1483,7 @@ def cleanup_photos():
 
         # 收集所有照片文件，按修改时间排序
         files = []
-        for sub in ["正", "反", "未分类", ""]:
+        for sub in ["类别A", "类别B", "未分类", ""]:
             subdir = capture_dir / sub
             if not subdir.exists():
                 continue
@@ -1672,7 +1672,7 @@ def camera_worker(cam_id):
                 if result:
                     latest_results[cam_id] = result
                     stats[cam_id]["detected"] += 1
-                    if result["label"] == "反":
+                    if result["label"] == "类别B":
                         stats[cam_id]["defective"] += 1
                         try:
                             plc_service.with_base_url(
@@ -1693,19 +1693,19 @@ def camera_worker(cam_id):
                 logger.warning(f"Camera {cam_id}: 模型未就绪，无法推理")
                 stats[cam_id]["detected"] += 1
 
-            # 照片存盘 — 异步写入，不阻塞抓帧循环。正/反照片的开关
+            # 照片存盘 — 异步写入，不阻塞抓帧循环。类别A/类别B照片的开关
             # 来自 /api/save-settings，并且在后端进程内直接生效。
             try:
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
                 millis = int((time.time() * 1000) % 1000)
                 if submitted and result:
-                    tag = "OK" if result["label"] == "正" else "NG"
+                    tag = "OK" if result["label"] == "类别A" else "NG"
                 else:
                     tag = "UNK"
                 setting_key = "saveGood" if tag == "OK" else "saveBad"
                 should_save = tag == "UNK" or save_settings.get(cam_id, {}).get(setting_key, True)
                 if should_save:
-                    subdir = "正" if tag == "OK" else ("反" if tag == "NG" else "未分类")
+                    subdir = "类别A" if tag == "OK" else ("类别B" if tag == "NG" else "未分类")
                     filename = f"CAM{cam_id}_{timestamp}_{millis:03d}.bmp"
                     save_path = Config.CAPTURE_DIR / f"cam{cam_id}" / subdir / filename
                     # 异步提交存盘（非阻塞，存盘在后台线程慢慢写）
@@ -1740,8 +1740,8 @@ def list_models():
     """扫描 data/ 目录，返回已训练的模型列表"""
     models = []
     try:
-        for f in Config.DATA_DIR.glob("jar_classifier_*.pth"):
-            name = f.stem.replace("jar_classifier_", "")
+        for f in Config.DATA_DIR.glob("*_classifier_*.pth"):
+            name = f.stem.rsplit("_classifier_", 1)[-1]
             stat = f.stat()
             models.append(
                 {
@@ -1823,11 +1823,11 @@ def test_model():
 
         sources = []
         if mode == "labeled":
-            upright_path = (data.get("upright_path") or "").strip()
-            inverted_path = (data.get("inverted_path") or "").strip()
-            if not upright_path and not inverted_path:
-                return jsonify({"success": False, "message": "请至少指定正罐或倒罐目录"}), 400
-            for expected, folder_value in (("正", upright_path), ("反", inverted_path)):
+            class_a_path = (data.get("class_a_path") or "").strip()
+            class_b_path = (data.get("class_b_path") or "").strip()
+            if not class_a_path and not class_b_path:
+                return jsonify({"success": False, "message": "请至少指定类别A或类别B目录"}), 400
+            for expected, folder_value in (("类别A", class_a_path), ("类别B", class_b_path)):
                 if not folder_value:
                     continue
                 folder = Path(folder_value)
@@ -1845,7 +1845,7 @@ def test_model():
         # 模型路由和文件枚举属于测试启动准备，不计入图片处理耗时。
         pipeline_start = time.perf_counter()
         results = []
-        counts = {"total": 0, "correct": 0, "upright_total": 0, "upright_correct": 0, "inverted_total": 0, "inverted_correct": 0}
+        counts = {"total": 0, "correct": 0, "class_a_total": 0, "class_a_correct": 0, "class_b_total": 0, "class_b_correct": 0}
 
         try:
             with tempfile.TemporaryDirectory(prefix="vision_test_captures_", dir=str(Config.DATA_DIR)) as temp_dir:
@@ -1900,14 +1900,14 @@ def test_model():
                         if expected is not None:
                             if is_correct:
                                 counts["correct"] += 1
-                            if expected == "正":
-                                counts["upright_total"] += 1
+                            if expected == "类别A":
+                                counts["class_a_total"] += 1
                                 if is_correct:
-                                    counts["upright_correct"] += 1
+                                    counts["class_a_correct"] += 1
                             else:
-                                counts["inverted_total"] += 1
+                                counts["class_b_total"] += 1
                                 if is_correct:
-                                    counts["inverted_correct"] += 1
+                                    counts["class_b_correct"] += 1
                         result = {"filename": image_path.name, "predicted": predicted, "confidence": round(confidence, 4)}
                         if expected is not None:
                             result.update({"expected": expected, "correct": is_correct})
@@ -1917,7 +1917,7 @@ def test_model():
                         t0 = time.perf_counter()
                         save_copy = image.copy()
                         step_values["frame_copy_ms"].append((time.perf_counter() - t0) * 1000)
-                        save_subdir = "正" if predicted == "正" else "反"
+                        save_subdir = "类别A" if predicted == "类别A" else "类别B"
                         save_path = save_root / save_subdir / f"{image_path.stem}.bmp"
                         done_event = threading.Event()
                         completion = {}
@@ -1986,12 +1986,12 @@ def test_model():
             response.update({
                 "correct": counts["correct"],
                 "accuracy": round(counts["correct"] / total, 4) if total else 0,
-                "upright_total": counts["upright_total"],
-                "upright_correct": counts["upright_correct"],
-                "upright_accuracy": round(counts["upright_correct"] / counts["upright_total"], 4) if counts["upright_total"] else None,
-                "inverted_total": counts["inverted_total"],
-                "inverted_correct": counts["inverted_correct"],
-                "inverted_accuracy": round(counts["inverted_correct"] / counts["inverted_total"], 4) if counts["inverted_total"] else None,
+                "class_a_total": counts["class_a_total"],
+                "class_a_correct": counts["class_a_correct"],
+                "class_a_accuracy": round(counts["class_a_correct"] / counts["class_a_total"], 4) if counts["class_a_total"] else None,
+                "class_b_total": counts["class_b_total"],
+                "class_b_correct": counts["class_b_correct"],
+                "class_b_accuracy": round(counts["class_b_correct"] / counts["class_b_total"], 4) if counts["class_b_total"] else None,
             })
         return jsonify(response)
     except Exception as e:
@@ -2018,13 +2018,13 @@ def _training_status_callback(
         )
 
 
-def _run_training(folder_path, model_name, upright_path=None, inverted_path=None):
+def _run_training(folder_path, model_name, class_a_path=None, class_b_path=None):
     """后台训练线程"""
     global training_state
     try:
         from .training import (
-            JarDataset,
-            JarClassifier,
+            ProductDataset,
+            ProductClassifier,
             train_model_v2,
             set_training_device,
         )
@@ -2035,23 +2035,23 @@ def _run_training(folder_path, model_name, upright_path=None, inverted_path=None
         logger.info(f"训练设备: {training_device}")
 
         logger.info(
-            f"开始训练: model={model_name}, upright={upright_path}, inverted={inverted_path}, folder={folder_path}"
+            f"开始训练: model={model_name}, classA={class_a_path}, classB={class_b_path}, folder={folder_path}"
         )
         training_state["message"] = "正在加载数据..."
 
-        train_set = JarDataset(
+        train_set = ProductDataset(
             Path(folder_path) if folder_path else Path.cwd(),
             train=True,
             augment=True,
-            upright_dir=Path(upright_path) if upright_path else None,
-            inverted_dir=Path(inverted_path) if inverted_path else None,
+            class_a_dir=Path(class_a_path) if class_a_path else None,
+            class_b_dir=Path(class_b_path) if class_b_path else None,
         )
-        val_set = JarDataset(
+        val_set = ProductDataset(
             Path(folder_path) if folder_path else Path.cwd(),
             train=False,
             augment=False,
-            upright_dir=Path(upright_path) if upright_path else None,
-            inverted_dir=Path(inverted_path) if inverted_path else None,
+            class_a_dir=Path(class_a_path) if class_a_path else None,
+            class_b_dir=Path(class_b_path) if class_b_path else None,
         )
 
         logger.info(
@@ -2091,14 +2091,14 @@ def _run_training(folder_path, model_name, upright_path=None, inverted_path=None
             pin_memory=True,
         )
 
-        model_path = Config.DATA_DIR / f"jar_classifier_{model_name}.pth"
+        model_path = Config.DATA_DIR / f"model_classifier_{model_name}.pth"
 
         # 传递停止标志检查函数
         def _check_stop():
             return _training_stop_flag
 
         model, history = train_model_v2(
-            JarClassifier(),
+            ProductClassifier(),
             train_ldr,
             val_ldr,
             save_path=model_path,
@@ -2161,8 +2161,8 @@ def start_training():
             return value.strip()
 
         folder_path = clean_path("folderPath")
-        upright_path = clean_path("uprightPath")
-        inverted_path = clean_path("invertedPath")
+        class_a_path = clean_path("classAPath")
+        class_b_path = clean_path("classBPath")
         model_name = clean_path("modelName") or "default"
 
         image_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
@@ -2184,16 +2184,16 @@ def start_training():
                 return f"{label}中没有可识别的图片文件: {path_value}"
             return None
 
-        if upright_path and inverted_path:
+        if class_a_path and class_b_path:
             # 双目录模式
-            error = validate_image_directory(upright_path, "正罐目录")
+            error = validate_image_directory(class_a_path, "类别A目录")
             if error:
                 return jsonify({"success": False, "message": error}), 400
-            error = validate_image_directory(inverted_path, "倒罐目录")
+            error = validate_image_directory(class_b_path, "类别B目录")
             if error:
                 return jsonify({"success": False, "message": error}), 400
         elif folder_path:
-            # 单目录模式（需包含 正/ 反/ 子目录）
+            # 单目录模式（需包含 类别A/ 类别B/ 子目录）
             error = validate_image_directory(folder_path, "图片目录", recursive=True)
             if error:
                 return jsonify({"success": False, "message": error}), 400
@@ -2213,8 +2213,8 @@ def start_training():
                 "message": "正在初始化...",
                 "history": None,
                 "folderPath": folder_path,
-                "uprightPath": upright_path,
-                "invertedPath": inverted_path,
+                "classAPath": class_a_path,
+                "classBPath": class_b_path,
                 "modelName": model_name,
                 "modelPath": None,
                 "evalResult": None,
@@ -2226,7 +2226,7 @@ def start_training():
 
         _training_thread = threading.Thread(
             target=_run_training,
-            args=(folder_path, model_name, upright_path, inverted_path),
+            args=(folder_path, model_name, class_a_path, class_b_path),
             daemon=True,
         )
         _training_thread.start()

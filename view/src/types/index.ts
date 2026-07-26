@@ -7,6 +7,8 @@ export interface User {
 
 export interface Product {
   id: number;
+  /** 用户可编辑的显示名称，model 保留为模型/文件关联标识。 */
+  name: string;
   model: string;
   size: string;
   learned: boolean;
@@ -22,6 +24,8 @@ export interface RunLayout {
 }
 export interface LineConfig {
   line: number;
+  /** 用户可编辑的线体名称。 */
+  name: string;
   productId: number | null;
   model: string;
 }
@@ -104,4 +108,3 @@ export interface EnvCheckResult {
 }
 
 export type TabId = 'run' | 'file' | 'settings' | 'test' | 'user' | `cam-detail-${number}`;
-

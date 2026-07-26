@@ -108,7 +108,7 @@ ipcMain.on('close-camera-popout', (event, camId) => {
 ipcMain.handle('select-folder', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory'],
-    title: '选择图片文件夹（需包含 正/ 反/ 子目录）',
+    title: '选择图片文件夹（需包含 类别A/ 类别B/ 子目录）',
   });
   if (result.canceled || result.filePaths.length === 0) return null;
   return result.filePaths[0];
@@ -327,7 +327,7 @@ html,body{width:100%;height:100%;background:#f8f9fa;overflow:hidden;font-family:
 <script>
 var camId=${camId},frameEl=document.getElementById('frame'),placeholderEl=document.getElementById('placeholder'),badgeEl=document.getElementById('badge'),resultEl=document.getElementById('result'),timeEl=document.getElementById('time');
 async function updateFrame(){try{var res=await fetch('http://127.0.0.1:5000/api/frame/'+camId);if(!res.ok)return;var blob=await res.blob(),url=URL.createObjectURL(blob);frameEl.src=url;frameEl.style.display='';placeholderEl.style.display='none';setTimeout(function(){URL.revokeObjectURL(url)},2000)}catch(e){}}
-async function updateStatus(){try{var res=await fetch('http://127.0.0.1:5000/api/status');var data=await res.json(),cs=data.cameras&&data.cameras[camId];if(!cs)return;timeEl.textContent=cs.lastFrameTime||'';resultEl.style.color='#6b7280';if(cs.state==='running'&&cs.result){var isOk=cs.result.label==='正';badgeEl.textContent=cs.result.label;badgeEl.className='badge '+(isOk?'badge-ok':'badge-ng');resultEl.textContent=cs.result.label+' ('+Math.round(cs.result.confidence*100)+'%)';resultEl.style.color=isOk?'#059669':'#dc2626'}else if(cs.state==='running'){badgeEl.textContent='等待触发';badgeEl.className='badge badge-wait';resultEl.textContent='已触发 '+(cs.totalTriggers||0)+' 次';resultEl.style.color='#d97706'}else if(cs.state==='error'){badgeEl.textContent='错误';badgeEl.className='badge badge-error';resultEl.textContent=cs.error||'未知错误';resultEl.style.color='#dc2626'}}catch(e){}}
+async function updateStatus(){try{var res=await fetch('http://127.0.0.1:5000/api/status');var data=await res.json(),cs=data.cameras&&data.cameras[camId];if(!cs)return;timeEl.textContent=cs.lastFrameTime||'';resultEl.style.color='#6b7280';if(cs.state==='running'&&cs.result){var isOk=cs.result.label==='类别A';badgeEl.textContent=cs.result.label;badgeEl.className='badge '+(isOk?'badge-ok':'badge-ng');resultEl.textContent=cs.result.label+' ('+Math.round(cs.result.confidence*100)+'%)';resultEl.style.color=isOk?'#059669':'#dc2626'}else if(cs.state==='running'){badgeEl.textContent='等待触发';badgeEl.className='badge badge-wait';resultEl.textContent='已触发 '+(cs.totalTriggers||0)+' 次';resultEl.style.color='#d97706'}else if(cs.state==='error'){badgeEl.textContent='错误';badgeEl.className='badge badge-error';resultEl.textContent=cs.error||'未知错误';resultEl.style.color='#dc2626'}}catch(e){}}
 updateFrame();updateStatus();setInterval(updateFrame,1000);setInterval(updateStatus,500);
 </script></body></html>`;
 

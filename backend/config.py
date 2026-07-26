@@ -96,12 +96,11 @@ class Config:
     @classmethod
     def get_active_model_path(cls, model_name=None):
         """获取模型路径。指定 model_name 则用对应产品模型，否则用第一个已训练的。"""
+        trained = sorted(cls.DATA_DIR.glob("*_classifier_*.pth"))
         if model_name:
-            p = cls.DATA_DIR / f"jar_classifier_{model_name}.pth"
-            if p.exists():
-                return p
-        # 扫描所有已训练的模型
-        trained = sorted(cls.DATA_DIR.glob("jar_classifier_*.pth"))
+            for p in trained:
+                if p.stem.rsplit("_classifier_", 1)[-1] == model_name:
+                    return p
         if trained:
             return trained[0]
         return None
@@ -182,4 +181,3 @@ class Config:
 
         os.environ["PATH"] = current_path
         return runtime_paths
-

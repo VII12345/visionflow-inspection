@@ -21,7 +21,9 @@ interface AppState {
   isRunning: boolean;
   setRunning: (running: boolean) => void;
   lineCount: number;
+  catalogRevision: number;
   setLineCount: (count: number) => void;
+  refreshCatalog: () => void;
 
   // Tabs
   activeTab: TabId;
@@ -71,14 +73,15 @@ interface AppState {
   clearAlarm: () => void;
 
   // Learn confirm callback (for SettingsTab <-> LearnConfirmModal communication)
-  learnCallback: ((upright: string, inverted: string) => void) | null;
-  setLearnCallback: (cb: ((upright: string, inverted: string) => void) | null) => void;
+  learnCallback: ((classA: string, classB: string) => void) | null;
+  setLearnCallback: (cb: ((classA: string, classB: string) => void) | null) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
   user: (() => { const u = storage.getCurrentUser(); return u ? { ...u, password: '' } : null; })(),
   isRunning: false,
   lineCount: storage.getLineCount(),
+  catalogRevision: 0,
   activeTab: 'run',
   dynamicTabs: new Set(),
   loginModal: false,
@@ -134,6 +137,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const nextCount = storage.saveLineCount(count);
     set({ lineCount: nextCount });
   },
+  refreshCatalog: () => set(state => ({ catalogRevision: state.catalogRevision + 1 })),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
@@ -176,4 +180,3 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { poppedOutCams: next };
   }),
 }));
-

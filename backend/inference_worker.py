@@ -20,7 +20,7 @@ inference_queue = queue.Queue(maxsize=Config.INFERENCE_QUEUE_SIZE)
 result_queues = {i: queue.Queue() for i in range(1, Config.CAMERA_COUNT + 1)}
 
 # 全局模型（按产品名缓存）
-models = {}  # {model_name: JarClassifier}
+models = {}  # {model_name: ProductClassifier}
 model_loaded = False
 camera_product_map = {}  # {cam_id: model_name}  每个摄像头用哪个产品的模型
 
@@ -58,14 +58,14 @@ def preload_all_models():
         torch.cuda.init()
         logger.info("CUDA 运行时已提前初始化")
 
-    model_paths = sorted(Config.DATA_DIR.glob("jar_classifier_*.pth"))
+    model_paths = sorted(Config.DATA_DIR.glob("*_classifier_*.pth"))
     loaded = 0
     if model_paths:
         # 默认模型供 Worker 启动使用，同时把具名模型全部放入缓存。
         if load_model():
             loaded += 1
         for model_path in model_paths:
-            model_name = model_path.stem.replace("jar_classifier_", "")
+            model_name = model_path.stem.rsplit("_classifier_", 1)[-1]
             if model_name and model_name not in models and load_model(model_name):
                 loaded += 1
     else:
@@ -80,12 +80,12 @@ def load_model(model_name=None):
     global models, model_loaded
 
     try:
-        from .training import JarClassifier
+        from .training import ProductClassifier
 
         model_path = Config.get_active_model_path(model_name)
         logger.info(f"加载模型: {model_path or '无'} (请求: {model_name or '自动'})")
 
-        m = JarClassifier().to(Config.DEVICE)
+        m = ProductClassifier().to(Config.DEVICE)
         if model_path is not None and model_path.exists():
             state_dict = torch.load(
                 model_path, map_location=Config.DEVICE, weights_only=True

@@ -127,8 +127,8 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  const handleLearnConfirm = useCallback((upright: string, inverted: string) => {
-    if (learnCallback) learnCallback(upright, inverted);
+  const handleLearnConfirm = useCallback((classA: string, classB: string) => {
+    if (learnCallback) learnCallback(classA, classB);
   }, [learnCallback]);
 
   const renderTabContent = () => {
