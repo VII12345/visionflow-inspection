@@ -33,9 +33,21 @@ const App: React.FC = () => {
   const showMessage = useAppStore(s => s.showMessage);
   const statusMessage = useAppStore(s => s.statusMessage);
   const setEnvResult = useAppStore(s => s.setEnvResult);
+  const setLineCount = useAppStore(s => s.setLineCount);
   const raiseAlarm = useAppStore(s => s.raiseAlarm);
   const dynamicTabs = useAppStore(s => s.dynamicTabs);
   const learnCallback = useAppStore(s => s.learnCallback);
+
+  // 后端是线体数量的最终来源：启动时同步，避免本地缓存与实际相机槽位不一致。
+  useEffect(() => {
+    let cancelled = false;
+    api.getLineCount().then(data => {
+      if (!cancelled && data.success && Number.isInteger(data.line_count)) {
+        setLineCount(data.line_count);
+      }
+    }).catch(() => { /* 后端健康检查会提示连接异常 */ });
+    return () => { cancelled = true; };
+  }, [setLineCount]);
 
   // Startup health and environment checks. Failures are visible as a popup plus a restrained full-screen flash.
   useEffect(() => {
