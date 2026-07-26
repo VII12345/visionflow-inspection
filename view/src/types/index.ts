@@ -116,7 +116,6 @@ export interface PlcCameraMapping {
 export interface PlcConfig {
   enabled: boolean;
   base_url: string;
-  proxy_url: string;
   timeout_seconds: number;
   node_prefix: string;
   reject_labels: string[];
