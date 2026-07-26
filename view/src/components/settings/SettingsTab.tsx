@@ -120,21 +120,35 @@ export const SettingsTab: React.FC = () => {
       showMessage('请指定正罐和倒罐图片目录');
       return;
     }
-    setModal('learnConfirm', false);
+    try {
+      const currentStatus = await api.trainingStatus();
+      if (currentStatus.running) {
+        setModal('learnConfirm', false);
+        setTrainingProgress({ running: true, progress: currentStatus.progress, label: currentStatus.message || '训练已在运行中...', metrics: '--' });
+        pollTraining();
+        showMessage('检测到已有训练任务，已恢复训练进度');
+        return;
+      }
+    } catch {
+      // 状态查询失败时继续尝试启动，并由后端返回具体错误。
+    }
+
     try {
       const result = await api.startTraining({
         uprightPath, invertedPath,
         modelName: selectedModel!.model,
       });
-      if (!(result as { success: boolean }).success) {
-        showMessage('启动训练失败: ' + (result as { message?: string }).message);
+      if (!result.success) {
+        const message = result.message || result.error || '后端拒绝启动训练';
+        showMessage('启动训练失败: ' + message);
         return;
       }
+      setModal('learnConfirm', false);
       setTrainingProgress({ running: true, progress: 0, label: '正在初始化...', metrics: '--' });
       pollTraining();
       showMessage(`开始学习 ${selectedModel!.model}`);
     } catch (e) {
-      showMessage('启动训练失败: ' + (e as Error).message);
+      showMessage('启动训练失败: ' + ((e as Error).message || '无法连接后端训练服务'));
     }
   };
 

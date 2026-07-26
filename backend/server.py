@@ -2130,31 +2130,55 @@ def start_training():
         return jsonify({"success": False, "message": "训练已在运行中"})
 
     try:
-        data = request.get_json()
-        folder_path = data.get("folderPath", "").strip()
-        upright_path = data.get("uprightPath", "").strip()
-        inverted_path = data.get("invertedPath", "").strip()
-        model_name = data.get("modelName", "").strip()
+        data = request.get_json(silent=True) or {}
+        if not isinstance(data, dict):
+            return jsonify({"success": False, "message": "训练参数格式无效"}), 400
 
-        if not model_name:
-            model_name = "default"
+        def clean_path(field_name):
+            value = data.get(field_name, "")
+            if value is None:
+                return ""
+            if not isinstance(value, str):
+                raise ValueError(f"{field_name} 必须是文本路径")
+            return value.strip()
+
+        folder_path = clean_path("folderPath")
+        upright_path = clean_path("uprightPath")
+        inverted_path = clean_path("invertedPath")
+        model_name = clean_path("modelName") or "default"
+
+        image_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
+
+        def validate_image_directory(path_value, label, recursive=False):
+            directory = Path(path_value)
+            if not directory.is_dir():
+                return f"{label}不存在或不是文件夹: {path_value}"
+            try:
+                candidates = directory.rglob("*") if recursive else directory.iterdir()
+                image_count = sum(
+                    1
+                    for item in candidates
+                    if item.is_file() and item.suffix.lower() in image_extensions
+                )
+            except OSError as exc:
+                return f"无法读取{label}: {exc}"
+            if image_count == 0:
+                return f"{label}中没有可识别的图片文件: {path_value}"
+            return None
 
         if upright_path and inverted_path:
             # 双目录模式
-            if not Path(upright_path).exists():
-                return jsonify(
-                    {"success": False, "message": f"正罐目录不存在: {upright_path}"}
-                ), 400
-            if not Path(inverted_path).exists():
-                return jsonify(
-                    {"success": False, "message": f"倒罐目录不存在: {inverted_path}"}
-                ), 400
+            error = validate_image_directory(upright_path, "正罐目录")
+            if error:
+                return jsonify({"success": False, "message": error}), 400
+            error = validate_image_directory(inverted_path, "倒罐目录")
+            if error:
+                return jsonify({"success": False, "message": error}), 400
         elif folder_path:
             # 单目录模式（需包含 正/ 反/ 子目录）
-            if not Path(folder_path).exists():
-                return jsonify(
-                    {"success": False, "message": f"文件夹不存在: {folder_path}"}
-                ), 400
+            error = validate_image_directory(folder_path, "图片目录", recursive=True)
+            if error:
+                return jsonify({"success": False, "message": error}), 400
         else:
             return jsonify({"success": False, "message": "请选择图片文件夹"}), 400
 
@@ -2192,6 +2216,8 @@ def start_training():
         logger.info(f"训练线程已启动: {folder_path}")
         return jsonify({"success": True, "message": "训练已启动"})
 
+    except ValueError as e:
+        return jsonify({"success": False, "message": str(e)}), 400
     except Exception as e:
         logger.error(f"启动训练失败: {e}")
         training_state["running"] = False

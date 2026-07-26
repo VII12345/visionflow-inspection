@@ -22,9 +22,21 @@ async function backendFetch<T = unknown>(url: string, options?: {
     body: options?.body ? JSON.stringify(options.body) : undefined,
   });
   if (options?.responseType === 'blob') {
+    if (!res.ok) throw new Error(`后端请求失败 (${res.status})`);
     return res.blob() as Promise<T>;
   }
-  return res.json();
+  const text = await res.text();
+  let data: unknown;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`后端返回了无效响应 (${res.status})`);
+  }
+  if (!res.ok) {
+    const errorData = data as { message?: string; error?: string };
+    throw new Error(errorData.message || errorData.error || `后端请求失败 (${res.status})`);
+  }
+  return data as T;
 }
 
 export const api = {
@@ -49,7 +61,7 @@ export const api = {
 
   // Training
   startTraining: (params: { uprightPath?: string; invertedPath?: string; folderPath?: string; modelName: string }) =>
-    backendFetch<{ success: boolean; message?: string }>('/api/training/start', { method: 'POST', body: params }),
+    backendFetch<{ success: boolean; message?: string; error?: string }>('/api/training/start', { method: 'POST', body: params }),
   stopTraining: () => backendFetch('/api/training/stop', { method: 'POST' }),
   trainingStatus: () => backendFetch<{ running: boolean; progress: number; message: string; epoch: number; total_epochs: number; train_loss: number; val_loss: number; val_acc: number; modelPath?: string | null; evalResult?: Record<string, unknown> | null }>('/api/training/status'),
 
