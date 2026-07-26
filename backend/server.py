@@ -1767,7 +1767,6 @@ def test_model():
 
     IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}
     STEP_LABELS = {
-        "image_acquisition_ms": "获取图片",
         "inference_submit_ms": "提交推理队列",
         "inference_queue_wait_ms": "推理队列等待",
         "inference_batch_window_ms": "推理批窗口",
@@ -1852,14 +1851,12 @@ def test_model():
             with tempfile.TemporaryDirectory(prefix="vision_test_captures_", dir=str(Config.DATA_DIR)) as temp_dir:
                 save_root = Path(temp_dir) / "captures"
                 for image_path, expected in sources:
-                    image_start = time.perf_counter()
                     image = None
                     try:
-                        # 与实际相机帧进入 worker 前一致：读取并转换为 RGB 图像对象。
-                        t0 = time.perf_counter()
+                        # 与实际相机帧进入 worker 前一致：读取并转换为 RGB 图像对象。读取本身不计入测试耗时。
                         with Image.open(image_path) as source_image:
                             image = source_image.convert("RGB")
-                        step_values["image_acquisition_ms"].append((time.perf_counter() - t0) * 1000)
+                        image_start = time.perf_counter()
 
                         # 与实际运行完全相同：提交 inference_queue，由推理 Worker 处理。
                         t0 = time.perf_counter()

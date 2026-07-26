@@ -87,7 +87,6 @@ const TIMING_TREE: TimingTreeNode[] = [
 ];
 
 const HIDDEN_TIMING_KEYS = new Set([
-  'image_acquisition_ms',
   'inference_result_wait_ms',
   'save_queue_wait_ms',
   'detection_pipeline_ms',
@@ -111,7 +110,7 @@ const STEP_EXPLANATIONS: Record<string, string> = {
   save_queue_wait_excluding_write_ms: '保存任务入队后，在实际写盘开始前等待保存 Worker 或等待前序任务完成的时间。',
   image_save_ms: '保存 Worker 将图片编码为 BMP 并实际写入后端磁盘的耗时。磁盘速度、目录位置和文件大小都会影响此项。',
   detection_pipeline_ms: '从检测流程开始到输出检测结果的主流程耗时，便于观察推理链路整体开销。',
-  pipeline_ms: '单张图片的完整端到端耗时，覆盖获取图片、推理、结果输出以及异步保存相关步骤。',
+  pipeline_ms: '单张图片从读入内存后开始，到推理、结果输出以及异步保存完成的处理耗时；不包含读取图片本身。',
 };
 
 const TIMING_SUMMARY_EXPLANATIONS: Record<string, string> = {
@@ -235,7 +234,7 @@ ${STEP_EXPLANATIONS[key] || '该项表示测试链路中的一个独立计时步
       </div>
       {displayedGapMs != null && (
         <div className="px-3 py-2 text-[10px] text-text-tertiary bg-amber-50/50 border-b border-amber-100">
-          端到端单张平均 {overallAvgMs!.toFixed(2)} ms；与已展示分项相差 {Math.abs(displayedGapMs).toFixed(2)} ms。差值主要来自按要求隐藏的图片读取计时及线程调度开销，不是子项重复相加。
+          端到端单张平均 {overallAvgMs!.toFixed(2)} ms；与已展示分项相差 {Math.abs(displayedGapMs).toFixed(2)} ms。差值主要来自不同计时点和线程调度产生的测量误差，不是子项重复相加。
         </div>
       )}
       <div className="divide-y divide-gray-100">{TIMING_TREE.map(node => renderNode(node, 0))}</div>
@@ -397,7 +396,7 @@ export const TestTab: React.FC = () => {
           ) : (
             <>
               <div className="text-xs font-semibold text-ok mb-1">批量推理：真实环境模拟测试</div>
-              <p className="text-[11px] text-text-secondary leading-5">逐张模拟产线流程：获取图片 → 提交真实推理队列 → Worker 异步推理 → 输出结果 → 提交异步保存队列 → 等待实际写盘完成，并统计每一步延迟。</p>
+              <p className="text-[11px] text-text-secondary leading-5">逐张模拟产线流程：提交真实推理队列 → Worker 异步推理 → 输出结果 → 提交异步保存队列 → 等待实际写盘完成，并统计处理阶段延迟；读取图片本身不计入耗时。</p>
             </>
           )}
         </div>
@@ -539,7 +538,7 @@ export const TestTab: React.FC = () => {
                     <th className="px-3 py-2 text-left text-[10px] font-medium text-text-tertiary uppercase w-16">结果</th>
                     <th className="px-3 py-2 text-left text-[10px] font-medium text-text-tertiary uppercase w-20">置信度</th>
                     {result.results[0]?.time_ms != null && (
-                      <th className="px-3 py-2 text-left text-[10px] font-medium text-text-tertiary uppercase w-20">完整耗时</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-medium text-text-tertiary uppercase w-20">单张处理耗时</th>
                     )}
                     {result.results[0]?.timing && (
                       <th className="px-3 py-2 text-left text-[10px] font-medium text-text-tertiary uppercase w-20">步骤</th>
@@ -560,7 +559,7 @@ export const TestTab: React.FC = () => {
                       </td>
                       <td className="px-3 py-2 text-text-secondary">{(r.confidence * 100).toFixed(1)}%</td>
                       {r.time_ms != null && (
-                        <td className="px-3 py-2 text-text-tertiary cursor-help" title="这张图片从测试流程开始到完整结果处理结束的单张总耗时。">{r.time_ms.toFixed(1)} ms</td>
+                        <td className="px-3 py-2 text-text-tertiary cursor-help" title="这张图片从读入内存后开始，到完整结果处理结束的单张处理耗时；不包含读取图片本身。">{r.time_ms.toFixed(1)} ms</td>
                       )}
                       {r.timing && (
                         <td className="px-3 py-2 text-text-tertiary relative">
