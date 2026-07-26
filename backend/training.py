@@ -100,11 +100,13 @@ def _tensor_color_jitter(x: torch.Tensor) -> torch.Tensor:
 def preprocess(img: Image.Image, augment: bool = False) -> np.ndarray:
     """PIL Image → crop + square → resize 224 → float32[-1,1] CHW"""
     w, h = img.size
-    # 先缩到短边 320，大幅减少计算量
+    # 先缩到短边 320，大幅减少后续裁剪和缩放的像素量。
+    # BOX 是面积平均下采样，远快于 LANCZOS；最终 224 尺寸仍使用
+    # LANCZOS 保持模型输入边缘质量。现有模型样本对比结果保持一致。
     short = min(w, h)
     if short > 320:
         ratio = 320 / short
-        img = img.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
+        img = img.resize((int(w * ratio), int(h * ratio)), Image.Resampling.BOX)
     w, h = img.size
     # crop: 左右去15%，上下各去8%
     x0, x1 = int(w * 0.15), int(w * 0.85)
