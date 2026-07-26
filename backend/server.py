@@ -1198,9 +1198,45 @@ def reset_stats(cam_id):
 
 # ========== 保存设置 API ==========
 
-save_settings = {
-    i: {"saveGood": True, "saveBad": True} for i in range(1, Config.CAMERA_COUNT + 1)
-}
+_save_settings_path = Config.DATA_DIR / "save_settings.json"
+
+
+def _default_save_settings():
+    return {
+        i: {"saveGood": True, "saveBad": True}
+        for i in range(1, Config.CAMERA_COUNT + 1)
+    }
+
+
+def _load_save_settings():
+    settings = _default_save_settings()
+    if not _save_settings_path.exists():
+        return settings
+    try:
+        with open(_save_settings_path, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+        for cam_id in range(1, Config.CAMERA_COUNT + 1):
+            item = raw.get(str(cam_id), raw.get(cam_id, {})) if isinstance(raw, dict) else {}
+            if isinstance(item, dict):
+                settings[cam_id] = {
+                    "saveGood": item.get("saveGood", True) is True,
+                    "saveBad": item.get("saveBad", True) is True,
+                }
+    except (OSError, ValueError, TypeError) as exc:
+        logger.warning(f"加载照片保存设置失败，使用默认值: {exc}")
+    return settings
+
+
+def _persist_save_settings():
+    try:
+        _save_settings_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(_save_settings_path, "w", encoding="utf-8") as f:
+            json.dump(save_settings, f, indent=2)
+    except OSError as exc:
+        logger.error(f"保存照片保存设置失败: {exc}")
+
+
+save_settings = _load_save_settings()
 
 
 # ========== 训练状态 ==========
@@ -1234,16 +1270,17 @@ def get_save_settings():
 
 @app.route("/api/save-settings/<int:cam_id>", methods=["POST"])
 def update_save_settings(cam_id):
-    """更新保存设置"""
+    """更新保存设置，并立即影响后续抓拍存盘。"""
     if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
         return jsonify({"success": False, "error": "Invalid camera ID"}), 400
-    data = request.get_json()
-    save_settings[cam_id] = {
-        "saveGood": data.get("saveGood", True),
-        "saveBad": data.get("saveBad", True),
-    }
+    data = request.get_json(silent=True) or {}
+    values = {"saveGood": data.get("saveGood", True), "saveBad": data.get("saveBad", True)}
+    if any(not isinstance(value, bool) for value in values.values()):
+        return jsonify({"success": False, "error": "saveGood/saveBad 必须是布尔值"}), 400
+    save_settings[cam_id] = values
+    _persist_save_settings()
     logger.info(f"更新保存设置 Cam{cam_id}: {save_settings[cam_id]}")
-    return jsonify({"success": True})
+    return jsonify({"success": True, "settings": save_settings[cam_id]})
 
 
 # ========== 照片管理 API ==========
@@ -1566,7 +1603,8 @@ def camera_worker(cam_id):
                 logger.warning(f"Camera {cam_id}: 模型未就绪，无法推理")
                 stats[cam_id]["detected"] += 1
 
-            # 照片存盘 — 异步写入，不阻塞抓帧循环
+            # 照片存盘 — 异步写入，不阻塞抓帧循环。正/反照片的开关
+            # 来自 /api/save-settings，并且在后端进程内直接生效。
             try:
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
                 millis = int((time.time() * 1000) % 1000)
@@ -1574,11 +1612,14 @@ def camera_worker(cam_id):
                     tag = "OK" if result["label"] == "正" else "NG"
                 else:
                     tag = "UNK"
-                subdir = "正" if tag == "OK" else ("反" if tag == "NG" else "未分类")
-                filename = f"CAM{cam_id}_{timestamp}_{millis:03d}.bmp"
-                save_path = Config.CAPTURE_DIR / f"cam{cam_id}" / subdir / filename
-                # 异步提交存盘（非阻塞，存盘在后台线程慢慢写）
-                _submit_save(frame.copy(), save_path)
+                setting_key = "saveGood" if tag == "OK" else "saveBad"
+                should_save = tag == "UNK" or save_settings.get(cam_id, {}).get(setting_key, True)
+                if should_save:
+                    subdir = "正" if tag == "OK" else ("反" if tag == "NG" else "未分类")
+                    filename = f"CAM{cam_id}_{timestamp}_{millis:03d}.bmp"
+                    save_path = Config.CAPTURE_DIR / f"cam{cam_id}" / subdir / filename
+                    # 异步提交存盘（非阻塞，存盘在后台线程慢慢写）
+                    _submit_save(frame.copy(), save_path)
             except Exception as e:
                 logger.error(f"Camera {cam_id}: 提交存盘失败: {e}")
 
