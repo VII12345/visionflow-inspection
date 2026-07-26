@@ -6,8 +6,6 @@ import { BackendDirectoryPicker, type BackendImageDirectory } from '../common/Ba
 
 interface StepTiming { avg_ms: number; min_ms: number; max_ms: number; total_ms: number; }
 const STEP_LABELS: Record<string, string> = {
-  file_enumeration_ms: '文件枚举',
-  model_route_prepare_ms: '模型路由/准备',
   inference_submit_ms: '提交推理队列',
   inference_queue_wait_ms: '推理队列等待',
   inference_batch_window_ms: '推理批窗口',
@@ -38,15 +36,6 @@ interface TimingTreeNode {
 }
 
 const TIMING_TREE: TimingTreeNode[] = [
-  {
-    key: 'prepare',
-    label: '任务准备',
-    description: '准备模型路由并扫描测试文件',
-    children: [
-      { key: 'model-route', label: '模型路由/准备', description: '', steps: ['model_route_prepare_ms'] },
-      { key: 'file-enumeration', label: '文件枚举', description: '', steps: ['file_enumeration_ms'] },
-    ],
-  },
   {
     key: 'inference',
     label: '推理链路',
@@ -106,8 +95,6 @@ const HIDDEN_TIMING_KEYS = new Set([
 ]);
 
 const STEP_EXPLANATIONS: Record<string, string> = {
-  file_enumeration_ms: '扫描所选目录并枚举支持的图片文件，统计本次测试需要处理的文件数量。只包含文件查找和列表生成，不包含图片解码。',
-  model_route_prepare_ms: '根据当前选择的模型建立测试任务的模型路由，并准备对应的模型缓存。模型首次加载或切换时可能明显增加。',
   inference_submit_ms: '把已经读取的图片放入真实推理队列，并记录提交动作本身耗时；不包括排队等待和模型计算。',
   inference_queue_wait_ms: '图片进入推理队列后，等待推理 Worker 取走处理的时间。队列拥堵或前面任务较多时会升高。',
   inference_batch_window_ms: 'Worker 为了形成微批次而等待更多图片的时间。单张测试时通常接近微批窗口上限。',
@@ -248,7 +235,7 @@ ${STEP_EXPLANATIONS[key] || '该项表示测试链路中的一个独立计时步
       </div>
       {displayedGapMs != null && (
         <div className="px-3 py-2 text-[10px] text-text-tertiary bg-amber-50/50 border-b border-amber-100">
-          端到端单张平均 {overallAvgMs!.toFixed(2)} ms；与已展示分项相差 {Math.abs(displayedGapMs).toFixed(2)} ms。差值来自按要求隐藏的图片读取计时及测试级一次性准备，不是子项重复相加。
+          端到端单张平均 {overallAvgMs!.toFixed(2)} ms；与已展示分项相差 {Math.abs(displayedGapMs).toFixed(2)} ms。差值主要来自按要求隐藏的图片读取计时及线程调度开销，不是子项重复相加。
         </div>
       )}
       <div className="divide-y divide-gray-100">{TIMING_TREE.map(node => renderNode(node, 0))}</div>
@@ -505,7 +492,7 @@ export const TestTab: React.FC = () => {
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-[10px] text-text-tertiary uppercase tracking-wide">完整运行链路延迟</div>
-                <div className="text-[11px] text-text-tertiary">任务准备 → 推理链路 → 结果输出 → 保存图片</div>
+                <div className="text-[11px] text-text-tertiary">推理链路 → 结果输出 → 保存图片</div>
               </div>
               <div className="text-[11px] text-text-tertiary mb-2">父级合计均为可展开子项相加；推理交接和写盘前等待已拆出，避免外层等待与内部步骤重复计算。</div>
               <div className="grid grid-cols-4 gap-4 mb-4">

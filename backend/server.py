@@ -1767,8 +1767,6 @@ def test_model():
 
     IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}
     STEP_LABELS = {
-        "file_enumeration_ms": "文件枚举",
-        "model_route_prepare_ms": "模型路由/准备",
         "image_acquisition_ms": "获取图片",
         "inference_submit_ms": "提交推理队列",
         "inference_queue_wait_ms": "推理队列等待",
@@ -1821,14 +1819,10 @@ def test_model():
             except queue.Empty:
                 break
 
-        pipeline_start = time.perf_counter()
         step_values = {key: [] for key in STEP_LABELS}
-        set_model_start = time.perf_counter()
         set_camera_product(test_cam_id, model_name)
-        step_values["model_route_prepare_ms"].append((time.perf_counter() - set_model_start) * 1000)
 
         sources = []
-        enum_start = time.perf_counter()
         if mode == "labeled":
             upright_path = (data.get("upright_path") or "").strip()
             inverted_path = (data.get("inverted_path") or "").strip()
@@ -1849,8 +1843,8 @@ def test_model():
             if not folder.is_dir():
                 return jsonify({"success": False, "message": "目录不存在"}), 400
             sources = [(path, None) for path in sorted(folder.iterdir()) if path.suffix.lower() in IMG_EXTS]
-        step_values["file_enumeration_ms"].append((time.perf_counter() - enum_start) * 1000)
-
+        # 模型路由和文件枚举属于测试启动准备，不计入图片处理耗时。
+        pipeline_start = time.perf_counter()
         results = []
         counts = {"total": 0, "correct": 0, "upright_total": 0, "upright_correct": 0, "inverted_total": 0, "inverted_correct": 0}
 
