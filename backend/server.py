@@ -1147,7 +1147,10 @@ def get_status():
     return jsonify(
         {
             "cameras": camera_status,
-            "system": {"running": system_running, "modelLoaded": False},
+            "system": {
+                "running": system_running,
+                "modelLoaded": inference_worker.model_loaded,
+            },
         }
     )
 
@@ -1193,7 +1196,7 @@ def reset_stats(cam_id):
 
     stats[cam_id] = {"detected": 0, "defective": 0}
     logger.info(f"重置 Camera {cam_id} 统计")
-    return jsonify({"success": True})
+    return jsonify({"success": True, "stats": stats[cam_id]})
 
 
 # ========== 保存设置 API ==========
