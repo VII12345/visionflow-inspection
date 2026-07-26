@@ -27,7 +27,7 @@ from .inference_worker import (
 )
 from . import inference_worker
 from .env_check import run_environment_check
-from .plc_service import CAMERA_PLC_MAP, PlcWriteError, plc_service
+from .plc_service import get_plc_config, save_plc_config, PlcWriteError, PlcService, plc_service
 
 
 # 初始化 Flask
@@ -850,7 +850,8 @@ def update_camera_config(cam_id):
             "plcUrl": data.get("plcUrl", "http://127.0.0.1:8088"),
         }
 
-        plc_url = camera_config["plcUrl"].strip()
+        plc_config = get_plc_config()
+        plc_url = str(plc_config.get("base_url", camera_config["plcUrl"])).strip()
         if not plc_url.startswith(("http://", "https://")):
             return jsonify(
                 {"success": False, "error": "PLC地址必须以 http:// 或 https:// 开头"}
@@ -869,11 +870,12 @@ def update_camera_config(cam_id):
                     {"success": False, "error": f"{key} 必须是 0 到 4294967295 的整数"}
                 ), 400
 
+        camera_config["plcUrl"] = plc_url.rstrip("/")
         success = camera_config_manager.update_camera_config(cam_id, camera_config)
         plc_result = None
         plc_error = None
         try:
-            plc_result = plc_service.with_base_url(plc_url).write_camera_timing(
+            plc_result = None if not plc_config.get("enabled", True) else plc_service.with_base_url(plc_url).write_camera_timing(
                 cam_id, camera_config["rejectTime"], camera_config["rejectDelay"]
             )
         except (PlcWriteError, ValueError) as e:
@@ -898,22 +900,66 @@ def update_camera_config(cam_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/api/plc/config", methods=["GET"])
+def get_plc_configuration():
+    """获取独立 PLC 配置。"""
+    return jsonify({"success": True, "config": get_plc_config()})
+
+
+@app.route("/api/plc/config", methods=["POST"])
+def save_plc_configuration():
+    """保存独立 PLC 配置。"""
+    try:
+        config = save_plc_config(request.get_json(silent=True) or {})
+        logger.info("PLC 独立配置已保存")
+        return jsonify({"success": True, "config": config, "message": "PLC 配置已保存"})
+    except (TypeError, ValueError) as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    except Exception as exc:
+        logger.error(f"保存 PLC 配置失败: {exc}", exc_info=True)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/plc/test", methods=["POST"])
+def test_plc_write():
+    """按当前配置执行一次可控的 PLC 节点测试写入。"""
+    try:
+        config = get_plc_config()
+        if not config.get("enabled", True):
+            return jsonify({"success": False, "error": "PLC 功能当前已禁用"}), 400
+        data = request.get_json(silent=True) or {}
+        cam_id = int(data.get("camera_id", 1))
+        if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
+            return jsonify({"success": False, "error": "无效的相机编号"}), 400
+        key = str(data.get("type", "reject_signal"))
+        if key not in ("reject_time", "reject_delay", "reject_signal"):
+            return jsonify({"success": False, "error": "无效的测试节点类型"}), 400
+        mapping = config["cameras"].get(str(cam_id), {})
+        address = mapping.get(key)
+        if not address:
+            return jsonify({"success": False, "error": "该相机尚未配置节点名称"}), 400
+        client = PlcService(base_url=config["base_url"], proxy_url=config.get("proxy_url", ""), node_prefix=config.get("node_prefix", "NODES.MODBUS."), timeout_seconds=config.get("timeout_seconds", 3))
+        value = int(data.get("value", 1))
+        result = client.write_byte(address, value) if key == "reject_signal" else client.write_dword(address, value)
+        return jsonify({"success": True, "camera_id": cam_id, "type": key, "address": address, "value": value, "plc": result})
+    except (PlcWriteError, ValueError, TypeError) as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+
 @app.route("/api/cameras/<int:cam_id>/plc/test-reject", methods=["POST"])
 def test_reject_signal(cam_id):
     """写入对应相机的 MB=1 测试信号"""
-    if cam_id not in CAMERA_PLC_MAP:
+    config = get_plc_config()
+    if cam_id < 1 or cam_id > Config.CAMERA_COUNT or str(cam_id) not in config.get("cameras", {}):
         return jsonify({"success": False, "error": "Invalid camera ID"}), 400
     try:
-        result = plc_service.with_base_url(
-            camera_config_manager.get_camera_config(cam_id).get(
-                "plcUrl", plc_service.base_url
-            )
-        ).write_reject_signal(cam_id)
+        if not config.get("enabled", True):
+            return jsonify({"success": False, "error": "PLC 功能当前已禁用"}), 400
+        result = plc_service.with_base_url(config.get("base_url", plc_service.base_url)).write_reject_signal(cam_id)
         return jsonify(
             {
                 "success": True,
                 "camera": cam_id,
-                "address": CAMERA_PLC_MAP[cam_id]["reject_signal"],
+                "address": config["cameras"][str(cam_id)]["reject_signal"],
                 "value": 1,
                 "plc": result,
             }
@@ -923,7 +969,7 @@ def test_reject_signal(cam_id):
             {
                 "success": False,
                 "camera": cam_id,
-                "address": CAMERA_PLC_MAP[cam_id]["reject_signal"],
+                "address": config["cameras"][str(cam_id)]["reject_signal"],
                 "error": str(e),
             }
         ), 502
@@ -1368,6 +1414,12 @@ def list_image_directories():
     return jsonify({"success": True, "directories": directories})
 
 
+def _photo_subdirs(capture_dir):
+    if not capture_dir.exists():
+        return []
+    return sorted([item for item in capture_dir.iterdir() if item.is_dir()], key=lambda item: item.name)
+
+
 # ========== 照片管理 API ==========
 
 
@@ -1384,18 +1436,16 @@ def list_photos(cam_id):
     photos = []
     ok_count = 0
     ng_count = 0
-    # 扫描子目录（类别A/类别B/未分类）
-    for sub in ["类别A", "类别B", "未分类"]:
-        subdir = capture_dir / sub
-        if not subdir.exists():
-            continue
+    # 扫描所有类别子目录
+    for subdir in _photo_subdirs(capture_dir):
+        sub = subdir.name
         for f in sorted(
             subdir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True
         ):
             if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
                 stat = f.stat()
                 # 根据子目录确定分类
-                result_tag = "OK" if sub == "类别A" else ("NG" if sub == "类别B" else "--")
+                result_tag = "NG" if sub in reject_labels else ("--" if sub == "未分类" else "OK")
                 if result_tag == "OK":
                     ok_count += 1
                 elif result_tag == "NG":
@@ -1425,9 +1475,9 @@ def get_photo(cam_id, filename):
         return jsonify({"error": "Invalid camera ID"}), 400
 
     safe_name = Path(filename).name
-    # 在子目录中查找
-    for sub in ["类别A", "类别B", "未分类", ""]:
-        file_path = Config.CAPTURE_DIR / f"cam{cam_id}" / sub / safe_name
+    # 在所有类别子目录中查找
+    for subdir in _photo_subdirs(Config.CAPTURE_DIR / f"cam{cam_id}"):
+        file_path = subdir / safe_name
         if file_path.exists():
             break
     else:
@@ -1453,8 +1503,8 @@ def delete_photo(cam_id, filename):
 
     safe_name = Path(filename).name
     file_path = None
-    for sub in ["类别A", "类别B", "未分类", ""]:
-        candidate = Config.CAPTURE_DIR / f"cam{cam_id}" / sub / safe_name
+    for subdir in _photo_subdirs(Config.CAPTURE_DIR / f"cam{cam_id}"):
+        candidate = subdir / safe_name
         if candidate.exists() and candidate.is_file():
             file_path = candidate
             break
@@ -1481,12 +1531,9 @@ def cleanup_photos():
         if not capture_dir.exists():
             continue
 
-        # 收集所有照片文件，按修改时间排序
+        # 收集所有类别目录中的照片，按修改时间排序
         files = []
-        for sub in ["类别A", "类别B", "未分类", ""]:
-            subdir = capture_dir / sub
-            if not subdir.exists():
-                continue
+        for subdir in _photo_subdirs(capture_dir):
             for f in subdir.iterdir():
                 if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
                     files.append((f, f.stat().st_mtime))
@@ -1672,16 +1719,15 @@ def camera_worker(cam_id):
                 if result:
                     latest_results[cam_id] = result
                     stats[cam_id]["detected"] += 1
-                    if result["label"] == "类别B":
+                    plc_config = get_plc_config()
+                    should_reject = result["label"] in plc_config.get("reject_labels", ["类别B"])
+                    if should_reject:
                         stats[cam_id]["defective"] += 1
+                    if plc_config.get("enabled", True) and should_reject:
                         try:
-                            plc_service.with_base_url(
-                                camera_config_manager.get_camera_config(cam_id).get(
-                                    "plcUrl", plc_service.base_url
-                                )
-                            ).write_reject_signal(cam_id)
+                            plc_service.with_base_url(plc_config.get("base_url", plc_service.base_url)).write_reject_signal(cam_id)
                         except (PlcWriteError, ValueError) as e:
-                            logger.error(f"Camera {cam_id}: 反结果写入PLC失败: {e}")
+                            logger.error(f"Camera {cam_id}: 结果写入 PLC 失败: {e}")
                     logger.info(
                         f"Camera {cam_id}: #{frame_count} → {result['label']} ({result['confidence']:.2f})"
                     )
@@ -1699,13 +1745,16 @@ def camera_worker(cam_id):
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
                 millis = int((time.time() * 1000) % 1000)
                 if submitted and result:
-                    tag = "OK" if result["label"] == "类别A" else "NG"
+                    plc_config = get_plc_config()
+                    tag = result["label"]
+                    setting_key = "saveBad" if tag in plc_config.get("reject_labels", ["类别B"]) else "saveGood"
+                    should_save = save_settings.get(cam_id, {}).get(setting_key, True)
+                    subdir = tag
                 else:
-                    tag = "UNK"
-                setting_key = "saveGood" if tag == "OK" else "saveBad"
-                should_save = tag == "UNK" or save_settings.get(cam_id, {}).get(setting_key, True)
+                    tag = "未分类"
+                    should_save = True
+                    subdir = tag
                 if should_save:
-                    subdir = "类别A" if tag == "OK" else ("类别B" if tag == "NG" else "未分类")
                     filename = f"CAM{cam_id}_{timestamp}_{millis:03d}.bmp"
                     save_path = Config.CAPTURE_DIR / f"cam{cam_id}" / subdir / filename
                     # 异步提交存盘（非阻塞，存盘在后台线程慢慢写）
@@ -1743,11 +1792,22 @@ def list_models():
         for f in Config.DATA_DIR.glob("*_classifier_*.pth"):
             name = f.stem.rsplit("_classifier_", 1)[-1]
             stat = f.stat()
+            categories = ["类别A", "类别B"]
+            metadata_path = f.with_suffix(".json")
+            try:
+                if metadata_path.exists():
+                    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                    if isinstance(metadata.get("categories"), list) and metadata["categories"]:
+                        categories = [str(item) for item in metadata["categories"]]
+            except Exception:
+                pass
             models.append(
                 {
                     "name": name,
                     "size": stat.st_size,
                     "mtime": stat.st_mtime,
+                    "categories": categories,
+                    "num_classes": len(categories),
                 }
             )
     except Exception as e:
@@ -1802,6 +1862,17 @@ def test_model():
         mode = data.get("mode", "labeled")
         if not model_name:
             return jsonify({"success": False, "message": "请指定模型名称"}), 400
+        model_categories = ["类别A", "类别B"]
+        model_path = Config.get_active_model_path(model_name)
+        if model_path is not None:
+            metadata_path = model_path.with_suffix(".json")
+            try:
+                if metadata_path.exists():
+                    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                    if isinstance(metadata.get("categories"), list) and metadata["categories"]:
+                        model_categories = [str(item) for item in metadata["categories"]]
+            except Exception:
+                pass
         if mode not in ("labeled", "unlabeled"):
             return jsonify({"success": False, "message": "无效的测试模式"}), 400
         if system_running:
@@ -1823,17 +1894,27 @@ def test_model():
 
         sources = []
         if mode == "labeled":
-            class_a_path = (data.get("class_a_path") or "").strip()
-            class_b_path = (data.get("class_b_path") or "").strip()
-            if not class_a_path and not class_b_path:
-                return jsonify({"success": False, "message": "请至少指定类别A或类别B目录"}), 400
-            for expected, folder_value in (("类别A", class_a_path), ("类别B", class_b_path)):
-                if not folder_value:
-                    continue
-                folder = Path(folder_value)
-                if not folder.is_dir():
-                    continue
-                sources.extend((path, expected) for path in sorted(folder.iterdir()) if path.suffix.lower() in IMG_EXTS)
+            category_root = (data.get("category_root_path") or "").strip()
+            if category_root:
+                root = Path(category_root)
+                if not root.is_dir():
+                    return jsonify({"success": False, "message": "类别根目录不存在"}), 400
+                for category_dir in sorted(root.iterdir(), key=lambda item: item.name):
+                    if not category_dir.is_dir():
+                        continue
+                    sources.extend((path, category_dir.name) for path in sorted(category_dir.iterdir()) if path.suffix.lower() in IMG_EXTS)
+            else:
+                class_a_path = (data.get("class_a_path") or "").strip()
+                class_b_path = (data.get("class_b_path") or "").strip()
+                if not class_a_path and not class_b_path:
+                    return jsonify({"success": False, "message": "请指定类别根目录"}), 400
+                for expected, folder_value in (("类别A", class_a_path), ("类别B", class_b_path)):
+                    if not folder_value:
+                        continue
+                    folder = Path(folder_value)
+                    if not folder.is_dir():
+                        continue
+                    sources.extend((path, expected) for path in sorted(folder.iterdir()) if path.suffix.lower() in IMG_EXTS)
         else:
             folder_value = (data.get("folder_path") or "").strip()
             if not folder_value:
@@ -1845,7 +1926,8 @@ def test_model():
         # 模型路由和文件枚举属于测试启动准备，不计入图片处理耗时。
         pipeline_start = time.perf_counter()
         results = []
-        counts = {"total": 0, "correct": 0, "class_a_total": 0, "class_a_correct": 0, "class_b_total": 0, "class_b_correct": 0}
+        counts = {"total": 0, "correct": 0}
+        category_counts = {name: {"total": 0, "correct": 0} for name in model_categories}
 
         try:
             with tempfile.TemporaryDirectory(prefix="vision_test_captures_", dir=str(Config.DATA_DIR)) as temp_dir:
@@ -1900,14 +1982,10 @@ def test_model():
                         if expected is not None:
                             if is_correct:
                                 counts["correct"] += 1
-                            if expected == "类别A":
-                                counts["class_a_total"] += 1
-                                if is_correct:
-                                    counts["class_a_correct"] += 1
-                            else:
-                                counts["class_b_total"] += 1
-                                if is_correct:
-                                    counts["class_b_correct"] += 1
+                            bucket = category_counts.setdefault(expected, {"total": 0, "correct": 0})
+                            bucket["total"] += 1
+                            if is_correct:
+                                bucket["correct"] += 1
                         result = {"filename": image_path.name, "predicted": predicted, "confidence": round(confidence, 4)}
                         if expected is not None:
                             result.update({"expected": expected, "correct": is_correct})
@@ -1986,12 +2064,15 @@ def test_model():
             response.update({
                 "correct": counts["correct"],
                 "accuracy": round(counts["correct"] / total, 4) if total else 0,
-                "class_a_total": counts["class_a_total"],
-                "class_a_correct": counts["class_a_correct"],
-                "class_a_accuracy": round(counts["class_a_correct"] / counts["class_a_total"], 4) if counts["class_a_total"] else None,
-                "class_b_total": counts["class_b_total"],
-                "class_b_correct": counts["class_b_correct"],
-                "class_b_accuracy": round(counts["class_b_correct"] / counts["class_b_total"], 4) if counts["class_b_total"] else None,
+                "category_counts": {
+                    name: {
+                        "total": bucket["total"],
+                        "correct": bucket["correct"],
+                        "accuracy": round(bucket["correct"] / bucket["total"], 4) if bucket["total"] else None,
+                    }
+                    for name, bucket in category_counts.items()
+                },
+                "categories": model_categories,
             })
         return jsonify(response)
     except Exception as e:
@@ -2098,7 +2179,7 @@ def _run_training(folder_path, model_name, class_a_path=None, class_b_path=None)
             return _training_stop_flag
 
         model, history = train_model_v2(
-            ProductClassifier(),
+            ProductClassifier(num_classes=train_set.num_classes),
             train_ldr,
             val_ldr,
             save_path=model_path,
@@ -2111,12 +2192,15 @@ def _run_training(folder_path, model_name, class_a_path=None, class_b_path=None)
             stop_flag_fn=_check_stop,
         )
 
-        logger.info(f"模型已保存: {model_path}")
+        metadata_path = model_path.with_suffix(".json")
+        metadata_path.write_text(json.dumps({"categories": train_set.categories, "num_classes": train_set.num_classes}, ensure_ascii=False, indent=2), encoding="utf-8")
+        logger.info(f"模型已保存: {model_path}，类别: {train_set.categories}")
 
         # 清除模型缓存，下次推理自动加载新模型
-        from .inference_worker import models, load_model
+        from .inference_worker import models, model_categories, load_model
 
         models.clear()
+        model_categories.clear()
         load_model(model_name)
         logger.info("推理模型已更新")
 
@@ -2161,6 +2245,7 @@ def start_training():
             return value.strip()
 
         folder_path = clean_path("folderPath")
+        category_root_path = clean_path("categoryRootPath") or folder_path
         class_a_path = clean_path("classAPath")
         class_b_path = clean_path("classBPath")
         model_name = clean_path("modelName") or "default"
@@ -2192,11 +2277,15 @@ def start_training():
             error = validate_image_directory(class_b_path, "类别B目录")
             if error:
                 return jsonify({"success": False, "message": error}), 400
-        elif folder_path:
-            # 单目录模式（需包含 类别A/ 类别B/ 子目录）
-            error = validate_image_directory(folder_path, "图片目录", recursive=True)
+        elif category_root_path:
+            root = Path(category_root_path)
+            error = validate_image_directory(category_root_path, "类别根目录", recursive=True)
             if error:
                 return jsonify({"success": False, "message": error}), 400
+            category_dirs = [directory for directory in sorted(root.iterdir(), key=lambda item: item.name) if directory.is_dir() and any(item.is_file() for item in directory.iterdir())]
+            if len(category_dirs) < 2:
+                return jsonify({"success": False, "message": "类别根目录至少需要包含两个带图片的子目录"}), 400
+            folder_path = category_root_path
         else:
             return jsonify({"success": False, "message": "请选择图片文件夹"}), 400
 
@@ -2213,6 +2302,7 @@ def start_training():
                 "message": "正在初始化...",
                 "history": None,
                 "folderPath": folder_path,
+                "categoryRootPath": category_root_path,
                 "classAPath": class_a_path,
                 "classBPath": class_b_path,
                 "modelName": model_name,
@@ -2365,4 +2455,3 @@ def run_server():
 
 if __name__ == "__main__":
     run_server()
-

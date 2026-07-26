@@ -107,4 +107,19 @@ export interface EnvCheckResult {
   results: { name: string; message: string; passed: boolean; level: string; detail?: string }[];
 }
 
-export type TabId = 'run' | 'file' | 'settings' | 'test' | 'user' | `cam-detail-${number}`;
+export interface PlcCameraMapping {
+  reject_time: string;
+  reject_delay: string;
+  reject_signal: string;
+}
+
+export interface PlcConfig {
+  enabled: boolean;
+  base_url: string;
+  proxy_url: string;
+  timeout_seconds: number;
+  node_prefix: string;
+  reject_labels: string[];
+  cameras: Record<string, PlcCameraMapping>;
+}
+export type TabId = 'run' | 'file' | 'settings' | 'test' | 'user' | 'plc' | 'help' | `cam-detail-${number}`;

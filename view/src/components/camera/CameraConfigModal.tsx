@@ -20,8 +20,6 @@ const fieldMeta: { key: string; label: string; type: 'number' | 'select' | 'togg
   { key: 'strobeEnable', label: '频闪输出', type: 'toggle', hint: '启用 Line1 控制外部光源' },
   { key: 'strobeDelay', label: '频闪延时 (us)', type: 'number', min: 0, max: 100000, step: 10, hint: '触发后延时多久打开光源' },
   { key: 'strobeDuration', label: '频闪持续时间 (us)', type: 'number', min: 0, max: 100000, step: 100, hint: '0=与曝光时间同步' },
-  { key: 'rejectTime', label: '剔除时间', type: 'number', min: 0, max: 4294967295, step: 1, hint: '写入 PLC DWord' },
-  { key: 'rejectDelay', label: '延时剔除', type: 'number', min: 0, max: 4294967295, step: 1, hint: '写入 PLC DWord' },
 ];
 
 const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors';
@@ -31,9 +29,7 @@ export const CameraConfigModal: React.FC<Props> = ({ camId, open, onClose }) => 
   const showMessage = useAppStore(s => s.showMessage);
   const [enabled, setEnabled] = useState(false);
   const [ip, setIp] = useState('');
-  const [plcUrl, setPlcUrl] = useState('http://127.0.0.1:8088');
   const [fields, setFields] = useState<Record<string, string | number | boolean>>({});
-  const [testingSignal, setTestingSignal] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -44,7 +40,6 @@ export const CameraConfigModal: React.FC<Props> = ({ camId, open, onClose }) => 
             const c = (data as { config: Record<string, unknown> }).config;
             setEnabled((c.enabled as boolean) || false);
             setIp((c.ip as string) || '');
-            setPlcUrl((c.plcUrl as string) || 'http://127.0.0.1:8088');
             const f: Record<string, string | number | boolean> = {};
             for (const meta of fieldMeta) {
               const raw = c[meta.key];
@@ -59,9 +54,8 @@ export const CameraConfigModal: React.FC<Props> = ({ camId, open, onClose }) => 
 
   const save = async () => {
     if (enabled && !/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) { showMessage('请输入有效的IP地址'); return; }
-    if (!/^((https?):\/\/)[^\s/$.?#].[^\s]*$/i.test(plcUrl)) { showMessage('请输入有效的 PLC 地址'); return; }
     try {
-      const body: Record<string, unknown> = { enabled, ip, plcUrl, name: `Cam${camId}`, ...fields };
+      const body: Record<string, unknown> = { enabled, ip, name: `Cam${camId}`, ...fields };
       const data = await api.saveCameraConfig(camId, body);
       if ((data as { success: boolean }).success) {
         const plcResult = data as { plcSuccess?: boolean; plcError?: string };
@@ -76,23 +70,10 @@ export const CameraConfigModal: React.FC<Props> = ({ camId, open, onClose }) => 
 
   const update = (key: string, value: string | number | boolean) => setFields(prev => ({ ...prev, [key]: value }));
 
-  const testRejectSignal = async () => {
-    setTestingSignal(true);
-    try {
-      const data = await api.testRejectSignal(camId);
-      if (data.success) showMessage(`Cam${camId} 测试写入成功：${data.address}=1`);
-      else showMessage(`Cam${camId} 测试写入失败：${data.error || '未知错误'}`);
-    } catch (e) {
-      showMessage(`Cam${camId} 测试写入失败：${(e as Error).message}`);
-    } finally {
-      setTestingSignal(false);
-    }
-  };
 
   return (
     <Modal open={open} onClose={onClose} title={`相机 ${camId} 设置`} width="520px" closeOnBackdrop={false}
       footer={<>
-        <Button variant="secondary" onClick={testRejectSignal} disabled={testingSignal}>{testingSignal ? '测试中...' : `测试 MB${camId - 1} 写入`}</Button>
         <Button variant="primary" onClick={save}>保存配置</Button>
         <Button variant="secondary" onClick={onClose}>取消</Button>
       </>}>
@@ -104,11 +85,6 @@ export const CameraConfigModal: React.FC<Props> = ({ camId, open, onClose }) => 
         <div>
           <label className={labelClass}>IP 地址</label>
           <input type="text" value={ip} onChange={e => setIp(e.target.value)} placeholder="192.168.1.50"
-            className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass}>PLC 地址</label>
-          <input type="text" value={plcUrl} onChange={e => setPlcUrl(e.target.value)} placeholder="http://127.0.0.1:8088"
             className={inputClass} />
         </div>
         <div className="border-t border-gray-200 pt-2" />

@@ -115,9 +115,9 @@ export const SettingsTab: React.FC = () => {
     setModal('learnConfirm', true);
   };
 
-  const confirmLearning = async (classAPath: string, classBPath: string) => {
-    if (!classAPath || !classBPath) {
-      showMessage('请指定类别A和类别B图片目录');
+  const confirmLearning = async (categoryRootPath: string) => {
+    if (!categoryRootPath) {
+      showMessage('请选择类别根目录');
       return;
     }
     try {
@@ -135,7 +135,7 @@ export const SettingsTab: React.FC = () => {
 
     try {
       const result = await api.startTraining({
-        classAPath, classBPath,
+        categoryRootPath, folderPath: categoryRootPath,
         modelName: selectedModel!.model,
       });
       if (!result.success) {

@@ -157,68 +157,52 @@ export const AddProductModal: React.FC = () => {
   );
 };
 
-export const LearnConfirmModal: React.FC<{ onConfirm: (classA: string, classB: string) => void }> = ({ onConfirm }) => {
-  const [classA, setClassA] = useState('');
-  const [classB, setClassB] = useState('');
-  const [pickerTarget, setPickerTarget] = useState<'classA' | 'classB' | null>(null);
+export const LearnConfirmModal: React.FC<{ onConfirm: (categoryRoot: string) => void }> = ({ onConfirm }) => {
+  const [categoryRoot, setCategoryRoot] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
   const setModal = useAppStore(s => s.setModal);
   const showMessage = useAppStore(s => s.showMessage);
 
-  const browseLocalFolder = async (setter: (value: string) => void) => {
+  const browseLocalFolder = async () => {
     if (!window.electronAPI?.selectFolder) {
       showMessage('网页版暂不支持选择当前电脑的本地文件夹，请使用“选择后端目录”');
       return;
     }
     try {
       const path = await window.electronAPI.selectFolder();
-      if (path) setter(path);
+      if (path) setCategoryRoot(path);
     } catch (error) {
       showMessage(`选择本地目录失败: ${(error as Error).message}`);
     }
   };
 
   const applyDirectory = (directory: BackendImageDirectory) => {
-    if (pickerTarget === 'classA') setClassA(directory.path);
-    if (pickerTarget === 'classB') setClassB(directory.path);
-    setPickerTarget(null);
+    setCategoryRoot(directory.path);
+    setPickerOpen(false);
   };
 
   return (
     <>
       <Modal open={true} onClose={() => setModal('learnConfirm', false)} title="确认学习参数" width="520px"
         footer={<>
-          <Button variant="learn" onClick={() => onConfirm(classA, classB)}>确认开始学习</Button>
+          <Button variant="learn" onClick={() => onConfirm(categoryRoot)}>确认开始学习</Button>
           <Button variant="secondary" onClick={() => setModal('learnConfirm', false)}>取消</Button>
         </>}
       >
         <div className="flex flex-col gap-4">
-          <p className="text-xs text-text-secondary leading-5">请指定类别A和类别B图片目录。网页版不能直接选择浏览器所在电脑的本地文件夹，训练读取的是后端电脑上的目录；可使用“选择后端目录”或手动输入后端路径。</p>
+          <p className="text-xs text-text-secondary leading-5">请选择类别根目录。根目录下每个子文件夹代表一个类别，类别数量不限；例如可以同时包含“合格”“缺陷”“划伤”“异物”等多个子目录。</p>
           <div>
-            <label className={labelClass}>类别A图片目录</label>
+            <label className={labelClass}>类别根目录</label>
             <div className="flex gap-2">
-              <input type="text" placeholder="类别A图片文件夹" value={classA} onChange={e => setClassA(e.target.value)}
-                className={`${inputClass} flex-1`} />
-              <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setClassA)}>选择本地目录</Button>
-              <Button variant="secondary" size="sm" onClick={() => setPickerTarget('classA')}>选择后端目录</Button>
+              <input type="text" placeholder="选择包含多个类别子目录的文件夹" value={categoryRoot} onChange={e => setCategoryRoot(e.target.value)} className={`${inputClass} flex-1`} />
+              <Button variant="secondary" size="sm" onClick={browseLocalFolder}>选择本地目录</Button>
+              <Button variant="secondary" size="sm" onClick={() => setPickerOpen(true)}>选择后端目录</Button>
             </div>
           </div>
-          <div>
-            <label className={labelClass}>类别B图片目录</label>
-            <div className="flex gap-2">
-              <input type="text" placeholder="类别B图片文件夹" value={classB} onChange={e => setClassB(e.target.value)}
-                className={`${inputClass} flex-1`} />
-              <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setClassB)}>选择本地目录</Button>
-              <Button variant="secondary" size="sm" onClick={() => setPickerTarget('classB')}>选择后端目录</Button>
-            </div>
-          </div>
+          <p className="text-[11px] text-text-tertiary">每个类别子目录至少需要包含一张图片，系统会按子目录名称保存类别标签。</p>
         </div>
       </Modal>
-      <BackendDirectoryPicker
-        open={pickerTarget !== null}
-        title={pickerTarget === 'classA' ? '选择后端类别A图片目录' : '选择后端类别B图片目录'}
-        onClose={() => setPickerTarget(null)}
-        onSelect={applyDirectory}
-      />
+      <BackendDirectoryPicker open={pickerOpen} title="选择后端类别根目录" onClose={() => setPickerOpen(false)} onSelect={applyDirectory} />
     </>
   );
 };

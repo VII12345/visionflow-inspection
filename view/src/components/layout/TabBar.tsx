@@ -9,6 +9,8 @@ const TABS: { id: TabId; label: string; fixed: boolean }[] = [
   { id: 'settings', label: '设置', fixed: true },
   { id: 'test', label: '测试', fixed: true },
   { id: 'user', label: '用户', fixed: true },
+  { id: 'plc', label: 'PLC', fixed: true },
+  { id: 'help', label: '说明书', fixed: true },
 ];
 
 const selectClass = 'device-select bg-white/90 border border-gray-200 rounded-md px-2.5 py-1.5 text-[12px] text-text-primary outline-none focus:border-accent transition-colors';

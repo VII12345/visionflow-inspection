@@ -138,30 +138,35 @@ def load_and_prepare(img_path: str) -> np.ndarray | None:
 # ─── 训练数据集 ────────────────────────────────────────────
 
 
+def _find_category_dirs(folder: Path):
+    """发现包含图片的类别子目录，按目录名称排序以保持标签稳定。"""
+    image_exts = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
+    if not folder.is_dir():
+        return []
+    return sorted(
+        [
+            directory
+            for directory in folder.iterdir()
+            if directory.is_dir()
+            and not directory.name.startswith(".")
+            and any(item.is_file() and item.suffix.lower() in image_exts for item in directory.iterdir())
+        ],
+        key=lambda item: item.name,
+    )
+
+
+def _image_files(folder: Path):
+    image_exts = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
+    return sorted([item for item in folder.glob("*") if item.is_file() and item.suffix.lower() in image_exts])
+
+
 def _find_labeled_images(folder: Path):
-    """从标注目录加载：类别A(的)/ 和 类别B(的)/ 子目录"""
-    for class_a_name in ("类别A",):
-        class_a_dir = folder / class_a_name
-        if class_a_dir.is_dir():
-            break
-    else:
-        class_a_dir = None
-    for class_b_name in ("类别B",):
-        class_b_dir = folder / class_b_name
-        if class_b_dir.is_dir():
-            break
-    else:
-        class_b_dir = None
+    """从任意数量的类别子目录加载标注样本。"""
+    category_dirs = _find_category_dirs(folder)
     samples = []
-    if class_a_dir and class_a_dir.is_dir():
-        for p in class_a_dir.glob("*"):
-            if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
-                samples.append((p, 0))
-    if class_b_dir and class_b_dir.is_dir():
-        for p in class_b_dir.glob("*"):
-            if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
-                samples.append((p, 1))
-    return samples
+    for label, category_dir in enumerate(category_dirs):
+        samples.extend((image, label) for image in _image_files(category_dir))
+    return samples, [directory.name for directory in category_dirs]
 
 
 def _find_auto_images(image_dir: Path):
@@ -180,16 +185,7 @@ def _find_auto_images(image_dir: Path):
 
 
 class ProductDataset(Dataset):
-    """产品分类数据集
-
-    支持三种模式：
-    - 标注模式（单目录）：folder/类别A/*.jpg (label=0), folder/类别B/*.jpg (label=1)
-    - 标注模式（双目录）：class_a_dir + class_b_dir 分别指定
-    - 自动模式：所有图片 → label=0, 旋转180° → label=1
-
-    __init__ 中预计算基础 tensor（无增强），__getitem__ 中快速做张量增强。
-    大幅减少 PIL 开销，让 GPU 不再等待 CPU 预处理。
-    """
+    """支持任意数量类别的产品图像数据集。"""
 
     def __init__(
         self,
@@ -199,33 +195,35 @@ class ProductDataset(Dataset):
         augment: bool = True,
         class_a_dir: Path | None = None,
         class_b_dir: Path | None = None,
+        category_dirs: list[Path] | None = None,
     ):
         self.train = train
         self.do_augment = augment and train
-
-        # 收集样本
         samples = []
-        if class_a_dir and class_b_dir:
-            self.mode = "labeled_split"
-            for p in class_a_dir.glob("*"):
-                if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
-                    samples.append((p, 0, False))
-            for p in class_b_dir.glob("*"):
-                if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
-                    samples.append((p, 1, False))
-        else:
-            labeled = _find_labeled_images(folder)
-            if labeled:
-                self.mode = "labeled"
-                samples = [(p, lbl, False) for p, lbl in labeled]
-            else:
-                self.mode = "auto"
-                auto_samples, _ = _find_auto_images(folder)
-                for img_path, _ in auto_samples:
-                    samples.append((img_path, 0, False))
-                    samples.append((img_path, 1, True))
 
-        # 划分训练/验证集
+        if category_dirs:
+            selected_dirs = [Path(item) for item in category_dirs if Path(item).is_dir()]
+            self.mode = "labeled_multi"
+        elif class_a_dir and class_b_dir:
+            selected_dirs = [Path(class_a_dir), Path(class_b_dir)]
+            self.mode = "labeled_split"
+        else:
+            selected_dirs = _find_category_dirs(folder)
+            self.mode = "labeled" if len(selected_dirs) >= 2 else "auto"
+
+        if self.mode in ("labeled_multi", "labeled_split", "labeled") and len(selected_dirs) >= 2:
+            self.categories = [directory.name for directory in selected_dirs]
+            for label, category_dir in enumerate(selected_dirs):
+                samples.extend((image, label, False) for image in _image_files(category_dir))
+        else:
+            self.mode = "auto"
+            self.categories = ["类别A", "类别B"]
+            image_paths = _image_files(folder)
+            for image_path in image_paths:
+                samples.append((image_path, 0, False))
+                samples.append((image_path, 1, True))
+
+        self.num_classes = max(2, len(self.categories))
         rng = np.random.RandomState(42)
         idxs = list(range(len(samples)))
         rng.shuffle(idxs)
@@ -233,55 +231,44 @@ class ProductDataset(Dataset):
         picked = idxs[:cutoff] if train else idxs[cutoff:]
         self.samples = [samples[i] for i in picked]
 
-        # ── 预计算基础 tensor（无增强），只做一次 PIL 预处理 ──
         self.base_tensors: list[torch.Tensor] = []
         self.labels: list[int] = []
         failed = 0
         import logging
-
-        _log = logging.getLogger("vision")
-
-        for item in self.samples:
+        log = logging.getLogger("vision")
+        for image_path, label, rotated in self.samples:
             try:
-                img = Image.open(item[0]).convert("RGB")
-                if self.mode == "auto" and item[2]:
-                    img = img.transpose(Image.ROTATE_180)
-                # 基础预处理（无增强），结果存入 CPU tensor
-                t = torch.from_numpy(preprocess(img, augment=False))
-                self.base_tensors.append(t)
-                self.labels.append(item[1])
+                image = Image.open(image_path).convert("RGB")
+                if rotated:
+                    image = image.transpose(Image.ROTATE_180)
+                tensor = torch.from_numpy(preprocess(image, augment=False))
+                self.base_tensors.append(tensor)
+                self.labels.append(label)
             except Exception:
                 failed += 1
-        if failed > 0:
-            _log.warning(
-                f"数据集预加载: {len(self.samples)} 张图片中 {failed} 张加载失败（已跳过），成功 {len(self.base_tensors)} 张"
-            )
-
-        if len(self.base_tensors) == 0:
-            _log.warning(
-                f"数据集为空！请检查路径: folder={folder}, classA={class_a_dir}, classB={class_b_dir}"
-            )
+        if failed:
+            log.warning(f"数据集预加载失败: {failed} 张图片已跳过")
+        if not self.base_tensors:
+            log.warning(f"数据集为空！请检查路径: folder={folder}, categories={self.categories}")
 
     def __len__(self):
         return len(self.base_tensors)
 
     def __getitem__(self, idx):
-        """对预计算 tensor 快速做张量增强（避免每轮 PIL 解码）"""
-        x = self.base_tensors[idx].clone()  # clone 防止修改缓存
+        tensor = self.base_tensors[idx].clone()
         if self.do_augment:
-            # 几何增强（直接作用于 [-1,1] tensor，非常快）
-            x = TENSOR_GEOMETRIC_AUGMENT(x)
-            # 颜色增强（需要在 [0,1] 范围）
-            x = _tensor_color_jitter(x)
-        return x, self.labels[idx]
+            tensor = TENSOR_GEOMETRIC_AUGMENT(tensor)
+            tensor = _tensor_color_jitter(tensor)
+        return tensor, self.labels[idx]
 
 
 # ─── 模型 ──────────────────────────────────────────────────
 
 
 class ProductClassifier(nn.Module):
-    def __init__(self):
+    def __init__(self, num_classes: int = 2):
         super().__init__()
+        self.num_classes = max(2, int(num_classes))
         self.backbone = mobilenet_v3_large(weights=MobileNet_V3_Large_Weights.DEFAULT)
         self._freeze_backbone()
         in_dim = self.backbone.classifier[-1].in_features
@@ -291,19 +278,19 @@ class ProductClassifier(nn.Module):
             nn.LayerNorm(128),
             nn.ReLU(),
             nn.Dropout(0.4),
-            nn.Linear(128, 2),
+            nn.Linear(128, self.num_classes),
         )
 
     def forward(self, x):
         return self.head(self.backbone(x))
 
     def _freeze_backbone(self):
-        for p in self.backbone.parameters():
-            p.requires_grad = False
+        for parameter in self.backbone.parameters():
+            parameter.requires_grad = False
 
     def unfreeze_backbone(self):
-        for p in self.backbone.parameters():
-            p.requires_grad = True
+        for parameter in self.backbone.parameters():
+            parameter.requires_grad = True
 
 
 # ─── 早停 & 检查点 ────────────────────────────────────────
@@ -590,18 +577,19 @@ def train_model_v2(
 # ─── 推理 ──────────────────────────────────────────────────
 
 
-def classify_single(model, pil_image: Image.Image, timing: dict | None = None) -> tuple[str, float]:
-    """单帧推理：返回 (label, confidence)，可选记录实际推理 Worker 内部耗时。"""
-    import time as _time
+def _label_for_index(index: int, labels: list[str] | None = None) -> str:
+    names = labels or ["类别A", "类别B"]
+    return names[index] if index < len(names) else f"类别{index + 1}"
 
+
+def classify_single(model, pil_image: Image.Image, timing: dict | None = None, labels: list[str] | None = None) -> tuple[str, float]:
+    """单帧多类别推理，返回 (类别名称, 置信度)。"""
+    import time as _time
     model_device = next(model.parameters()).device
     t0 = _time.perf_counter()
-    arr = preprocess(pil_image, augment=False)
-    tensor = torch.from_numpy(arr).unsqueeze(0).to(model_device)
+    tensor = torch.from_numpy(preprocess(pil_image, augment=False)).unsqueeze(0).to(model_device)
     if timing is not None:
         timing["preprocess_ms"] = (_time.perf_counter() - t0) * 1000
-
-    # CUDA kernel 是异步提交的，前后同步才能得到真实模型执行耗时。
     if model_device.type == "cuda" and torch.cuda.is_available():
         torch.cuda.synchronize(model_device)
     t0 = _time.perf_counter()
@@ -611,54 +599,30 @@ def classify_single(model, pil_image: Image.Image, timing: dict | None = None) -
         torch.cuda.synchronize(model_device)
     if timing is not None:
         timing["model_call_ms"] = (_time.perf_counter() - t0) * 1000
-
     t0 = _time.perf_counter()
-    probs = torch.softmax(logits, dim=1)[0]
-    pred = int(probs.argmax())
-    label = "类别A" if pred == 0 else "类别B"
-    confidence = float(probs[pred])
+    probabilities = torch.softmax(logits, dim=1)[0]
+    predicted = int(probabilities.argmax())
+    label = _label_for_index(predicted, labels)
+    confidence = float(probabilities[predicted])
     if timing is not None:
         timing["recognition_ms"] = (_time.perf_counter() - t0) * 1000
     return label, confidence
 
-def classify_frames_batch(model, frames: list[Image.Image]) -> list[tuple[str, float]]:
-    """批量推理：多张 PIL Image 合并为一个 batch，一次 GPU 前向传播。
 
-    比逐帧 classify_single 快很多（减少 GPU kernel launch 次数，利用 GPU 并行）。
-    """
+def classify_frames_batch(model, frames: list[Image.Image], labels: list[str] | None = None) -> list[tuple[str, float]]:
+    """批量多类别推理。"""
     if not frames:
         return []
     if len(frames) == 1:
-        result = classify_single(model, frames[0])
-        return [result]
-
+        return [classify_single(model, frames[0], labels=labels)]
     model_device = next(model.parameters()).device
-
-    # 并行预处理所有帧
-    tensors = []
-    for img in frames:
-        arr = preprocess(img, augment=False)
-        tensors.append(torch.from_numpy(arr))
-    batch = torch.stack(tensors).to(model_device)
-
+    batch = torch.stack([torch.from_numpy(preprocess(image, augment=False)) for image in frames]).to(model_device)
     with torch.no_grad():
-        logits = model(batch)
-        probs = torch.softmax(logits, dim=1)
-
-    results = []
-    for i in range(len(frames)):
-        pred = int(probs[i].argmax())
-        label = "类别A" if pred == 0 else "类别B"
-        confidence = float(probs[i][pred])
-        results.append((label, confidence))
-    return results
-    for j, (pi, _) in enumerate(valid):
-        p = probs[j]
-        pred = int(p.argmax())
-        results[pi] = ("类别A" if pred == 0 else "类别B", float(p[pred]))
-
-    elapsed = (time.perf_counter() - t0) * 1000
-    return [(paths[i], *results[i]) for i in range(len(paths))], elapsed
+        probabilities = torch.softmax(model(batch), dim=1)
+    return [
+        (_label_for_index(int(row.argmax()), labels), float(row[row.argmax()]))
+        for row in probabilities
+    ]
 
 
 # ─── 主函数 ────────────────────────────────────────────────

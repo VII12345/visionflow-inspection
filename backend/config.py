@@ -89,6 +89,7 @@ class Config:
     CAPTURE_DIR = DATA_DIR / "captures"
     CONFIG_FILE = DATA_DIR / "backend_config.json"
     CAMERA_CONFIG_FILE = DATA_DIR / 'camera_config.json'
+    PLC_CONFIG_FILE = DATA_DIR / 'plc_config.json'
     LINE_COUNT_FILE = DATA_DIR / 'line_count.json'
     LOG_FILE = DATA_DIR / "vision_system.log"
 

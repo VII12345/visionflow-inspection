@@ -8,6 +8,8 @@ import { SettingsTab } from './components/settings/SettingsTab';
 import { UserTab } from './components/user/UserTab';
 import { TestTab } from './components/test/TestTab';
 import { CameraDetailTab } from './components/camera/CameraDetailTab';
+import { PlcTab } from './components/settings/PlcTab';
+import { HelpTab } from './components/help/HelpTab';
 import { CameraConfigModal } from './components/camera/CameraConfigModal';
 import { LoginModal, ChangePwdModal, AddProductModal, LearnConfirmModal } from './components/common/Modals';
 import { EnvCheckModal } from './components/common/EnvCheckModal';
@@ -127,8 +129,8 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  const handleLearnConfirm = useCallback((classA: string, classB: string) => {
-    if (learnCallback) learnCallback(classA, classB);
+  const handleLearnConfirm = useCallback((categoryRoot: string) => {
+    if (learnCallback) learnCallback(categoryRoot);
   }, [learnCallback]);
 
   const renderTabContent = () => {
@@ -136,6 +138,8 @@ const App: React.FC = () => {
     if (activeTab === 'file') return <FileTab />;
     if (activeTab === 'settings') return <SettingsTab />;
     if (activeTab === 'user') return <UserTab />;
+    if (activeTab === 'plc') return <PlcTab />;
+    if (activeTab === 'help') return <HelpTab />;
     if (activeTab === 'test') return <TestTab />;
     if (activeTab.startsWith('cam-detail-')) {
       const camId = parseInt(activeTab.replace('cam-detail-', ''));
@@ -194,4 +198,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-

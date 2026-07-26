@@ -258,19 +258,20 @@ export const TestTab: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState('');
   const [mode, setMode] = useState<TestMode>('labeled');
 
-  // Labeled mode paths
-  const [classAPath, setClassAPath] = useState('');
-  const [classBPath, setClassBPath] = useState('');
+  // Labeled mode: one root folder with any number of category subfolders
+  const [categoryRootPath, setCategoryRootPath] = useState('');
 
   // Unlabeled mode path
   const [folderPath, setFolderPath] = useState('');
-  const [pickerTarget, setPickerTarget] = useState<'classA' | 'classB' | 'folder' | null>(null);
+  const [pickerTarget, setPickerTarget] = useState<'categoryRoot' | 'folder' | null>(null);
 
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<{
     total: number;
     correct?: number;
     accuracy?: number;
+    categories?: string[];
+    category_counts?: Record<string, { total: number; correct: number; accuracy: number | null }>;
     class_a_total?: number;
     class_a_correct?: number;
     class_a_accuracy?: number | null;
@@ -313,8 +314,7 @@ export const TestTab: React.FC = () => {
   };
 
   const applyDirectory = (directory: BackendImageDirectory) => {
-    if (pickerTarget === 'classA') setClassAPath(directory.path);
-    if (pickerTarget === 'classB') setClassBPath(directory.path);
+    if (pickerTarget === 'categoryRoot') setCategoryRootPath(directory.path);
     if (pickerTarget === 'folder') setFolderPath(directory.path);
     setPickerTarget(null);
   };
@@ -326,15 +326,14 @@ export const TestTab: React.FC = () => {
     setTesting(true);
 
     try {
-      const params: { model_name: string; mode: 'labeled' | 'unlabeled'; class_a_path?: string; class_b_path?: string; folder_path?: string } = {
+      const params: { model_name: string; mode: 'labeled' | 'unlabeled'; category_root_path?: string; folder_path?: string } = {
         model_name: selectedModel,
         mode,
       };
 
       if (mode === 'labeled') {
-        if (!classAPath && !classBPath) { setError('请至少指定类别A或类别B目录'); setTesting(false); return; }
-        params.class_a_path = classAPath;
-        params.class_b_path = classBPath;
+        if (!categoryRootPath) { setError('请指定类别根目录'); setTesting(false); return; }
+        params.category_root_path = categoryRootPath;
       } else {
         if (!folderPath) { setError('请指定测试图片目录'); setTesting(false); return; }
         params.folder_path = folderPath;
@@ -393,7 +392,7 @@ export const TestTab: React.FC = () => {
           {mode === 'labeled' ? (
             <>
               <div className="text-xs font-semibold text-accent mb-1">分类测试：模型性能测试</div>
-              <p className="text-[11px] text-text-secondary leading-5">用于验证模型准确率、类别A/类别B分类正确率和置信度表现。该模式重点关注识别结果是否正确，不代表真实产线的异步时序压力。</p>
+              <p className="text-[11px] text-text-secondary leading-5">用于验证模型准确率、各类别分类正确率和置信度表现。该模式重点关注识别结果是否正确，不代表真实产线的异步时序压力。</p>
             </>
           ) : (
             <>
@@ -407,26 +406,16 @@ export const TestTab: React.FC = () => {
         {mode === 'labeled' ? (
           <div className="flex flex-col gap-3">
             <div>
-              <label className="text-xs text-text-secondary mb-1.5 block">类别A图片目录（可留空）</label>
+              <label className="text-xs text-text-secondary mb-1.5 block">类别根目录</label>
               <div className="flex gap-2">
-                <input type="text" placeholder="选择类别A图片文件夹" value={classAPath} readOnly
+                <input type="text" placeholder="选择包含多个类别子目录的文件夹" value={categoryRootPath} readOnly
                   className={`${inputClass} flex-1 bg-gray-50 cursor-pointer`}
-                  onClick={() => browseLocalFolder(setClassAPath)} />
-                <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setClassAPath)}>选择本地目录</Button>
-                <Button variant="secondary" size="sm" onClick={() => setPickerTarget('classA')}>选择后端目录</Button>
+                  onClick={() => browseLocalFolder(setCategoryRootPath)} />
+                <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setCategoryRootPath)}>选择本地目录</Button>
+                <Button variant="secondary" size="sm" onClick={() => setPickerTarget('categoryRoot')}>选择后端目录</Button>
               </div>
             </div>
-            <div>
-              <label className="text-xs text-text-secondary mb-1.5 block">类别B图片目录（可留空）</label>
-              <div className="flex gap-2">
-                <input type="text" placeholder="选择类别B图片文件夹" value={classBPath} readOnly
-                  className={`${inputClass} flex-1 bg-gray-50 cursor-pointer`}
-                  onClick={() => browseLocalFolder(setClassBPath)} />
-                <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setClassBPath)}>选择本地目录</Button>
-                <Button variant="secondary" size="sm" onClick={() => setPickerTarget('classB')}>选择后端目录</Button>
-              </div>
-            </div>
-            <p className="text-[11px] text-text-tertiary">类别A和类别B目录可为空，系统自动识别。至少提供一个目录即可。网页版不能直接选择浏览器所在电脑的本地文件夹，测试图片需要位于后端电脑。</p>
+            <p className="text-[11px] text-text-tertiary">根目录下每个子文件夹代表一个类别，类别数量不限。网页版不能直接选择浏览器所在电脑的本地文件夹，测试图片需要位于后端电脑。</p>
           </div>
         ) : (
           <div>
@@ -470,22 +459,15 @@ export const TestTab: React.FC = () => {
                 </div>
               </div>
             )}
-            {result.class_a_accuracy != null && (
-              <div className="bg-gray-50 rounded-md p-3 text-center">
-                <div className="text-[10px] text-text-tertiary uppercase tracking-wide">类别A正确率</div>
-                <div className={`text-lg font-bold mt-1 ${result.class_a_accuracy >= 0.95 ? 'text-ok' : result.class_a_accuracy >= 0.8 ? 'text-warn' : 'text-ng'}`}>
-                  {(result.class_a_accuracy * 100).toFixed(1)}%
+            {result.category_counts && Object.entries(result.category_counts).map(([category, stats]) => (
+              <div key={category} className="bg-gray-50 rounded-md p-3 text-center">
+                <div className="text-[10px] text-text-tertiary uppercase tracking-wide truncate" title={category}>{category}</div>
+                <div className={`text-lg font-bold mt-1 ${stats.accuracy == null ? 'text-text-primary' : stats.accuracy >= 0.95 ? 'text-ok' : stats.accuracy >= 0.8 ? 'text-warn' : 'text-ng'}`}>
+                  {stats.accuracy == null ? '--' : `${(stats.accuracy * 100).toFixed(1)}%`}
                 </div>
+                <div className="text-[10px] text-text-tertiary">{stats.correct}/{stats.total}</div>
               </div>
-            )}
-            {result.class_b_accuracy != null && (
-              <div className="bg-gray-50 rounded-md p-3 text-center">
-                <div className="text-[10px] text-text-tertiary uppercase tracking-wide">类别B正确率</div>
-                <div className={`text-lg font-bold mt-1 ${result.class_b_accuracy >= 0.95 ? 'text-ok' : result.class_b_accuracy >= 0.8 ? 'text-warn' : 'text-ng'}`}>
-                  {(result.class_b_accuracy * 100).toFixed(1)}%
-                </div>
-              </div>
-            )}
+            ))}
           </div>
 
           {/* Timing */}
@@ -588,7 +570,7 @@ export const TestTab: React.FC = () => {
       )}
       <BackendDirectoryPicker
         open={pickerTarget !== null}
-        title={pickerTarget === 'classA' ? '选择后端类别A图片目录' : pickerTarget === 'classB' ? '选择后端类别B图片目录' : '选择后端测试图片目录'}
+        title={pickerTarget === 'categoryRoot' ? '选择后端类别根目录' : '选择后端测试图片目录'}
         onClose={() => setPickerTarget(null)}
         onSelect={applyDirectory}
       />

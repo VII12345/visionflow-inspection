@@ -9,6 +9,7 @@ export const TopBar: React.FC = () => {
   const isRunning = useAppStore(s => s.isRunning);
   const logout = useAppStore(s => s.logout);
   const setModal = useAppStore(s => s.setModal);
+  const setActiveTab = useAppStore(s => s.setActiveTab);
 
   return (
     <header className="top-bar flex items-center justify-between h-16 px-8 shrink-0 relative">
@@ -24,6 +25,7 @@ export const TopBar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-2.5">
+        <button onClick={() => setActiveTab('help')} className="w-8 h-8 rounded-full border border-gray-200 bg-white/80 text-text-secondary hover:text-accent hover:border-accent transition-colors text-sm font-semibold" title="打开说明书">?</button>
         {user ? (
           <>
             <div className="hidden sm:flex items-center gap-2.5 mr-1 px-3 py-1.5 rounded-md bg-white/70 border border-gray-100">

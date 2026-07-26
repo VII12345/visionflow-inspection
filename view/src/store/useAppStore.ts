@@ -73,8 +73,8 @@ interface AppState {
   clearAlarm: () => void;
 
   // Learn confirm callback (for SettingsTab <-> LearnConfirmModal communication)
-  learnCallback: ((classA: string, classB: string) => void) | null;
-  setLearnCallback: (cb: ((classA: string, classB: string) => void) | null) => void;
+  learnCallback: ((categoryRoot: string) => void) | null;
+  setLearnCallback: (cb: ((categoryRoot: string) => void) | null) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({

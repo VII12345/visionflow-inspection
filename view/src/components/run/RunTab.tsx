@@ -60,6 +60,8 @@ export const RunTab: React.FC = () => {
 
   // Sync model learned status from backend
   const [products, setProducts] = React.useState(storage.getProducts());
+  const [rejectLabels, setRejectLabels] = useState<string[]>(['类别B']);
+  useEffect(() => { api.getPlcConfig().then(data => { if (data.success) setRejectLabels(data.config.reject_labels || []); }).catch(() => {}); }, [catalogRevision]);
   useEffect(() => { setProducts(storage.getProducts()); }, [catalogRevision]);
   const syncModelStatus = useCallback(async () => {
     try {
@@ -335,10 +337,10 @@ export const RunTab: React.FC = () => {
           let resultColor = '';
 
           if (camStatus?.state === 'running' && camStatus.result) {
-            badgeVariant = camStatus.result.label === '类别A' ? 'ok' : 'ng';
+            badgeVariant = rejectLabels.includes(camStatus.result.label) ? 'ng' : 'ok';
             badgeText = camStatus.result.label;
             resultText = `结果: ${camStatus.result.label} (${Math.round(camStatus.result.confidence * 100)}%)`;
-            resultColor = camStatus.result.label === '类别A' ? 'text-ok' : 'text-ng';
+            resultColor = rejectLabels.includes(camStatus.result.label) ? 'text-ng' : 'text-ok';
           } else if (camStatus?.state === 'running') {
             badgeText = '等待触发';
             resultText = `触发模式 - 等待传感器信号... (已触发 ${camStatus.totalTriggers || 0} 次)`;
@@ -437,4 +439,3 @@ export const RunTab: React.FC = () => {
     </div>
   );
 };
-

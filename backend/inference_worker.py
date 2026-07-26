@@ -21,6 +21,7 @@ result_queues = {i: queue.Queue() for i in range(1, Config.CAMERA_COUNT + 1)}
 
 # 全局模型（按产品名缓存）
 models = {}  # {model_name: ProductClassifier}
+model_categories = {}  # {model_name: [category_name, ...]}
 model_loaded = False
 camera_product_map = {}  # {cam_id: model_name}  每个摄像头用哪个产品的模型
 
@@ -77,7 +78,7 @@ def preload_all_models():
 
 def load_model(model_name=None):
     """加载模型。model_name=None 时加载第一个已训练的模型。"""
-    global models, model_loaded
+    global models, model_categories, model_loaded
 
     try:
         from .training import ProductClassifier
@@ -85,11 +86,26 @@ def load_model(model_name=None):
         model_path = Config.get_active_model_path(model_name)
         logger.info(f"加载模型: {model_path or '无'} (请求: {model_name or '自动'})")
 
-        m = ProductClassifier().to(Config.DEVICE)
-        if model_path is not None and model_path.exists():
-            state_dict = torch.load(
-                model_path, map_location=Config.DEVICE, weights_only=True
-            )
+        categories = ["类别A", "类别B"]
+        state_dict = None
+        metadata_path = None
+        if model_path is not None:
+            metadata_path = model_path.with_suffix(".json")
+            if metadata_path.exists():
+                try:
+                    import json
+                    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                    if isinstance(metadata.get("categories"), list) and metadata["categories"]:
+                        categories = [str(item) for item in metadata["categories"]]
+                except Exception as exc:
+                    logger.warning(f"模型类别元数据读取失败: {exc}")
+            if model_path.exists():
+                state_dict = torch.load(model_path, map_location=Config.DEVICE, weights_only=True)
+        num_classes = len(categories)
+        if isinstance(state_dict, dict) and "head.4.weight" in state_dict:
+            num_classes = int(state_dict["head.4.weight"].shape[0])
+        m = ProductClassifier(num_classes=num_classes).to(Config.DEVICE)
+        if state_dict is not None:
             m.load_state_dict(state_dict)
             m.eval()
             logger.info("模型加载成功")
@@ -102,6 +118,7 @@ def load_model(model_name=None):
         # 缓存
         cache_key = model_name or "__default__"
         models[cache_key] = m
+        model_categories[cache_key] = categories
         model_loaded = True
         return True
     except Exception as e:
@@ -201,10 +218,10 @@ def inference_worker():
                 worker_timing = {} if timed_meta is not None and len(frames) == 1 else None
 
                 if len(frames) == 1:
-                    label, confidence = classify_single(cam_model, frames[0], timing=worker_timing)
+                    label, confidence = classify_single(cam_model, frames[0], timing=worker_timing, labels=model_categories.get(key))
                     batch_results = [(label, confidence)]
                 else:
-                    batch_results = classify_frames_batch(cam_model, frames)
+                    batch_results = classify_frames_batch(cam_model, frames, labels=model_categories.get(key))
 
                 for (cid, ts, meta), (label, confidence) in zip(meta_list, batch_results):
                     result = {"label": label, "confidence": confidence, "timestamp": ts}

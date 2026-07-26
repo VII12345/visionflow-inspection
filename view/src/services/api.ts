@@ -1,3 +1,4 @@
+import type { PlcConfig } from '../types';
 const isElectron = typeof window !== 'undefined' && Boolean(window.electronAPI);
 const isWebPage = typeof window !== 'undefined' && window.location.protocol !== 'file:' && !isElectron;
 const configuredBackend = typeof window !== 'undefined'
@@ -67,7 +68,7 @@ export const api = {
     backendFetch<{ success: boolean; camera?: number; address?: string; value?: number; error?: string }>(`/api/cameras/${camId}/plc/test-reject`, { method: 'POST' }),
 
   // Training
-  startTraining: (params: { classAPath?: string; classBPath?: string; folderPath?: string; modelName: string }) =>
+  startTraining: (params: { categoryRootPath?: string; classAPath?: string; classBPath?: string; folderPath?: string; modelName: string }) =>
     backendFetch<{ success: boolean; message?: string; error?: string }>('/api/training/start', { method: 'POST', body: params }),
   stopTraining: () => backendFetch('/api/training/stop', { method: 'POST' }),
   trainingStatus: () => backendFetch<{ running: boolean; progress: number; message: string; epoch: number; total_epochs: number; train_loss: number; val_loss: number; val_acc: number; modelPath?: string | null; evalResult?: Record<string, unknown> | null }>('/api/training/status'),
@@ -76,7 +77,7 @@ export const api = {
   getModels: () => backendFetch<{ success: boolean; models: { name: string }[] }>('/api/models'),
 
   // Model testing
-  testModel: (params: { model_name: string; mode: 'labeled' | 'unlabeled'; class_a_path?: string; class_b_path?: string; folder_path?: string }) =>
+  testModel: (params: { model_name: string; mode: 'labeled' | 'unlabeled'; category_root_path?: string; class_a_path?: string; class_b_path?: string; folder_path?: string }) =>
     backendFetch<{
       success: boolean;
       message?: string;
@@ -85,6 +86,8 @@ export const api = {
       total: number;
       correct?: number;
       accuracy?: number;
+      categories?: string[];
+      category_counts?: Record<string, { total: number; correct: number; accuracy: number | null }>;
       class_a_total?: number;
       class_a_correct?: number;
       class_a_accuracy?: number | null;
@@ -120,6 +123,11 @@ export const api = {
   getPhotos: (camId: number) => backendFetch<{ success: boolean; photos: { filename: string; mtime: string; size: number; result: string; timestamp: number }[]; okCount: number; ngCount: number }>(`/api/photos/${camId}`),
   getPhotoUrl: (camId: number, filename: string) => `${API_BASE}/api/photos/${camId}/${encodeURIComponent(filename)}`,
 
+  // PLC
+  getPlcConfig: () => backendFetch<{ success: boolean; config: PlcConfig }>('/api/plc/config'),
+  savePlcConfig: (config: PlcConfig) => backendFetch<{ success: boolean; config?: PlcConfig; message?: string; error?: string }>('/api/plc/config', { method: 'POST', body: config }),
+  testPlcWrite: (payload: { camera_id: number; type: 'reject_time' | 'reject_delay' | 'reject_signal'; value: number }) => backendFetch<{ success: boolean; address?: string; value?: number; error?: string }>('/api/plc/test', { method: 'POST', body: payload }),
+
   // Hardware & Device
   getHardware: () => backendFetch<{
     success: boolean;
@@ -148,4 +156,3 @@ export const api = {
 };
 
 export default api;
-
