@@ -25,6 +25,35 @@ const STEP_LABELS: Record<string, string> = {
   detection_pipeline_ms: '检测主流程',
   pipeline_ms: '单张完整流程',
 };
+
+const STEP_EXPLANATIONS: Record<string, string> = {
+  file_enumeration_ms: '扫描所选目录并枚举支持的图片文件，统计本次测试需要处理的文件数量。只包含文件查找和列表生成，不包含图片解码。',
+  model_route_prepare_ms: '根据当前选择的模型建立测试任务的模型路由，并准备对应的模型缓存。模型首次加载或切换时可能明显增加。',
+  image_acquisition_ms: '从后端磁盘读取一张图片，并用 PIL 打开、转换为 RGB 图像对象。磁盘速度和图片大小会影响此项。',
+  inference_submit_ms: '把已经读取的图片放入真实推理队列，并记录提交动作本身耗时；不包括排队等待和模型计算。',
+  inference_queue_wait_ms: '图片进入推理队列后，等待推理 Worker 取走处理的时间。队列拥堵或前面任务较多时会升高。',
+  inference_batch_window_ms: 'Worker 为了形成微批次而等待更多图片的时间。单张测试时通常接近微批窗口上限。',
+  model_prepare_ms: 'Worker 获取并确认本次任务使用的模型，必要时完成模型加载或设备准备。已缓存模型通常较快。',
+  preprocess_ms: '将原图裁剪、缩放到模型输入尺寸，并进行归一化和训练/测试需要的图像预处理。',
+  model_call_ms: '调用 PyTorch 模型执行前向推理，得到正反分类的原始输出。GPU/CPU 性能会直接影响此项。',
+  recognition_ms: '将模型输出转换为类别、置信度和最终标签，完成识别结果计算。',
+  inference_result_wait_ms: '测试接口提交推理后，等待结果队列返回这一张图片结果的时间，包含队列和 Worker 处理完成的等待。',
+  result_output_ms: '把推理结果整理为接口返回格式，并完成测试统计数据更新。',
+  frame_copy_ms: '为异步保存创建一份独立的图像副本，避免保存线程和推理线程同时操作同一对象。',
+  save_submit_ms: '把待保存图片和目标路径提交到异步保存队列，提交后实际写盘由后台保存线程执行。',
+  save_queue_wait_ms: '图片进入保存队列后，等待保存 Worker 取走的时间。磁盘写入繁忙或前面保存任务较多时会升高。',
+  image_save_ms: '保存 Worker 将图片编码为 BMP 并实际写入后端磁盘的耗时。磁盘速度、目录位置和文件大小都会影响此项。',
+  detection_pipeline_ms: '从检测流程开始到输出检测结果的主流程耗时，便于观察推理链路整体开销。',
+  pipeline_ms: '单张图片的完整端到端耗时，覆盖获取图片、推理、结果输出以及异步保存相关步骤。',
+};
+
+const TIMING_SUMMARY_EXPLANATIONS: Record<string, string> = {
+  min: '所有图片中，单张完整检测耗时的最小值。反映较理想情况下的一次处理速度。',
+  max: '所有图片中，单张完整检测耗时的最大值。可用于发现偶发的磁盘、队列或模型计算抖动。',
+  avg: '所有图片单张完整检测耗时的平均值。通常比单次结果更适合评估整体性能。',
+  pipeline: '本次测试从第一张开始到最后一张完成的流水线总耗时，包含批量图片处理和异步保存。',
+};
+
 const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors placeholder:text-text-tertiary';
 
 type TestMode = 'labeled' | 'unlabeled';
@@ -281,19 +310,19 @@ export const TestTab: React.FC = () => {
                 <div className="text-[11px] text-text-tertiary">获取图片 → 预处理 → 模型 → 识别 → 输出 → 保存图片</div>
               </div>
               <div className="grid grid-cols-4 gap-4 mb-4">
-                <div className="bg-gray-50 rounded-md p-3 text-center">
+                <div className="bg-gray-50 rounded-md p-3 text-center" title={TIMING_SUMMARY_EXPLANATIONS.min}>
                   <div className="text-[10px] text-text-tertiary">单张最短</div>
                   <div className="text-sm font-bold text-text-primary mt-0.5">{result.timing.min_ms.toFixed(1)} ms</div>
                 </div>
-                <div className="bg-gray-50 rounded-md p-3 text-center">
+                <div className="bg-gray-50 rounded-md p-3 text-center" title={TIMING_SUMMARY_EXPLANATIONS.max}>
                   <div className="text-[10px] text-text-tertiary">单张最长</div>
                   <div className="text-sm font-bold text-text-primary mt-0.5">{result.timing.max_ms.toFixed(1)} ms</div>
                 </div>
-                <div className="bg-gray-50 rounded-md p-3 text-center">
+                <div className="bg-gray-50 rounded-md p-3 text-center" title={TIMING_SUMMARY_EXPLANATIONS.avg}>
                   <div className="text-[10px] text-text-tertiary">单张平均</div>
                   <div className="text-sm font-bold text-text-primary mt-0.5">{result.timing.avg_ms.toFixed(1)} ms</div>
                 </div>
-                <div className="bg-gray-50 rounded-md p-3 text-center">
+                <div className="bg-gray-50 rounded-md p-3 text-center" title={TIMING_SUMMARY_EXPLANATIONS.pipeline}>
                   <div className="text-[10px] text-text-tertiary">流水线总耗时</div>
                   <div className="text-sm font-bold text-text-primary mt-0.5">{((result.timing.pipeline_total_ms ?? result.timing.total_ms) / 1000).toFixed(2)} s</div>
                 </div>
@@ -304,7 +333,14 @@ export const TestTab: React.FC = () => {
                   <div className="divide-y divide-gray-100">
                     {Object.entries(result.timing.steps).map(([key, step]) => (
                       <div key={key} className="grid grid-cols-[minmax(160px,1.4fr)_repeat(4,minmax(70px,1fr))] items-center px-3 py-2 text-xs">
-                        <span className="text-text-primary font-medium">{result.timing?.step_labels?.[key] || STEP_LABELS[key] || key}</span>
+                        <span
+                          className="text-text-primary font-medium cursor-help border-b border-dotted border-text-tertiary/60"
+                          title={`${result.timing?.step_labels?.[key] || STEP_LABELS[key] || key}
+
+${STEP_EXPLANATIONS[key] || '该项表示测试链路中的一个独立计时步骤。悬停可查看后端实际记录的处理范围。'}`}
+                        >
+                          {result.timing?.step_labels?.[key] || STEP_LABELS[key] || key}
+                        </span>
                         <span className="text-text-secondary text-right">平均 {step.avg_ms.toFixed(2)}</span>
                         <span className="text-text-secondary text-right">最短 {step.min_ms.toFixed(2)}</span>
                         <span className="text-text-secondary text-right">最长 {step.max_ms.toFixed(2)}</span>
@@ -354,12 +390,12 @@ export const TestTab: React.FC = () => {
                       </td>
                       <td className="px-3 py-2 text-text-secondary">{(r.confidence * 100).toFixed(1)}%</td>
                       {r.time_ms != null && (
-                        <td className="px-3 py-2 text-text-tertiary">{r.time_ms.toFixed(1)} ms</td>
+                        <td className="px-3 py-2 text-text-tertiary cursor-help" title="这张图片从测试流程开始到完整结果处理结束的单张总耗时。">{r.time_ms.toFixed(1)} ms</td>
                       )}
                       {r.timing && (
                         <td className="px-3 py-2 text-text-tertiary relative">
                           <details>
-                            <summary className="cursor-pointer text-accent">查看</summary>
+                            <summary className="cursor-pointer text-accent" title="展开后可查看这张图片各个处理步骤的单次耗时。">查看</summary>
                             <div className="absolute right-0 z-20 mt-1 bg-white border border-gray-200 rounded-md shadow-lg p-2 min-w-[220px]">
                               {Object.entries(r.timing).map(([key, value]) => (
                                 <div key={key} className="flex justify-between gap-4 py-0.5 text-[10px]">
