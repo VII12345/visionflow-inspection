@@ -192,7 +192,7 @@ export const TestTab: React.FC = () => {
                 <Button variant="secondary" size="sm" onClick={() => browseFolder(setInvertedPath)}>浏览</Button>
               </div>
             </div>
-            <p className="text-[11px] text-text-tertiary">正罐和倒罐目录可为空，系统自动识别。至少提供一个目录即可。</p>
+            <p className="text-[11px] text-text-tertiary">正罐和倒罐目录可为空，系统自动识别。至少提供一个目录即可。网页版不能直接选择浏览器所在电脑的本地文件夹，测试图片需要位于后端电脑。</p>
           </div>
         ) : (
           <div>
@@ -203,7 +203,7 @@ export const TestTab: React.FC = () => {
                 onClick={() => browseFolder(setFolderPath)} />
               <Button variant="secondary" size="sm" onClick={() => browseFolder(setFolderPath)}>浏览</Button>
             </div>
-            <p className="text-[11px] text-text-tertiary mt-1">不限正反，按真实异步检测链路执行，并按文件名输出每张图片的结果和逐步延迟。</p>
+            <p className="text-[11px] text-text-tertiary mt-1">不限正反，按真实异步检测链路执行，并按文件名输出每张图片的结果和逐步延迟。网页版不能直接选择浏览器所在电脑的本地文件夹，测试图片需要位于后端电脑。</p>
           </div>
         )}
 

@@ -166,7 +166,7 @@ export const LearnConfirmModal: React.FC<{ onConfirm: (upright: string, inverted
       </>}
     >
       <div className="flex flex-col gap-4">
-        <p className="text-xs text-text-secondary">请指定正罐和倒罐图片目录</p>
+        <p className="text-xs text-text-secondary leading-5">请指定正罐和倒罐图片目录。网页版不能直接选择浏览器所在电脑的本地文件夹，训练读取的是后端电脑上的目录；也可以手动输入后端路径。</p>
         <div>
           <label className={labelClass}>正罐图片目录</label>
           <div className="flex gap-2">
