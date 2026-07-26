@@ -107,6 +107,15 @@ export interface EnvCheckResult {
   results: { name: string; message: string; passed: boolean; level: string; detail?: string }[];
 }
 
+export interface ModelInfo {
+  name: string;
+  size?: number;
+  mtime?: number;
+  categories: string[];
+  num_classes: number;
+  reject_labels: string[];
+}
+
 export interface PlcCameraMapping {
   reject_time: string;
   reject_delay: string;
@@ -121,4 +130,4 @@ export interface PlcConfig {
   reject_labels: string[];
   cameras: Record<string, PlcCameraMapping>;
 }
-export type TabId = 'run' | 'file' | 'settings' | 'test' | 'user' | 'plc' | 'help' | `cam-detail-${number}`;
+export type TabId = 'run' | 'file' | 'settings' | 'models' | 'test' | 'user' | 'plc' | 'help' | `cam-detail-${number}`;

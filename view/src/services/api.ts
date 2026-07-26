@@ -1,4 +1,4 @@
-import type { PlcConfig } from '../types';
+import type { ModelInfo, PlcConfig } from '../types';
 const isElectron = typeof window !== 'undefined' && Boolean(window.electronAPI);
 const isWebPage = typeof window !== 'undefined' && window.location.protocol !== 'file:' && !isElectron;
 const configuredBackend = typeof window !== 'undefined'
@@ -74,7 +74,9 @@ export const api = {
   trainingStatus: () => backendFetch<{ running: boolean; progress: number; message: string; epoch: number; total_epochs: number; train_loss: number; val_loss: number; val_acc: number; modelPath?: string | null; evalResult?: Record<string, unknown> | null }>('/api/training/status'),
 
   // Models
-  getModels: () => backendFetch<{ success: boolean; models: { name: string }[] }>('/api/models'),
+  getModels: () => backendFetch<{ success: boolean; models: ModelInfo[] }>('/api/models'),
+  saveModelSettings: (modelName: string, rejectLabels: string[]) =>
+    backendFetch<{ success: boolean; model?: string; categories?: string[]; reject_labels?: string[]; error?: string }>(`/api/models/${encodeURIComponent(modelName)}/settings`, { method: 'POST', body: { reject_labels: rejectLabels } }),
 
   // Model testing
   testModel: (params: { model_name: string; mode: 'labeled' | 'unlabeled'; category_root_path?: string; class_a_path?: string; class_b_path?: string; folder_path?: string }) =>

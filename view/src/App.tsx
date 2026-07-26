@@ -9,6 +9,7 @@ import { UserTab } from './components/user/UserTab';
 import { TestTab } from './components/test/TestTab';
 import { CameraDetailTab } from './components/camera/CameraDetailTab';
 import { PlcTab } from './components/settings/PlcTab';
+import { ModelSettingsTab } from './components/settings/ModelSettingsTab';
 import { HelpTab } from './components/help/HelpTab';
 import { CameraConfigModal } from './components/camera/CameraConfigModal';
 import { LoginModal, ChangePwdModal, AddProductModal, LearnConfirmModal } from './components/common/Modals';
@@ -139,6 +140,7 @@ const App: React.FC = () => {
     if (activeTab === 'settings') return <SettingsTab />;
     if (activeTab === 'user') return <UserTab />;
     if (activeTab === 'plc') return <PlcTab />;
+    if (activeTab === 'models') return <ModelSettingsTab />;
     if (activeTab === 'help') return <HelpTab />;
     if (activeTab === 'test') return <TestTab />;
     if (activeTab.startsWith('cam-detail-')) {
