@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+import { storage } from '../../services/storage';
 import { Button, Modal } from '../common/Modal';
 
 const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors placeholder:text-text-tertiary';
@@ -65,7 +66,6 @@ export const ChangePwdModal: React.FC = () => {
   const handleChange = () => {
     setError('');
     if (!oldPwd || !newPwd || !confirmPwd) { setError('请填写所有密码字段'); return; }
-    const { storage } = require('../../services/storage');
     const users = storage.getUsers();
     const u = users.find((x: { id: number }) => x.id === user?.id);
     if (!u) { setError('用户数据异常'); return; }
@@ -115,7 +115,6 @@ export const AddProductModal: React.FC = () => {
 
   const handleAdd = () => {
     if (!model || !size) { showMessage('请填写完整的产品信息'); return; }
-    const { storage } = require('../../services/storage');
     const products = storage.getProducts();
     if (products.find((p: { model: string }) => p.model === model)) { showMessage('该型号已存在'); return; }
     products.push({ id: Date.now(), model, size, learned: false });

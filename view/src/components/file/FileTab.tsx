@@ -11,6 +11,7 @@ export const FileTab: React.FC = () => {
   const user = useAppStore(s => s.user);
   const showMessage = useAppStore(s => s.showMessage);
   const setModal = useAppStore(s => s.setModal);
+  const addProductModal = useAppStore(s => s.addProductModal);
   const isRunning = useAppStore(s => s.isRunning);
   const [products, setProducts] = useState<Product[]>(storage.getProducts());
   const [lineConfig, setLineConfig] = useState(storage.getLineConfig());
@@ -37,6 +38,14 @@ export const FileTab: React.FC = () => {
   };
 
   useEffect(() => { refresh(); }, []);
+
+  // 新增产品弹窗使用本地加密存储，关闭后同步刷新当前列表。
+  useEffect(() => {
+    if (!addProductModal) {
+      setProducts([...storage.getProducts()]);
+      setLineConfig([...storage.getLineConfig()]);
+    }
+  }, [addProductModal]);
 
   useEffect(() => {
     if (isRunning) {
