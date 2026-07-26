@@ -27,7 +27,7 @@ export const RunTab: React.FC = () => {
   const [showCustomLayout, setShowCustomLayout] = useState(layout.id === 'custom');
   const [draggingCamId, setDraggingCamId] = useState<number | null>(null);
   const [dropTargetCamId, setDropTargetCamId] = useState<number | null>(null);
-  const [swapAnimatingIds, setSwapAnimatingIds] = useState<number[]>([]);
+  const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const [resizeSession, setResizeSession] = useState<{ camId: number; startX: number; startY: number; colSpan: number; rowSpan: number } | null>(null);
   const lineCount = useAppStore(s => s.lineCount);
   const user = useAppStore(s => s.user);
@@ -101,11 +101,39 @@ export const RunTab: React.FC = () => {
     const targetIndex = nextOrder.indexOf(targetCamId);
     if (sourceIndex < 0 || targetIndex < 0) return;
     [nextOrder[sourceIndex], nextOrder[targetIndex]] = [nextOrder[targetIndex], nextOrder[sourceIndex]];
+    const movingIds = [sourceCamId, targetCamId];
+    const beforeRects = new Map<number, DOMRect>();
+    for (const camId of movingIds) {
+      const element = cardRefs.current[camId];
+      if (element) beforeRects.set(camId, element.getBoundingClientRect());
+    }
+
     const nextLayout: RunLayout = { ...layout, order: nextOrder };
-    setSwapAnimatingIds([sourceCamId, targetCamId]);
-    window.setTimeout(() => setSwapAnimatingIds([]), 420);
     setLayout(nextLayout);
     storage.saveRunLayout(nextLayout);
+
+    // FLIP：先记录交换前位置，DOM 重排后从旧位置反向移动到新位置，
+    // 让两个卡片真实呈现“来回交换”的移动过程，而不是瞬间切换。
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        for (const camId of movingIds) {
+          const element = cardRefs.current[camId];
+          const before = beforeRects.get(camId);
+          if (!element || !before) continue;
+          const after = element.getBoundingClientRect();
+          const deltaX = before.left - after.left;
+          const deltaY = before.top - after.top;
+          if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) continue;
+          element.animate(
+            [
+              { transform: `translate3d(${deltaX}px, ${deltaY}px, 0) scale(0.985)` },
+              { transform: 'translate3d(0, 0, 0) scale(1)' },
+            ],
+            { duration: 460, easing: 'cubic-bezier(0.22, 0.8, 0.24, 1)', fill: 'both' },
+          );
+        }
+      });
+    });
   };
 
   const handleCamDragStart = (event: React.DragEvent<HTMLDivElement>, camId: number) => {
@@ -326,7 +354,7 @@ export const RunTab: React.FC = () => {
               : undefined;
 
           return (
-            <div key={camId} draggable onDragStart={event => handleCamDragStart(event, camId)} onDragOver={event => { event.preventDefault(); setDropTargetCamId(camId); }} onDrop={event => handleCamDrop(event, camId)} onDragEnd={() => { setDraggingCamId(null); setDropTargetCamId(null); }} className={`relative bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden flex flex-col cursor-grab active:cursor-grabbing transition-shadow ${dropTargetCamId === camId && draggingCamId !== camId ? 'cam-card-drop-target' : ''} ${draggingCamId === camId ? 'cam-card-dragging' : ''} ${swapAnimatingIds.includes(camId) ? 'cam-card-swap' : ''}`} style={cardStyle}>
+            <div ref={element => { cardRefs.current[camId] = element; }} key={camId} draggable onDragStart={event => handleCamDragStart(event, camId)} onDragOver={event => { event.preventDefault(); setDropTargetCamId(camId); }} onDrop={event => handleCamDrop(event, camId)} onDragEnd={() => { setDraggingCamId(null); setDropTargetCamId(null); }} className={`relative bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden flex flex-col cursor-grab active:cursor-grabbing transition-shadow ${dropTargetCamId === camId && draggingCamId !== camId ? 'cam-card-drop-target' : ''} ${draggingCamId === camId ? 'cam-card-dragging' : ''}`} style={cardStyle}>
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
                 <span className="text-[13px]">

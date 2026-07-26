@@ -389,11 +389,6 @@ button:disabled {
     animation: cam-drop-target-pulse 720ms ease-in-out infinite;
 }
 
-.cam-card-swap {
-    z-index: 20;
-    animation: cam-card-swap 420ms cubic-bezier(0.22, 0.8, 0.24, 1) both;
-}
-
 @keyframes cam-drop-target-pulse {
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.012); }
