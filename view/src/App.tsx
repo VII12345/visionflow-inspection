@@ -174,7 +174,7 @@ const App: React.FC = () => {
         <TrainingCompleteModal
           open={trainingCompleteModal}
           onClose={() => setModal('trainingComplete', false)}
-          modelName={trainingResult.modelName}
+          modelName={storage.getProducts().find(product => product.model === trainingResult.modelName)?.name || trainingResult.modelName}
           modelPath={trainingResult.modelPath}
           evalResult={trainingResult.evalResult as { accuracy: number; precision: number; recall: number; f1: number; confusion_matrix: { TP: number; TN: number; FP: number; FN: number }; total: number } | null}
           errorMessage={trainingResult.errorMessage}

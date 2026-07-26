@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
+import { storage } from '../../services/storage';
 import { Button } from '../common/Modal';
 import { useAppStore } from '../../store/useAppStore';
 import { BackendDirectoryPicker, type BackendImageDirectory } from '../common/BackendDirectoryPicker';
@@ -290,12 +291,13 @@ export const TestTab: React.FC = () => {
 
   const [error, setError] = useState('');
   const showMessage = useAppStore(s => s.showMessage);
+  const catalogRevision = useAppStore(s => s.catalogRevision);
 
   useEffect(() => {
     api.getModels().then(data => {
       if (data.success && data.models) setModels(data.models);
     }).catch(() => {});
-  }, []);
+  }, [catalogRevision]);
 
   const browseLocalFolder = async (setter: (value: string) => void) => {
     if (!window.electronAPI?.selectFolder) {
@@ -368,7 +370,7 @@ export const TestTab: React.FC = () => {
             >
               <option value="">-- 请选择 --</option>
               {models.map(m => (
-                <option key={m.name} value={m.name}>{m.name}</option>
+                <option key={m.name} value={m.name}>{storage.getProducts().find(p => p.model === m.name)?.name || m.name}</option>
               ))}
             </select>
           </div>
