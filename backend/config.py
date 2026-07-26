@@ -29,7 +29,8 @@ class Config:
         )
 
     # ========== Flask 服务 ==========
-    FLASK_HOST = "127.0.0.1"
+    # Web 模式默认监听所有网卡，允许局域网浏览器访问；可用 VISION_FLASK_HOST 覆盖。
+    FLASK_HOST = os.environ.get("VISION_FLASK_HOST", "0.0.0.0")
     FLASK_PORT = 5000
     FLASK_DEBUG = False
 

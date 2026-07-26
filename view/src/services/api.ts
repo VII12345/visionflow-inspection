@@ -1,4 +1,6 @@
-const API_BASE = 'http://127.0.0.1:5000';
+const API_BASE = typeof window !== 'undefined'
+  ? `${window.location.protocol}//${window.location.hostname}:5000`
+  : 'http://127.0.0.1:5000';
 
 async function backendFetch<T = unknown>(url: string, options?: {
   method?: string;
