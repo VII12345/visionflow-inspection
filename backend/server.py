@@ -1414,44 +1414,71 @@ _save_queue = queue.Queue()
 _save_queue_running = False
 
 
+def _unpack_save_item(item):
+    if len(item) >= 4:
+        return item[0], item[1], item[2], item[3]
+    return item[0], item[1], None, None
+
+
+def _write_save_item(item):
+    frame, save_path, done_event, completion = _unpack_save_item(item)
+    write_start = time.perf_counter()
+    error = None
+    try:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        frame.save(save_path, "BMP")
+        logger.debug(f"异步存盘完成: {save_path.name}")
+    except Exception as exc:
+        error = exc
+        logger.error(f"异步存盘失败: {exc}")
+    finally:
+        if completion is not None:
+            completion["write_ms"] = (time.perf_counter() - write_start) * 1000
+            completion["error"] = str(error) if error else None
+        if done_event is not None:
+            done_event.set()
+    return error
+
+
 def _save_worker():
-    """异步存盘 worker — 后台慢慢写盘，不拖慢推理结果返回"""
+    """异步存盘 worker；支持测试等待同一保存任务完成并读取实际写盘耗时。"""
     global _save_queue_running
     logger.info("异步存盘 worker 启动")
     _save_queue_running = True
     while _save_queue_running:
         try:
             item = _save_queue.get(timeout=1)
-            if item is None:  # 停止信号
+            if item is None:
                 break
-            frame, save_path = item
-            save_path.parent.mkdir(parents=True, exist_ok=True)
-            frame.save(save_path, "BMP")
-            logger.debug(f"异步存盘完成: {save_path.name}")
+            _write_save_item(item)
         except queue.Empty:
             continue
         except Exception as e:
-            logger.error(f"异步存盘失败: {e}")
-    # 退出前把队列里剩余的写完
+            logger.error(f"异步存盘 worker 错误: {e}")
     while not _save_queue.empty():
         try:
-            frame, save_path = _save_queue.get_nowait()
-            save_path.parent.mkdir(parents=True, exist_ok=True)
-            frame.save(save_path, "BMP")
+            item = _save_queue.get_nowait()
+            if item is not None:
+                _write_save_item(item)
         except Exception:
             pass
     logger.info("异步存盘 worker 停止")
 
 
-def _submit_save(frame, save_path):
-    """提交存盘任务（非阻塞，队列满了就丢弃）"""
+def _submit_save(frame, save_path, done_event=None, completion=None):
+    """提交存盘任务；默认非阻塞，测试可传 event 等待同一异步任务完成。"""
     try:
-        _save_queue.put((frame, save_path), timeout=0.05)
+        if done_event is None and completion is None:
+            item = (frame, save_path)
+        else:
+            item = (frame, save_path, done_event, completion or {})
+        _save_queue.put(item, timeout=0.05)
         return True
     except queue.Full:
         logger.warning(f"存盘队列已满，丢弃: {save_path.name}")
+        if done_event is not None:
+            done_event.set()
         return False
-
 
 def _start_save_worker():
     """启动异步存盘线程"""
@@ -1602,29 +1629,30 @@ def list_models():
 
 @app.route("/api/test", methods=["POST"])
 def test_model():
-    """按真实运行链路执行测试，并返回每个环节的延迟统计。
-
-    流程：枚举文件 → 获取/加载模型 → 获取图片 → 预处理 → 模型调用 →
-    识别结果 → 输出结果/更新统计 → 同步保存图片。
-    测试保存到临时目录，确保磁盘写入耗时也被真实测量，同时不污染生产图片目录。
-    """
-    import torch
+    """使用真实 inference_queue、推理 Worker 和异步存盘队列执行测试。"""
     import tempfile
     from PIL import Image
-    from .inference_worker import get_model_for_product
-    from .training import preprocess
+    from .inference_worker import get_inference_result, submit_inference, set_camera_product
 
     IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}
     STEP_LABELS = {
         "file_enumeration_ms": "文件枚举",
-        "model_prepare_ms": "模型获取/加载",
+        "model_route_prepare_ms": "模型路由/准备",
         "image_acquisition_ms": "获取图片",
-        "frame_copy_ms": "帧复制",
+        "inference_submit_ms": "提交推理队列",
+        "inference_queue_wait_ms": "推理队列等待",
+        "inference_batch_window_ms": "推理批窗口",
+        "model_prepare_ms": "Worker 获取模型",
         "preprocess_ms": "图像预处理",
         "model_call_ms": "调用模型",
         "recognition_ms": "识别/置信度计算",
+        "inference_result_wait_ms": "等待推理结果",
         "result_output_ms": "输出结果",
-        "image_save_ms": "保存图片",
+        "frame_copy_ms": "帧复制",
+        "save_submit_ms": "提交保存队列",
+        "save_queue_wait_ms": "保存队列等待",
+        "image_save_ms": "实际写盘",
+        "detection_pipeline_ms": "检测主流程",
         "pipeline_ms": "单张完整流程",
     }
 
@@ -1638,10 +1666,6 @@ def test_model():
             "total_ms": round(sum(values), 2),
         }
 
-    def sync_device(device):
-        if getattr(device, "type", None) == "cuda" and torch.cuda.is_available():
-            torch.cuda.synchronize(device)
-
     try:
         data = request.get_json(force=True) or {}
         model_name = (data.get("model_name") or "").strip()
@@ -1650,18 +1674,25 @@ def test_model():
             return jsonify({"success": False, "message": "请指定模型名称"}), 400
         if mode not in ("labeled", "unlabeled"):
             return jsonify({"success": False, "message": "无效的测试模式"}), 400
+        if system_running:
+            return jsonify({"success": False, "message": "系统运行中不能执行模拟测试，请先停止实际检测"}), 409
+
+        # 使用 Cam1 的真实 result_queue 作为测试通道；系统未运行时不会与真实相机竞争。
+        test_cam_id = 1
+        old_mapping_exists = test_cam_id in inference_worker.camera_product_map
+        old_mapping = inference_worker.camera_product_map.get(test_cam_id)
+        result_queue = inference_worker.result_queues[test_cam_id]
+        while True:
+            try:
+                result_queue.get_nowait()
+            except queue.Empty:
+                break
 
         pipeline_start = time.perf_counter()
         step_values = {key: [] for key in STEP_LABELS}
-
-        # 使用运行时相同的模型缓存/获取逻辑，而不是另起一套模型推理路径。
-        t0 = time.perf_counter()
-        model = get_model_for_product(model_name)
-        step_values["model_prepare_ms"].append((time.perf_counter() - t0) * 1000)
-        if model is None:
-            return jsonify({"success": False, "message": f"模型 '{model_name}' 加载失败"}), 500
-        model_device = next(model.parameters()).device
-        model.eval()
+        set_model_start = time.perf_counter()
+        set_camera_product(test_cam_id, model_name)
+        step_values["model_route_prepare_ms"].append((time.perf_counter() - set_model_start) * 1000)
 
         sources = []
         enum_start = time.perf_counter()
@@ -1688,136 +1719,136 @@ def test_model():
         step_values["file_enumeration_ms"].append((time.perf_counter() - enum_start) * 1000)
 
         results = []
-        counts = {"total": 0, "correct": 0, "upright_total": 0, "upright_correct": 0, "inverted_total": 0, "inverted_correct": 0, "defective": 0}
+        counts = {"total": 0, "correct": 0, "upright_total": 0, "upright_correct": 0, "inverted_total": 0, "inverted_correct": 0}
 
-        with tempfile.TemporaryDirectory(prefix="vision_test_captures_", dir=str(Config.DATA_DIR)) as temp_dir:
-            save_root = Path(temp_dir) / "captures"
-            for image_path, expected in sources:
-                image_start = time.perf_counter()
-                image = None
-                try:
-                    # 1. 获取图片：convert 会强制完成像素读取，覆盖真实抓帧后的图像对象创建成本。
-                    t0 = time.perf_counter()
-                    with Image.open(image_path) as source_image:
-                        image = source_image.convert("RGB")
-                    step_values["image_acquisition_ms"].append((time.perf_counter() - t0) * 1000)
+        try:
+            with tempfile.TemporaryDirectory(prefix="vision_test_captures_", dir=str(Config.DATA_DIR)) as temp_dir:
+                save_root = Path(temp_dir) / "captures"
+                for image_path, expected in sources:
+                    image_start = time.perf_counter()
+                    image = None
+                    try:
+                        # 与实际相机帧进入 worker 前一致：读取并转换为 RGB 图像对象。
+                        t0 = time.perf_counter()
+                        with Image.open(image_path) as source_image:
+                            image = source_image.convert("RGB")
+                        step_values["image_acquisition_ms"].append((time.perf_counter() - t0) * 1000)
 
-                    # 2. 预处理：与实际 inference_worker 使用同一个 preprocess。
-                    t0 = time.perf_counter()
-                    array = preprocess(image, augment=False)
-                    tensor = torch.from_numpy(array).unsqueeze(0).to(model_device)
-                    sync_device(model_device)
-                    step_values["preprocess_ms"].append((time.perf_counter() - t0) * 1000)
+                        # 与实际运行完全相同：提交 inference_queue，由推理 Worker 处理。
+                        t0 = time.perf_counter()
+                        submitted = submit_inference(test_cam_id, image, timed=True)
+                        step_values["inference_submit_ms"].append((time.perf_counter() - t0) * 1000)
+                        if not submitted:
+                            raise RuntimeError("推理队列已满")
 
-                    # 3. 调用模型：单张调用，模拟实际单帧进入推理 worker 后的路径。
-                    sync_device(model_device)
-                    t0 = time.perf_counter()
-                    with torch.no_grad():
-                        logits = model(tensor)
-                    sync_device(model_device)
-                    step_values["model_call_ms"].append((time.perf_counter() - t0) * 1000)
+                        t0 = time.perf_counter()
+                        inference_result = get_inference_result(test_cam_id, timeout=30.0)
+                        step_values["inference_result_wait_ms"].append((time.perf_counter() - t0) * 1000)
+                        if not inference_result:
+                            raise RuntimeError("等待推理结果超时")
 
-                    # 4. 识别：softmax、argmax、标签和置信度计算。
-                    t0 = time.perf_counter()
-                    probs = torch.softmax(logits, dim=1)[0]
-                    predicted_index = int(probs.argmax())
-                    predicted = "正" if predicted_index == 0 else "反"
-                    confidence = float(probs[predicted_index])
-                    step_values["recognition_ms"].append((time.perf_counter() - t0) * 1000)
+                        worker_timing = inference_result.get("timing", {})
+                        for key in ("inference_queue_wait_ms", "inference_batch_window_ms", "model_prepare_ms", "preprocess_ms", "model_call_ms", "recognition_ms"):
+                            if key in worker_timing:
+                                step_values[key].append(float(worker_timing[key]))
 
-                    # 5. 输出结果：模拟运行时更新检测计数和结果对象。
-                    t0 = time.perf_counter()
-                    is_correct = expected is not None and predicted == expected
-                    counts["total"] += 1
-                    if predicted == "反":
-                        counts["defective"] += 1
-                    if expected is not None:
-                        if is_correct:
-                            counts["correct"] += 1
-                        if expected == "正":
-                            counts["upright_total"] += 1
+                        # 模拟实际 Worker 结果交回相机线程后的输出/统计更新。
+                        t0 = time.perf_counter()
+                        predicted = inference_result["label"]
+                        confidence = float(inference_result["confidence"])
+                        is_correct = expected is not None and predicted == expected
+                        counts["total"] += 1
+                        if expected is not None:
                             if is_correct:
-                                counts["upright_correct"] += 1
-                        else:
-                            counts["inverted_total"] += 1
-                            if is_correct:
-                                counts["inverted_correct"] += 1
-                    result = {
-                        "filename": image_path.name,
-                        "predicted": predicted,
-                        "confidence": round(confidence, 4),
-                    }
-                    if expected is not None:
-                        result.update({"expected": expected, "correct": is_correct})
-                    step_values["result_output_ms"].append((time.perf_counter() - t0) * 1000)
+                                counts["correct"] += 1
+                            if expected == "正":
+                                counts["upright_total"] += 1
+                                if is_correct:
+                                    counts["upright_correct"] += 1
+                            else:
+                                counts["inverted_total"] += 1
+                                if is_correct:
+                                    counts["inverted_correct"] += 1
+                        result = {"filename": image_path.name, "predicted": predicted, "confidence": round(confidence, 4)}
+                        if expected is not None:
+                            result.update({"expected": expected, "correct": is_correct})
+                        step_values["result_output_ms"].append((time.perf_counter() - t0) * 1000)
 
-                    # 6. 保存图片：同步 BMP 写盘，真实等待落盘完成后再记时。
-                    t0 = time.perf_counter()
-                    save_copy = image.copy()
-                    step_values["frame_copy_ms"].append((time.perf_counter() - t0) * 1000)
-                    save_subdir = "正" if predicted == "正" else "反"
-                    save_path = save_root / save_subdir / f"{image_path.stem}.bmp"
-                    t0 = time.perf_counter()
-                    save_path.parent.mkdir(parents=True, exist_ok=True)
-                    save_copy.save(save_path, "BMP")
-                    save_copy.close()
-                    step_values["image_save_ms"].append((time.perf_counter() - t0) * 1000)
+                        # 模拟实际 _submit_save：先异步入队，再等待同一个异步 Worker 写盘完成。
+                        t0 = time.perf_counter()
+                        save_copy = image.copy()
+                        step_values["frame_copy_ms"].append((time.perf_counter() - t0) * 1000)
+                        save_subdir = "正" if predicted == "正" else "反"
+                        save_path = save_root / save_subdir / f"{image_path.stem}.bmp"
+                        done_event = threading.Event()
+                        completion = {}
+                        t0 = time.perf_counter()
+                        save_submitted = _submit_save(save_copy, save_path, done_event, completion)
+                        step_values["save_submit_ms"].append((time.perf_counter() - t0) * 1000)
+                        if not save_submitted:
+                            save_copy.close()
+                            raise RuntimeError("保存队列已满")
+                        save_wait_start = time.perf_counter()
+                        if not done_event.wait(timeout=30.0):
+                            raise RuntimeError("等待异步保存完成超时")
+                        step_values["save_queue_wait_ms"].append((time.perf_counter() - save_wait_start) * 1000)
+                        if completion.get("error"):
+                            raise RuntimeError(f"图片保存失败: {completion['error']}")
+                        step_values["image_save_ms"].append(float(completion.get("write_ms", 0.0)))
 
-                    result["timing"] = {
-                        key: round(step_values[key][-1], 2)
-                        for key in ("image_acquisition_ms", "frame_copy_ms", "preprocess_ms", "model_call_ms", "recognition_ms", "result_output_ms", "image_save_ms")
-                    }
-                    result["time_ms"] = round((time.perf_counter() - image_start) * 1000, 2)
-                    step_values["pipeline_ms"].append(result["time_ms"])
-                    results.append(result)
-                except Exception as exc:
-                    logger.warning(f"测试图片处理失败 {image_path}: {exc}")
-                finally:
-                    if image is not None:
-                        image.close()
+                        detection_end = time.perf_counter()
+                        result["timing"] = {
+                            key: round(float(value), 2)
+                            for key, value in {
+                                **worker_timing,
+                                "inference_submit_ms": step_values["inference_submit_ms"][-1],
+                                "inference_result_wait_ms": step_values["inference_result_wait_ms"][-1],
+                                "result_output_ms": step_values["result_output_ms"][-1],
+                                "frame_copy_ms": step_values["frame_copy_ms"][-1],
+                                "save_submit_ms": step_values["save_submit_ms"][-1],
+                                "save_queue_wait_ms": step_values["save_queue_wait_ms"][-1],
+                                "image_save_ms": step_values["image_save_ms"][-1],
+                            }.items()
+                        }
+                        result["timing"]["detection_pipeline_ms"] = round((detection_end - image_start) * 1000 - step_values["save_queue_wait_ms"][-1] - step_values["image_save_ms"][-1], 2)
+                        result["time_ms"] = round((time.perf_counter() - image_start) * 1000, 2)
+                        step_values["detection_pipeline_ms"].append(result["timing"]["detection_pipeline_ms"])
+                        step_values["pipeline_ms"].append(result["time_ms"])
+                        results.append(result)
+                    except Exception as exc:
+                        logger.warning(f"测试图片处理失败 {image_path}: {exc}")
+                    finally:
+                        if image is not None:
+                            image.close()
+        finally:
+            if old_mapping_exists:
+                inference_worker.camera_product_map[test_cam_id] = old_mapping
+            else:
+                inference_worker.camera_product_map.pop(test_cam_id, None)
 
-        step_timing = {
-            key: timing_stats(values)
-            for key, values in step_values.items()
-            if values
-        }
-        pipeline_total_ms = (time.perf_counter() - pipeline_start) * 1000
         timing = {
-            # 保留原字段，但现在统计的是每张图片完整链路（含获取、推理、输出、保存）。
             **timing_stats(step_values["pipeline_ms"]),
-            "pipeline_total_ms": round(pipeline_total_ms, 2),
-            "steps": step_timing,
+            "pipeline_total_ms": round((time.perf_counter() - pipeline_start) * 1000, 2),
+            "steps": {key: timing_stats(values) for key, values in step_values.items() if values},
             "step_labels": STEP_LABELS,
         }
-
         total = counts["total"]
-        accuracy = round(counts["correct"] / total, 4) if mode == "labeled" and total else None
-        upright_accuracy = round(counts["upright_correct"] / counts["upright_total"], 4) if counts["upright_total"] else None
-        inverted_accuracy = round(counts["inverted_correct"] / counts["inverted_total"], 4) if counts["inverted_total"] else None
-        response = {
-            "success": True,
-            "mode": mode,
-            "model_name": model_name,
-            "total": total,
-            "timing": timing,
-            "results": results,
-        }
+        response = {"success": True, "mode": mode, "model_name": model_name, "total": total, "timing": timing, "results": results}
         if mode == "labeled":
             response.update({
                 "correct": counts["correct"],
-                "accuracy": accuracy,
+                "accuracy": round(counts["correct"] / total, 4) if total else 0,
                 "upright_total": counts["upright_total"],
                 "upright_correct": counts["upright_correct"],
-                "upright_accuracy": upright_accuracy,
+                "upright_accuracy": round(counts["upright_correct"] / counts["upright_total"], 4) if counts["upright_total"] else None,
                 "inverted_total": counts["inverted_total"],
                 "inverted_correct": counts["inverted_correct"],
-                "inverted_accuracy": inverted_accuracy,
+                "inverted_accuracy": round(counts["inverted_correct"] / counts["inverted_total"], 4) if counts["inverted_total"] else None,
             })
         return jsonify(response)
     except Exception as e:
         logger.error(f"模型测试失败: {e}", exc_info=True)
         return jsonify({"success": False, "message": str(e)}), 500
-
 
 # ========== 训练 API ==========
 

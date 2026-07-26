@@ -588,23 +588,36 @@ def train_model_v2(
 # ─── 推理 ──────────────────────────────────────────────────
 
 
-def classify_single(model, pil_image: Image.Image) -> tuple[str, float]:
-    """单帧推理：返回 (label, confidence)
+def classify_single(model, pil_image: Image.Image, timing: dict | None = None) -> tuple[str, float]:
+    """单帧推理：返回 (label, confidence)，可选记录实际推理 Worker 内部耗时。"""
+    import time as _time
 
-    自动使用模型参数所在设备，避免与训练设备混淆。
-    """
-    # 自动检测模型所在设备（而非依赖全局 _device）
     model_device = next(model.parameters()).device
+    t0 = _time.perf_counter()
     arr = preprocess(pil_image, augment=False)
     tensor = torch.from_numpy(arr).unsqueeze(0).to(model_device)
+    if timing is not None:
+        timing["preprocess_ms"] = (_time.perf_counter() - t0) * 1000
+
+    # CUDA kernel 是异步提交的，前后同步才能得到真实模型执行耗时。
+    if model_device.type == "cuda" and torch.cuda.is_available():
+        torch.cuda.synchronize(model_device)
+    t0 = _time.perf_counter()
     with torch.no_grad():
         logits = model(tensor)
-        probs = torch.softmax(logits, dim=1)[0]
+    if model_device.type == "cuda" and torch.cuda.is_available():
+        torch.cuda.synchronize(model_device)
+    if timing is not None:
+        timing["model_call_ms"] = (_time.perf_counter() - t0) * 1000
+
+    t0 = _time.perf_counter()
+    probs = torch.softmax(logits, dim=1)[0]
     pred = int(probs.argmax())
     label = "正" if pred == 0 else "反"
     confidence = float(probs[pred])
+    if timing is not None:
+        timing["recognition_ms"] = (_time.perf_counter() - t0) * 1000
     return label, confidence
-
 
 def classify_frames_batch(model, frames: list[Image.Image]) -> list[tuple[str, float]]:
     """批量推理：多张 PIL Image 合并为一个 batch，一次 GPU 前向传播。
@@ -716,3 +729,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

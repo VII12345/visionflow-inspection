@@ -98,76 +98,83 @@ def reload_all_models(device_str=None):
         logger.info(f"推理设备已切换至 {target_device}，共重载 {reloaded} 个模型")
 
 
-def inference_worker():
-    """推理 worker 线程 — 微批处理模式
+def _unpack_inference_item(item):
+    """兼容生产三元组和测试计时四元组。"""
+    if len(item) >= 4:
+        return item[0], item[1], item[2], item[3] or {}
+    return item[0], item[1], item[2], {}
 
-    收到第一帧后快速排空队列（5ms 窗口），将同模型的帧合并为一个 batch，
-    一次 GPU 前向传播处理多帧。单帧时无额外延迟。
-    """
+
+def inference_worker():
+    """推理 worker — 生产运行和真实模拟测试共用同一条队列/线程/模型路径。"""
     global model_loaded
 
-    # 预加载默认模型
     m = get_model_for_product()
     if m is None or not model_loaded:
         logger.error("推理 worker 启动失败：模型未加载")
         return
 
     logger.info("推理 worker 启动（微批处理模式，批窗口 5ms）")
-
     from .training import classify_frames_batch, classify_single
 
-    BATCH_WINDOW = 0.005  # 5ms 批收集窗口
+    BATCH_WINDOW = 0.005
 
     while True:
         try:
-            # 等第一帧
-            cam_id, image, timestamp = inference_queue.get(timeout=1)
+            first_item = inference_queue.get(timeout=1)
+            cam_id, image, timestamp, metadata = _unpack_inference_item(first_item)
+            first_received_perf = time.perf_counter()
+            metadata["worker_received_perf"] = first_received_perf
+            items = [(cam_id, image, timestamp, metadata)]
 
-            # 快速收集窗口内的其他帧（非阻塞排空队列）
-            items = [(cam_id, image, timestamp)]
             deadline = time.perf_counter() + BATCH_WINDOW
             while time.perf_counter() < deadline:
                 try:
                     extra = inference_queue.get_nowait()
-                    items.append(extra)
+                    extra_cam, extra_image, extra_ts, extra_meta = _unpack_inference_item(extra)
+                    extra_meta["worker_received_perf"] = first_received_perf
+                    items.append((extra_cam, extra_image, extra_ts, extra_meta))
                 except queue.Empty:
                     break
 
-            # 按模型分组
-            groups: dict[
-                str, list[tuple[int, float]]
-            ] = {}  # model_key → [(cam_id, timestamp), ...]
+            groups: dict[str, list[tuple[int, float, dict]]] = {}
             frames_by_group: dict[str, list[Image.Image]] = {}
-            for cid, img, ts in items:
+            for cid, img, ts, meta in items:
                 product_model = camera_product_map.get(cid)
                 key = product_model or "__default__"
-                if key not in groups:
-                    groups[key] = []
-                    frames_by_group[key] = []
-                groups[key].append((cid, ts))
-                frames_by_group[key].append(img)
+                groups.setdefault(key, []).append((cid, ts, meta))
+                frames_by_group.setdefault(key, []).append(img)
 
-            # 每组批量推理
             for key, meta_list in groups.items():
+                model_prepare_start = time.perf_counter()
                 cam_model = get_model_for_product(None if key == "__default__" else key)
+                model_prepare_ms = (time.perf_counter() - model_prepare_start) * 1000
                 frames = frames_by_group[key]
+                timed_meta = next((meta for _, _, meta in meta_list if meta.get("timed")), None)
+                worker_timing = {} if timed_meta is not None and len(frames) == 1 else None
+
                 if len(frames) == 1:
-                    # 单帧走快速路径
-                    label, confidence = classify_single(cam_model, frames[0])
+                    label, confidence = classify_single(cam_model, frames[0], timing=worker_timing)
                     batch_results = [(label, confidence)]
                 else:
                     batch_results = classify_frames_batch(cam_model, frames)
 
-                for (cid, ts), (label, confidence) in zip(meta_list, batch_results):
-                    result_queues[cid].put(
-                        {"label": label, "confidence": confidence, "timestamp": ts}
-                    )
+                for (cid, ts, meta), (label, confidence) in zip(meta_list, batch_results):
+                    result = {"label": label, "confidence": confidence, "timestamp": ts}
+                    if meta.get("timed"):
+                        worker_received = meta.get("worker_received_perf", first_received_perf)
+                        result["timing"] = {
+                            "inference_queue_wait_ms": round(max(0.0, (worker_received - meta.get("submitted_perf", worker_received)) * 1000), 2),
+                            "inference_batch_window_ms": round(max(0.0, (time.perf_counter() - worker_received) * 1000), 2),
+                            "model_prepare_ms": round(model_prepare_ms, 2),
+                            **{key: round(value, 2) for key, value in (worker_timing or {}).items()},
+                        }
+                    result_queues[cid].put(result)
 
         except queue.Empty:
             continue
         except Exception as e:
             logger.error(f"推理错误: {e}")
-
 
 def start_inference_worker():
     """启动推理 worker"""
@@ -176,10 +183,13 @@ def start_inference_worker():
     logger.info("推理 worker 线程已启动")
 
 
-def submit_inference(cam_id: int, image: Image.Image):
-    """提交推理任务"""
+def submit_inference(cam_id: int, image: Image.Image, timed: bool = False):
+    """提交推理任务；测试计时模式仍使用生产 inference_queue。"""
     try:
-        inference_queue.put((cam_id, image, time.time()), timeout=0.1)
+        if timed:
+            inference_queue.put((cam_id, image, time.time(), {"timed": True, "submitted_perf": time.perf_counter()}), timeout=0.1)
+        else:
+            inference_queue.put((cam_id, image, time.time()), timeout=0.1)
         return True
     except queue.Full:
         logger.warning(f"推理队列已满，丢弃 Camera {cam_id} 的帧")
@@ -193,3 +203,4 @@ def get_inference_result(cam_id: int, timeout=0.1):
         return result
     except queue.Empty:
         return None
+
