@@ -70,8 +70,16 @@ export const api = {
       inverted_total?: number;
       inverted_correct?: number;
       inverted_accuracy?: number | null;
-      timing?: { avg_ms: number; min_ms: number; max_ms: number; total_ms: number };
-      results: { filename: string; expected?: string; predicted: string; confidence: number; correct?: boolean; time_ms?: number }[];
+      timing?: {
+        avg_ms: number;
+        min_ms: number;
+        max_ms: number;
+        total_ms: number;
+        pipeline_total_ms?: number;
+        steps?: Record<string, { avg_ms: number; min_ms: number; max_ms: number; total_ms: number }>;
+        step_labels?: Record<string, string>;
+      };
+      results: { filename: string; expected?: string; predicted: string; confidence: number; correct?: boolean; time_ms?: number; timing?: Record<string, number> }[];
     }>('/api/test', { method: 'POST', body: params }),
 
   // Photos

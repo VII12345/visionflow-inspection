@@ -2,6 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { Button } from '../common/Modal';
 
+interface StepTiming { avg_ms: number; min_ms: number; max_ms: number; total_ms: number; }
+const STEP_LABELS: Record<string, string> = {
+  file_enumeration_ms: '文件枚举',
+  model_prepare_ms: '模型获取/加载',
+  image_acquisition_ms: '获取图片',
+  frame_copy_ms: '帧复制',
+  preprocess_ms: '图像预处理',
+  model_call_ms: '调用模型',
+  recognition_ms: '识别/置信度计算',
+  result_output_ms: '输出结果',
+  image_save_ms: '保存图片',
+  pipeline_ms: '单张完整流程',
+};
 const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors placeholder:text-text-tertiary';
 
 type TestMode = 'labeled' | 'unlabeled';
@@ -13,6 +26,7 @@ interface TestResult {
   confidence: number;
   correct?: boolean;
   time_ms?: number;
+  timing?: Record<string, number>;
 }
 
 export const TestTab: React.FC = () => {
@@ -38,7 +52,15 @@ export const TestTab: React.FC = () => {
     inverted_total?: number;
     inverted_correct?: number;
     inverted_accuracy?: number | null;
-    timing?: { avg_ms: number; min_ms: number; max_ms: number; total_ms: number };
+    timing?: {
+      avg_ms: number;
+      min_ms: number;
+      max_ms: number;
+      total_ms: number;
+      pipeline_total_ms?: number;
+      steps?: Record<string, StepTiming>;
+      step_labels?: Record<string, string>;
+    };
     results: TestResult[];
   } | null>(null);
 
@@ -212,29 +234,48 @@ export const TestTab: React.FC = () => {
           {/* Timing */}
           {result.timing && (
             <div className="mb-6">
-              <div className="text-[10px] text-text-tertiary uppercase tracking-wide mb-2">推理耗时</div>
-              <div className="flex gap-4">
-                <div className="flex-1 bg-gray-50 rounded-md p-3 text-center">
-                  <div className="text-[10px] text-text-tertiary">最短</div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[10px] text-text-tertiary uppercase tracking-wide">完整运行链路延迟</div>
+                <div className="text-[11px] text-text-tertiary">获取图片 → 预处理 → 模型 → 识别 → 输出 → 保存图片</div>
+              </div>
+              <div className="grid grid-cols-4 gap-4 mb-4">
+                <div className="bg-gray-50 rounded-md p-3 text-center">
+                  <div className="text-[10px] text-text-tertiary">单张最短</div>
                   <div className="text-sm font-bold text-text-primary mt-0.5">{result.timing.min_ms.toFixed(1)} ms</div>
                 </div>
-                <div className="flex-1 bg-gray-50 rounded-md p-3 text-center">
-                  <div className="text-[10px] text-text-tertiary">最长</div>
+                <div className="bg-gray-50 rounded-md p-3 text-center">
+                  <div className="text-[10px] text-text-tertiary">单张最长</div>
                   <div className="text-sm font-bold text-text-primary mt-0.5">{result.timing.max_ms.toFixed(1)} ms</div>
                 </div>
-                <div className="flex-1 bg-gray-50 rounded-md p-3 text-center">
-                  <div className="text-[10px] text-text-tertiary">平均</div>
+                <div className="bg-gray-50 rounded-md p-3 text-center">
+                  <div className="text-[10px] text-text-tertiary">单张平均</div>
                   <div className="text-sm font-bold text-text-primary mt-0.5">{result.timing.avg_ms.toFixed(1)} ms</div>
                 </div>
-                <div className="flex-1 bg-gray-50 rounded-md p-3 text-center">
-                  <div className="text-[10px] text-text-tertiary">总耗时</div>
-                  <div className="text-sm font-bold text-text-primary mt-0.5">{(result.timing.total_ms / 1000).toFixed(2)} s</div>
+                <div className="bg-gray-50 rounded-md p-3 text-center">
+                  <div className="text-[10px] text-text-tertiary">流水线总耗时</div>
+                  <div className="text-sm font-bold text-text-primary mt-0.5">{((result.timing.pipeline_total_ms ?? result.timing.total_ms) / 1000).toFixed(2)} s</div>
                 </div>
               </div>
+              {result.timing.steps && (
+                <div className="border border-gray-100 rounded-md overflow-hidden">
+                  <div className="bg-gray-50 px-3 py-2 text-[10px] font-medium text-text-tertiary uppercase tracking-wide">逐项操作耗时（毫秒）</div>
+                  <div className="divide-y divide-gray-100">
+                    {Object.entries(result.timing.steps).map(([key, step]) => (
+                      <div key={key} className="grid grid-cols-[minmax(160px,1.4fr)_repeat(4,minmax(70px,1fr))] items-center px-3 py-2 text-xs">
+                        <span className="text-text-primary font-medium">{result.timing?.step_labels?.[key] || STEP_LABELS[key] || key}</span>
+                        <span className="text-text-secondary text-right">平均 {step.avg_ms.toFixed(2)}</span>
+                        <span className="text-text-secondary text-right">最短 {step.min_ms.toFixed(2)}</span>
+                        <span className="text-text-secondary text-right">最长 {step.max_ms.toFixed(2)}</span>
+                        <span className="text-text-primary font-medium text-right">合计 {step.total_ms.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Per-image results */}
+          {/* Per-image results */}/
           <div>
             <div className="text-[10px] text-text-tertiary uppercase tracking-wide mb-2">
               图片详情 ({result.results.length} 张)
@@ -250,7 +291,10 @@ export const TestTab: React.FC = () => {
                     <th className="px-3 py-2 text-left text-[10px] font-medium text-text-tertiary uppercase w-16">结果</th>
                     <th className="px-3 py-2 text-left text-[10px] font-medium text-text-tertiary uppercase w-20">置信度</th>
                     {result.results[0]?.time_ms != null && (
-                      <th className="px-3 py-2 text-left text-[10px] font-medium text-text-tertiary uppercase w-20">耗时</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-medium text-text-tertiary uppercase w-20">完整耗时</th>
+                    )}
+                    {result.results[0]?.timing && (
+                      <th className="px-3 py-2 text-left text-[10px] font-medium text-text-tertiary uppercase w-20">步骤</th>
                     )}
                   </tr>
                 </thead>
@@ -270,6 +314,21 @@ export const TestTab: React.FC = () => {
                       {r.time_ms != null && (
                         <td className="px-3 py-2 text-text-tertiary">{r.time_ms.toFixed(1)} ms</td>
                       )}
+                      {r.timing && (
+                        <td className="px-3 py-2 text-text-tertiary relative">
+                          <details>
+                            <summary className="cursor-pointer text-accent">查看</summary>
+                            <div className="absolute right-0 z-20 mt-1 bg-white border border-gray-200 rounded-md shadow-lg p-2 min-w-[220px]">
+                              {Object.entries(r.timing).map(([key, value]) => (
+                                <div key={key} className="flex justify-between gap-4 py-0.5 text-[10px]">
+                                  <span>{STEP_LABELS[key] || key}</span>
+                                  <span className="font-medium">{value.toFixed(2)} ms</span>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -281,3 +340,4 @@ export const TestTab: React.FC = () => {
     </div>
   );
 };
+
