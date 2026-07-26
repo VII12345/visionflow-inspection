@@ -1218,9 +1218,16 @@ def _load_save_settings():
     try:
         with open(_save_settings_path, "r", encoding="utf-8") as f:
             raw = json.load(f)
-        for cam_id in range(1, Config.CAMERA_COUNT + 1):
-            item = raw.get(str(cam_id), raw.get(cam_id, {})) if isinstance(raw, dict) else {}
-            if isinstance(item, dict):
+        if isinstance(raw, dict):
+            # 线体数量可能在本次启动时才从 line_count.json 恢复，
+            # 因此不能只按默认的 Config.CAMERA_COUNT 读取设置。
+            for raw_cam_id, item in raw.items():
+                try:
+                    cam_id = int(raw_cam_id)
+                except (TypeError, ValueError):
+                    continue
+                if not 1 <= cam_id <= Config.MAX_CAMERA_COUNT or not isinstance(item, dict):
+                    continue
                 settings[cam_id] = {
                     "saveGood": item.get("saveGood", True) is True,
                     "saveBad": item.get("saveBad", True) is True,
