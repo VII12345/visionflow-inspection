@@ -535,11 +535,11 @@ export const TestTab: React.FC = () => {
                       <td className="px-3 py-2 text-text-primary font-mono text-[11px] truncate max-w-[200px]">{r.filename}</td>
                       {r.expected != null && (
                         <td className="px-3 py-2">
-                          <span className={`text-[11px] font-medium ${r.expected === '类别A' ? 'text-ok' : 'text-ng'}`}>{r.expected}</span>
+                          <span className={`text-[11px] font-medium ${'text-text-secondary'}`}>{r.expected}</span>
                         </td>
                       )}
                       <td className="px-3 py-2">
-                        <span className={`text-[11px] font-medium ${r.predicted === '类别A' ? 'text-ok' : 'text-ng'}`}>{r.predicted}</span>
+                        <span className={`text-[11px] font-medium ${'text-text-secondary'}`}>{r.predicted}</span>
                       </td>
                       <td className="px-3 py-2 text-text-secondary">{(r.confidence * 100).toFixed(1)}%</td>
                       {r.time_ms != null && (

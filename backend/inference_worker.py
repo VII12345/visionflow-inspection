@@ -86,7 +86,7 @@ def load_model(model_name=None):
         model_path = Config.get_active_model_path(model_name)
         logger.info(f"加载模型: {model_path or '无'} (请求: {model_name or '自动'})")
 
-        categories = ["类别A", "类别B"]
+        categories = ["类别1", "类别2"]
         state_dict = None
         metadata_path = None
         if model_path is not None:

@@ -13,7 +13,7 @@ const fallbackConfig: PlcConfig = {
   proxy_url: '',
   timeout_seconds: 3,
   node_prefix: 'NODES.MODBUS.',
-  reject_labels: ['类别B'],
+  reject_labels: ['剔除类'],
   cameras: {},
 };
 
@@ -112,7 +112,7 @@ export const PlcTab: React.FC = () => {
             <div><label className={labelClass}>代理地址（可选）</label><input value={config.proxy_url} onChange={e => setConfig(c => ({ ...c, proxy_url: e.target.value }))} className={inputClass} placeholder="留空表示不使用代理" /></div>
             <div><label className={labelClass}>节点前缀</label><input value={config.node_prefix} onChange={e => setConfig(c => ({ ...c, node_prefix: e.target.value }))} className={inputClass} placeholder="NODES.MODBUS." /></div>
             <div><label className={labelClass}>请求超时（秒）</label><input type="number" min={0.1} max={120} step={0.1} value={config.timeout_seconds} onChange={e => setConfig(c => ({ ...c, timeout_seconds: Number(e.target.value) || 3 }))} className={inputClass} /></div>
-            <div className="col-span-2"><label className={labelClass}>触发剔除的类别名称（逗号分隔）</label><input value={config.reject_labels.join(', ')} onChange={e => setConfig(c => ({ ...c, reject_labels: e.target.value.split(',').map(item => item.trim()).filter(Boolean) }))} className={inputClass} placeholder="例如：类别B, 不合格" /><p className="text-[10px] text-text-tertiary mt-1">检测结果名称与这里任意一项匹配时，才会写入剔除信号。</p></div>
+            <div className="col-span-2"><label className={labelClass}>触发剔除的类别名称（逗号分隔）</label><input value={config.reject_labels.join(', ')} onChange={e => setConfig(c => ({ ...c, reject_labels: e.target.value.split(',').map(item => item.trim()).filter(Boolean) }))} className={inputClass} placeholder="例如：剔除类, 不合格" /><p className="text-[10px] text-text-tertiary mt-1">检测结果名称与这里任意一项匹配时，才会写入剔除信号。</p></div>
           </div>
         )}
         <div className="flex justify-end gap-3 mt-5"><Button variant="secondary" size="sm" onClick={load}>重新加载</Button><Button variant="primary" onClick={save} disabled={saving || loading}>{saving ? '保存中...' : '保存 PLC 配置'}</Button></div>

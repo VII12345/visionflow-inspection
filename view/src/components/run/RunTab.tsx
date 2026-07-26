@@ -60,7 +60,7 @@ export const RunTab: React.FC = () => {
 
   // Sync model learned status from backend
   const [products, setProducts] = React.useState(storage.getProducts());
-  const [rejectLabels, setRejectLabels] = useState<string[]>(['类别B']);
+  const [rejectLabels, setRejectLabels] = useState<string[]>(['剔除类']);
   useEffect(() => { api.getPlcConfig().then(data => { if (data.success) setRejectLabels(data.config.reject_labels || []); }).catch(() => {}); }, [catalogRevision]);
   useEffect(() => { setProducts(storage.getProducts()); }, [catalogRevision]);
   const syncModelStatus = useCallback(async () => {

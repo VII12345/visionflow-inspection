@@ -180,7 +180,7 @@ def _find_auto_images(image_dir: Path):
     )
     samples = []
     for p in paths:
-        samples.append((p, 0))  # 类别A
+        samples.append((p, 0))  # 第一类别
     return samples, paths
 
 
@@ -217,7 +217,7 @@ class ProductDataset(Dataset):
                 samples.extend((image, label, False) for image in _image_files(category_dir))
         else:
             self.mode = "auto"
-            self.categories = ["类别A", "类别B"]
+            self.categories = ["类别1", "类别2"]
             image_paths = _image_files(folder)
             for image_path in image_paths:
                 samples.append((image_path, 0, False))
@@ -578,7 +578,7 @@ def train_model_v2(
 
 
 def _label_for_index(index: int, labels: list[str] | None = None) -> str:
-    names = labels or ["类别A", "类别B"]
+    names = labels or ["类别1", "类别2"]
     return names[index] if index < len(names) else f"类别{index + 1}"
 
 
@@ -680,16 +680,16 @@ def main():
     total = classA = classB = 0
     for _, label, conf in results:
         total += 1
-        if label == "类别A":
+        if label == "类别1":
             classA += 1
-        elif label == "类别B":
+        elif label == "类别2":
             classB += 1
         c = f"{conf:.0%}" if conf > 0 else "-"
         pname = paths[total - 1].name if total <= len(paths) else ""
         print(f"{pname:<52} {label:>4} {c:>6}")
     print("-" * 66)
     print(
-        f"共 {total} 张 | 类别A {classA} | 类别B {classB} | 耗时 {ms:.1f}ms ({ms_per:.1f}ms/张)"
+        f"共 {total} 张 | 类别1 {classA} | 类别2 {classB} | 耗时 {ms:.1f}ms ({ms_per:.1f}ms/张)"
     )
 
 

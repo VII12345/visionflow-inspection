@@ -43,7 +43,7 @@ def _default_config():
         "proxy_url": PLC_PROXY_URL,
         "timeout_seconds": PLC_TIMEOUT_SECONDS,
         "node_prefix": DEFAULT_NODE_PREFIX,
-        "reject_labels": ["类别B"],
+        "reject_labels": ["剔除类"],
         "cameras": cameras,
     }
 

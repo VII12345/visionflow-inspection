@@ -137,8 +137,8 @@ PLC 配置默认保存在 `data/plc_config.json`，不再要求把服务地址�
 │   ├── captures/             # 按相机和任意类别目录保存的检测照片
 │   └── model_classifier_*.pth  # 训练好的模型
 ├── test/                    # 测试图片
-│   ├── 类别A/                  # 类别A样本
-│   └── 类别B/                  # 类别B样本
+│   ├── <类别1>/                # 用户自定义类别样本
+│   └── <类别2>/                # 可继续增加更多类别
 ├── build_portable.ps1       # 一键打包脚本
 ├── backend.spec             # PyInstaller 配置
 └── requirements.txt         # Python 依赖

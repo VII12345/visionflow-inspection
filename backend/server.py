@@ -1425,7 +1425,7 @@ def _photo_subdirs(capture_dir):
 
 @app.route("/api/photos/<int:cam_id>", methods=["GET"])
 def list_photos(cam_id):
-    """获取相机照片列表（含类别A/类别B分类）"""
+    """获取相机照片列表（按实际类别分类）"""
     if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
         return jsonify({"success": False, "error": "Invalid camera ID"}), 400
 
@@ -1720,7 +1720,7 @@ def camera_worker(cam_id):
                     latest_results[cam_id] = result
                     stats[cam_id]["detected"] += 1
                     plc_config = get_plc_config()
-                    should_reject = result["label"] in plc_config.get("reject_labels", ["类别B"])
+                    should_reject = result["label"] in plc_config.get("reject_labels", ["剔除类"])
                     if should_reject:
                         stats[cam_id]["defective"] += 1
                     if plc_config.get("enabled", True) and should_reject:
@@ -1739,7 +1739,7 @@ def camera_worker(cam_id):
                 logger.warning(f"Camera {cam_id}: 模型未就绪，无法推理")
                 stats[cam_id]["detected"] += 1
 
-            # 照片存盘 — 异步写入，不阻塞抓帧循环。类别A/类别B照片的开关
+            # 照片存盘 — 异步写入，不阻塞抓帧循环。各类别照片的保存开关
             # 来自 /api/save-settings，并且在后端进程内直接生效。
             try:
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -1747,7 +1747,7 @@ def camera_worker(cam_id):
                 if submitted and result:
                     plc_config = get_plc_config()
                     tag = result["label"]
-                    setting_key = "saveBad" if tag in plc_config.get("reject_labels", ["类别B"]) else "saveGood"
+                    setting_key = "saveBad" if tag in plc_config.get("reject_labels", ["剔除类"]) else "saveGood"
                     should_save = save_settings.get(cam_id, {}).get(setting_key, True)
                     subdir = tag
                 else:
@@ -1792,7 +1792,7 @@ def list_models():
         for f in Config.DATA_DIR.glob("*_classifier_*.pth"):
             name = f.stem.rsplit("_classifier_", 1)[-1]
             stat = f.stat()
-            categories = ["类别A", "类别B"]
+            categories = ["类别1", "类别2"]
             metadata_path = f.with_suffix(".json")
             try:
                 if metadata_path.exists():
@@ -1862,7 +1862,7 @@ def test_model():
         mode = data.get("mode", "labeled")
         if not model_name:
             return jsonify({"success": False, "message": "请指定模型名称"}), 400
-        model_categories = ["类别A", "类别B"]
+        model_categories = ["类别1", "类别2"]
         model_path = Config.get_active_model_path(model_name)
         if model_path is not None:
             metadata_path = model_path.with_suffix(".json")
@@ -1908,7 +1908,7 @@ def test_model():
                 class_b_path = (data.get("class_b_path") or "").strip()
                 if not class_a_path and not class_b_path:
                     return jsonify({"success": False, "message": "请指定类别根目录"}), 400
-                for expected, folder_value in (("类别A", class_a_path), ("类别B", class_b_path)):
+                for expected, folder_value in zip(model_categories[:2], (class_a_path, class_b_path)):
                     if not folder_value:
                         continue
                     folder = Path(folder_value)
@@ -1995,7 +1995,7 @@ def test_model():
                         t0 = time.perf_counter()
                         save_copy = image.copy()
                         step_values["frame_copy_ms"].append((time.perf_counter() - t0) * 1000)
-                        save_subdir = "类别A" if predicted == "类别A" else "类别B"
+                        save_subdir = predicted or "未分类"
                         save_path = save_root / save_subdir / f"{image_path.stem}.bmp"
                         done_event = threading.Event()
                         completion = {}
@@ -2271,10 +2271,10 @@ def start_training():
 
         if class_a_path and class_b_path:
             # 双目录模式
-            error = validate_image_directory(class_a_path, "类别A目录")
+            error = validate_image_directory(class_a_path, "第一类别目录")
             if error:
                 return jsonify({"success": False, "message": error}), 400
-            error = validate_image_directory(class_b_path, "类别B目录")
+            error = validate_image_directory(class_b_path, "第二类别目录")
             if error:
                 return jsonify({"success": False, "message": error}), 400
         elif category_root_path:
