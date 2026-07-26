@@ -136,6 +136,9 @@ def inference_worker():
                     items.append((extra_cam, extra_image, extra_ts, extra_meta))
                 except queue.Empty:
                     break
+            # 必须在批窗口收集结束后立即记录，否则会把后面的模型准备、
+            # 预处理和模型推理时间错误地算进“推理批窗口”。
+            batch_window_end = time.perf_counter()
 
             groups: dict[str, list[tuple[int, float, dict]]] = {}
             frames_by_group: dict[str, list[Image.Image]] = {}
@@ -165,7 +168,7 @@ def inference_worker():
                         worker_received = meta.get("worker_received_perf", first_received_perf)
                         result["timing"] = {
                             "inference_queue_wait_ms": round(max(0.0, (worker_received - meta.get("submitted_perf", worker_received)) * 1000), 2),
-                            "inference_batch_window_ms": round(max(0.0, (time.perf_counter() - worker_received) * 1000), 2),
+                            "inference_batch_window_ms": round(max(0.0, (batch_window_end - worker_received) * 1000), 2),
                             "model_prepare_ms": round(model_prepare_ms, 2),
                             **{key: round(value, 2) for key, value in (worker_timing or {}).items()},
                         }
