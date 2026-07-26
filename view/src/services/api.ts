@@ -88,6 +88,12 @@ export const api = {
   getStats: () => backendFetch<Record<number, { detected: number; defective: number }>>('/api/stats'),
   resetStats: (camId: number) => backendFetch<{ success: boolean; stats?: { detected: number; defective: number } }>(`/api/stats/reset/${camId}`, { method: 'POST' }),
 
+  // Backend image directories
+  getImageDirectories: () => backendFetch<{
+    success: boolean;
+    directories: { path: string; name: string; relativePath: string; root: string; imageCount: number }[];
+  }>('/api/image-directories'),
+
   // Photo save settings and photos
   getSaveSettings: () => backendFetch<{ success: boolean; settings: Record<number, { saveGood: boolean; saveBad: boolean }> }>('/api/save-settings'),
   saveSaveSettings: (camId: number, settings: { saveGood: boolean; saveBad: boolean }) =>

@@ -1302,6 +1302,71 @@ def update_save_settings(cam_id):
     return jsonify({"success": True, "settings": save_settings[cam_id]})
 
 
+# ========== 后端图片目录选择 API ==========
+
+_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
+
+
+def _image_directory_roots():
+    """返回允许通过网页选择的后端图片根目录。"""
+    roots = [Config.DATA_DIR, Path(__file__).resolve().parent.parent / "test"]
+    configured = os.getenv("VISION_IMAGE_ROOTS", "")
+    if configured:
+        roots.extend(Path(item) for item in configured.split(os.pathsep) if item.strip())
+
+    unique = []
+    seen = set()
+    for root in roots:
+        try:
+            resolved = root.expanduser().resolve()
+        except OSError:
+            continue
+        key = str(resolved).lower() if os.name == "nt" else str(resolved)
+        if key not in seen:
+            seen.add(key)
+            unique.append(resolved)
+    return unique
+
+
+@app.route("/api/image-directories", methods=["GET"])
+def list_image_directories():
+    """列出后端允许选择且包含图片的目录。"""
+    directories = []
+    for root in _image_directory_roots():
+        if not root.is_dir():
+            continue
+        try:
+            candidates = [root, *root.rglob("*")]
+            for directory in candidates:
+                if not directory.is_dir() or directory.is_symlink():
+                    continue
+                try:
+                    image_count = sum(
+                        1
+                        for item in directory.iterdir()
+                        if item.is_file() and item.suffix.lower() in _IMAGE_EXTENSIONS
+                    )
+                    if image_count == 0:
+                        continue
+                    relative = "." if directory == root else str(directory.relative_to(root))
+                    directories.append(
+                        {
+                            "path": str(directory),
+                            "name": directory.name or str(directory),
+                            "relativePath": relative,
+                            "root": str(root),
+                            "imageCount": image_count,
+                        }
+                    )
+                except (OSError, ValueError):
+                    continue
+        except OSError as exc:
+            logger.warning(f"扫描图片目录失败 {root}: {exc}")
+
+    directories.sort(key=lambda item: (item["root"].lower(), item["relativePath"].lower()))
+    return jsonify({"success": True, "directories": directories})
+
+
 # ========== 照片管理 API ==========
 
 

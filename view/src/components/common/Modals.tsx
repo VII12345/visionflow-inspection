@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { storage } from '../../services/storage';
+import { BackendDirectoryPicker, type BackendImageDirectory } from './BackendDirectoryPicker';
 import { Button, Modal } from '../common/Modal';
 
 const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors placeholder:text-text-tertiary';
@@ -149,41 +150,49 @@ export const AddProductModal: React.FC = () => {
 export const LearnConfirmModal: React.FC<{ onConfirm: (upright: string, inverted: string) => void }> = ({ onConfirm }) => {
   const [upright, setUpright] = useState('');
   const [inverted, setInverted] = useState('');
+  const [pickerTarget, setPickerTarget] = useState<'upright' | 'inverted' | null>(null);
   const setModal = useAppStore(s => s.setModal);
 
-  const browseFolder = async (setter: (v: string) => void) => {
-    try {
-      const path = await window.electronAPI?.selectFolder();
-      if (path) setter(path);
-    } catch { /* ignore */ }
+  const applyDirectory = (directory: BackendImageDirectory) => {
+    if (pickerTarget === 'upright') setUpright(directory.path);
+    if (pickerTarget === 'inverted') setInverted(directory.path);
+    setPickerTarget(null);
   };
 
   return (
-    <Modal open={true} onClose={() => setModal('learnConfirm', false)} title="确认学习参数" width="520px"
-      footer={<>
-        <Button variant="learn" onClick={() => onConfirm(upright, inverted)}>确认开始学习</Button>
-        <Button variant="secondary" onClick={() => setModal('learnConfirm', false)}>取消</Button>
-      </>}
-    >
-      <div className="flex flex-col gap-4">
-        <p className="text-xs text-text-secondary leading-5">请指定正罐和倒罐图片目录。网页版不能直接选择浏览器所在电脑的本地文件夹，训练读取的是后端电脑上的目录；也可以手动输入后端路径。</p>
-        <div>
-          <label className={labelClass}>正罐图片目录</label>
-          <div className="flex gap-2">
-            <input type="text" placeholder="正罐图片文件夹" value={upright} onChange={e => setUpright(e.target.value)}
-              className={`${inputClass} flex-1`} />
-            <Button variant="secondary" size="sm" onClick={() => browseFolder(setUpright)}>浏览</Button>
+    <>
+      <Modal open={true} onClose={() => setModal('learnConfirm', false)} title="确认学习参数" width="520px"
+        footer={<>
+          <Button variant="learn" onClick={() => onConfirm(upright, inverted)}>确认开始学习</Button>
+          <Button variant="secondary" onClick={() => setModal('learnConfirm', false)}>取消</Button>
+        </>}
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-xs text-text-secondary leading-5">请指定正罐和倒罐图片目录。网页版不能直接选择浏览器所在电脑的本地文件夹，训练读取的是后端电脑上的目录；可使用“选择后端目录”或手动输入后端路径。</p>
+          <div>
+            <label className={labelClass}>正罐图片目录</label>
+            <div className="flex gap-2">
+              <input type="text" placeholder="正罐图片文件夹" value={upright} onChange={e => setUpright(e.target.value)}
+                className={`${inputClass} flex-1`} />
+              <Button variant="secondary" size="sm" onClick={() => setPickerTarget('upright')}>选择后端目录</Button>
+            </div>
+          </div>
+          <div>
+            <label className={labelClass}>倒罐图片目录</label>
+            <div className="flex gap-2">
+              <input type="text" placeholder="倒罐图片文件夹" value={inverted} onChange={e => setInverted(e.target.value)}
+                className={`${inputClass} flex-1`} />
+              <Button variant="secondary" size="sm" onClick={() => setPickerTarget('inverted')}>选择后端目录</Button>
+            </div>
           </div>
         </div>
-        <div>
-          <label className={labelClass}>倒罐图片目录</label>
-          <div className="flex gap-2">
-            <input type="text" placeholder="倒罐图片文件夹" value={inverted} onChange={e => setInverted(e.target.value)}
-              className={`${inputClass} flex-1`} />
-            <Button variant="secondary" size="sm" onClick={() => browseFolder(setInverted)}>浏览</Button>
-          </div>
-        </div>
-      </div>
-    </Modal>
+      </Modal>
+      <BackendDirectoryPicker
+        open={pickerTarget !== null}
+        title={pickerTarget === 'upright' ? '选择后端正罐图片目录' : '选择后端倒罐图片目录'}
+        onClose={() => setPickerTarget(null)}
+        onSelect={applyDirectory}
+      />
+    </>
   );
 };
