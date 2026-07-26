@@ -19,7 +19,8 @@ const selectClass = 'device-select bg-white/90 border border-gray-200 rounded-md
 
 export const TabBar: React.FC = () => {
   const activeTab = useAppStore(s => s.activeTab);
-  const user = useAppStore(s => s.user);\n  const canEditDevice = user?.level !== 'operator';
+  const user = useAppStore(s => s.user);
+  const canEditDevice = user?.level !== 'operator';
   const setActiveTab = useAppStore(s => s.setActiveTab);
   const dynamicTabs = useAppStore(s => s.dynamicTabs);
   const closeDynamicTab = useAppStore(s => s.closeDynamicTab);
@@ -123,7 +124,7 @@ export const TabBar: React.FC = () => {
             {gpuAvailable && <option value="cuda">GPU</option>}
           </select>
         </div>
-      </div>
+      </div>}
     </nav>
   );
 };
