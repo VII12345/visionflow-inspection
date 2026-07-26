@@ -152,6 +152,20 @@ export const LearnConfirmModal: React.FC<{ onConfirm: (upright: string, inverted
   const [inverted, setInverted] = useState('');
   const [pickerTarget, setPickerTarget] = useState<'upright' | 'inverted' | null>(null);
   const setModal = useAppStore(s => s.setModal);
+  const showMessage = useAppStore(s => s.showMessage);
+
+  const browseLocalFolder = async (setter: (value: string) => void) => {
+    if (!window.electronAPI?.selectFolder) {
+      showMessage('网页版暂不支持选择当前电脑的本地文件夹，请使用“选择后端目录”');
+      return;
+    }
+    try {
+      const path = await window.electronAPI.selectFolder();
+      if (path) setter(path);
+    } catch (error) {
+      showMessage(`选择本地目录失败: ${(error as Error).message}`);
+    }
+  };
 
   const applyDirectory = (directory: BackendImageDirectory) => {
     if (pickerTarget === 'upright') setUpright(directory.path);
@@ -174,6 +188,7 @@ export const LearnConfirmModal: React.FC<{ onConfirm: (upright: string, inverted
             <div className="flex gap-2">
               <input type="text" placeholder="正罐图片文件夹" value={upright} onChange={e => setUpright(e.target.value)}
                 className={`${inputClass} flex-1`} />
+              <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setUpright)}>选择本地目录</Button>
               <Button variant="secondary" size="sm" onClick={() => setPickerTarget('upright')}>选择后端目录</Button>
             </div>
           </div>
@@ -182,6 +197,7 @@ export const LearnConfirmModal: React.FC<{ onConfirm: (upright: string, inverted
             <div className="flex gap-2">
               <input type="text" placeholder="倒罐图片文件夹" value={inverted} onChange={e => setInverted(e.target.value)}
                 className={`${inputClass} flex-1`} />
+              <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setInverted)}>选择本地目录</Button>
               <Button variant="secondary" size="sm" onClick={() => setPickerTarget('inverted')}>选择后端目录</Button>
             </div>
           </div>

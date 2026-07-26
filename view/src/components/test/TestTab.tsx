@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { Button } from '../common/Modal';
+import { useAppStore } from '../../store/useAppStore';
 import { BackendDirectoryPicker, type BackendImageDirectory } from '../common/BackendDirectoryPicker';
 
 interface StepTiming { avg_ms: number; min_ms: number; max_ms: number; total_ms: number; }
@@ -75,12 +76,26 @@ export const TestTab: React.FC = () => {
   } | null>(null);
 
   const [error, setError] = useState('');
+  const showMessage = useAppStore(s => s.showMessage);
 
   useEffect(() => {
     api.getModels().then(data => {
       if (data.success && data.models) setModels(data.models);
     }).catch(() => {});
   }, []);
+
+  const browseLocalFolder = async (setter: (value: string) => void) => {
+    if (!window.electronAPI?.selectFolder) {
+      showMessage('网页版暂不支持选择当前电脑的本地文件夹，请使用“选择后端目录”');
+      return;
+    }
+    try {
+      const path = await window.electronAPI.selectFolder();
+      if (path) setter(path);
+    } catch (reason) {
+      showMessage(`选择本地目录失败: ${(reason as Error).message}`);
+    }
+  };
 
   const applyDirectory = (directory: BackendImageDirectory) => {
     if (pickerTarget === 'upright') setUprightPath(directory.path);
@@ -181,7 +196,8 @@ export const TestTab: React.FC = () => {
               <div className="flex gap-2">
                 <input type="text" placeholder="选择正罐图片文件夹" value={uprightPath} readOnly
                   className={`${inputClass} flex-1 bg-gray-50 cursor-pointer`}
-                  onClick={() => setPickerTarget('upright')} />
+                  onClick={() => browseLocalFolder(setUprightPath)} />
+                <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setUprightPath)}>选择本地目录</Button>
                 <Button variant="secondary" size="sm" onClick={() => setPickerTarget('upright')}>选择后端目录</Button>
               </div>
             </div>
@@ -190,7 +206,8 @@ export const TestTab: React.FC = () => {
               <div className="flex gap-2">
                 <input type="text" placeholder="选择倒罐图片文件夹" value={invertedPath} readOnly
                   className={`${inputClass} flex-1 bg-gray-50 cursor-pointer`}
-                  onClick={() => setPickerTarget('inverted')} />
+                  onClick={() => browseLocalFolder(setInvertedPath)} />
+                <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setInvertedPath)}>选择本地目录</Button>
                 <Button variant="secondary" size="sm" onClick={() => setPickerTarget('inverted')}>选择后端目录</Button>
               </div>
             </div>
@@ -202,7 +219,8 @@ export const TestTab: React.FC = () => {
             <div className="flex gap-2">
               <input type="text" placeholder="选择包含图片的文件夹" value={folderPath} readOnly
                 className={`${inputClass} flex-1 bg-gray-50 cursor-pointer`}
-                onClick={() => setPickerTarget('folder')} />
+                onClick={() => browseLocalFolder(setFolderPath)} />
+              <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setFolderPath)}>选择本地目录</Button>
               <Button variant="secondary" size="sm" onClick={() => setPickerTarget('folder')}>选择后端目录</Button>
             </div>
             <p className="text-[11px] text-text-tertiary mt-1">不限正反，按真实异步检测链路执行，并按文件名输出每张图片的结果和逐步延迟。网页版不能直接选择浏览器所在电脑的本地文件夹，测试图片需要位于后端电脑。</p>
