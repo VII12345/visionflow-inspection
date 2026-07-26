@@ -5,14 +5,22 @@ import { Button } from '../common/Modal';
 interface StepTiming { avg_ms: number; min_ms: number; max_ms: number; total_ms: number; }
 const STEP_LABELS: Record<string, string> = {
   file_enumeration_ms: '文件枚举',
-  model_prepare_ms: '模型获取/加载',
+  model_route_prepare_ms: '模型路由/准备',
   image_acquisition_ms: '获取图片',
-  frame_copy_ms: '帧复制',
+  inference_submit_ms: '提交推理队列',
+  inference_queue_wait_ms: '推理队列等待',
+  inference_batch_window_ms: '推理批窗口',
+  model_prepare_ms: 'Worker 获取模型',
   preprocess_ms: '图像预处理',
   model_call_ms: '调用模型',
   recognition_ms: '识别/置信度计算',
+  inference_result_wait_ms: '等待推理结果',
   result_output_ms: '输出结果',
-  image_save_ms: '保存图片',
+  frame_copy_ms: '帧复制',
+  save_submit_ms: '提交保存队列',
+  save_queue_wait_ms: '保存队列等待',
+  image_save_ms: '实际写盘',
+  detection_pipeline_ms: '检测主流程',
   pipeline_ms: '单张完整流程',
 };
 const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors placeholder:text-text-tertiary';
@@ -149,6 +157,20 @@ export const TestTab: React.FC = () => {
           </div>
         </div>
 
+        <div className={`rounded-md border px-4 py-3 mb-4 ${mode === 'labeled' ? 'bg-blue-50/60 border-blue-100' : 'bg-emerald-50/60 border-emerald-100'}`}>
+          {mode === 'labeled' ? (
+            <>
+              <div className="text-xs font-semibold text-accent mb-1">分类测试：模型性能测试</div>
+              <p className="text-[11px] text-text-secondary leading-5">用于验证模型准确率、正罐/倒罐分类正确率和置信度表现。该模式重点关注识别结果是否正确，不代表真实产线的异步时序压力。</p>
+            </>
+          ) : (
+            <>
+              <div className="text-xs font-semibold text-ok mb-1">批量推理：真实环境模拟测试</div>
+              <p className="text-[11px] text-text-secondary leading-5">逐张模拟产线流程：获取图片 → 提交真实推理队列 → Worker 异步推理 → 输出结果 → 提交异步保存队列 → 等待实际写盘完成，并统计每一步延迟。</p>
+            </>
+          )}
+        </div>
+
         {/* Paths */}
         {mode === 'labeled' ? (
           <div className="flex flex-col gap-3">
@@ -181,7 +203,7 @@ export const TestTab: React.FC = () => {
                 onClick={() => browseFolder(setFolderPath)} />
               <Button variant="secondary" size="sm" onClick={() => browseFolder(setFolderPath)}>浏览</Button>
             </div>
-            <p className="text-[11px] text-text-tertiary mt-1">不限正反，按文件名输出每张图片的推理结果。</p>
+            <p className="text-[11px] text-text-tertiary mt-1">不限正反，按真实异步检测链路执行，并按文件名输出每张图片的结果和逐步延迟。</p>
           </div>
         )}
 
