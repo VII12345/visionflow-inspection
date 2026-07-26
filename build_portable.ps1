@@ -198,52 +198,17 @@ echo          视觉检测系统 V2.0 一键启动
 echo ============================================
 echo.
 
-echo [1/3] 正在启动检测引擎...
-start "" /B "resources\backend\backend.exe"
-
-echo [2/3] 等待后端就绪...
-set /a count=0
-:wait_health
-timeout /t 1 /nobreak >nul
-set /a count+=1
-
-powershell -Command "try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1:5000/api/health' -UseBasicParsing -TimeoutSec 2; exit 0 } catch { exit 1 }" >nul 2>&1
-if %errorlevel% equ 0 goto backend_ready
-if %count% geq 20 goto backend_timeout
-echo    等待中... (%count%s)
-goto wait_health
-
-:backend_timeout
-echo [错误] 后端启动超时！请检查：
-echo   1. backend.exe 是否存在
-echo   2. 端口 5000 是否被占用
-echo   3. 杀毒软件是否拦截
-echo.
-pause
-exit /b 1
-
-:backend_ready
-echo [2/3] 后端已就绪 (耗时 %count%s)
-
-echo [3/3] 启动前端界面...
+echo 正在启动检测系统（前端、后端和网页访问服务）...
 start "" "视觉检测系统.exe"
 
 echo.
-echo ============================================
-echo   系统已启动！
-echo   关闭前端窗口后，请手动关闭后端进程
-echo   (或直接关闭此窗口自动清理)
-echo ============================================
-
-:wait_electron
-timeout /t 3 /nobreak >nul
-tasklist /FI "IMAGENAME eq 视觉检测系统.exe" 2>NUL | find /I "视觉检测系统.exe" >NUL
-if %errorlevel% equ 0 goto wait_electron
-
-echo 正在关闭后端...
-taskkill /F /IM backend.exe >nul 2>&1
-echo 系统已完全关闭。
-exit /b 0
+echo 系统正在启动，请稍候...
+echo 网页访问地址：
+echo   本机: http://127.0.0.1:5173
+echo   局域网: http://本机IP:5173
+echo.
+echo 关闭桌面窗口后，检测服务会自动退出。
+echo.
 '@
 $batPath = Join-Path $finalDir "启动系统.bat"
 [System.IO.File]::WriteAllText($batPath, $batContent, [System.Text.UTF8Encoding]::new($true))

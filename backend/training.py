@@ -140,13 +140,13 @@ def load_and_prepare(img_path: str) -> np.ndarray | None:
 
 def _find_labeled_images(folder: Path):
     """从标注目录加载：类别A(的)/ 和 类别B(的)/ 子目录"""
-    for class_a_name in ("类别A",)
+    for class_a_name in ("类别A",):
         class_a_dir = folder / class_a_name
         if class_a_dir.is_dir():
             break
     else:
         class_a_dir = None
-    for class_b_name in ("类别B",)
+    for class_b_name in ("类别B",):
         class_b_dir = folder / class_b_name
         if class_b_dir.is_dir():
             break
@@ -731,4 +731,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

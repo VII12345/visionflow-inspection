@@ -2,6 +2,7 @@ const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
+const http = require('http');
 const { spawn } = require('child_process');
 
 // ========== Vite 开发服务器检测 ==========
@@ -33,6 +34,116 @@ function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
+}
+
+// ========== 网页访问服务 ==========
+let webServer = null;
+let webServerPort = 5173;
+const WEB_HOST = process.env.VISION_WEB_HOST || '0.0.0.0';
+const WEB_PORT = Number(process.env.VISION_WEB_PORT || 5173);
+
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+function proxyApiRequest(req, res, targetUrl) {
+  const proxy = http.request({
+    hostname: '127.0.0.1',
+    port: 5000,
+    path: targetUrl.pathname + targetUrl.search,
+    method: req.method,
+    headers: { ...req.headers, host: '127.0.0.1:5000' },
+  }, backendRes => {
+    const headers = { ...backendRes.headers };
+    delete headers.connection;
+    res.writeHead(backendRes.statusCode || 502, headers);
+    backendRes.pipe(res);
+  });
+  proxy.on('error', error => {
+    if (!res.headersSent) res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ error: '检测服务暂不可用', detail: error.message }));
+  });
+  req.pipe(proxy);
+}
+
+function serveStaticRequest(req, res) {
+  let pathname;
+  try { pathname = decodeURIComponent(new URL(req.url || '/', 'http://localhost').pathname); }
+  catch { res.writeHead(400); res.end('Bad Request'); return; }
+  const webRoot = path.resolve(__dirname, 'dist');
+  const requested = path.resolve(webRoot, '.' + pathname);
+  const safeRoot = webRoot.endsWith(path.sep) ? webRoot : webRoot + path.sep;
+  const isSafe = requested === webRoot || requested.startsWith(safeRoot);
+  if (!isSafe) { res.writeHead(403); res.end('Forbidden'); return; }
+
+  fs.stat(requested, (error, stat) => {
+    const hasExtension = Boolean(path.extname(pathname));
+    const filePath = !error && stat.isFile() ? requested : (!hasExtension ? path.join(webRoot, 'index.html') : null);
+    if (!filePath) { res.writeHead(404); res.end('Not Found'); return; }
+    fs.readFile(filePath, (readError, data) => {
+      if (readError) { res.writeHead(404); res.end('Not Found'); return; }
+      res.writeHead(200, {
+        'Content-Type': MIME_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream',
+        'Cache-Control': 'no-cache',
+      });
+      res.end(data);
+    });
+  });
+}
+
+async function startWebServer() {
+  if (webServer) return webServerPort;
+  const preferredPort = Number.isFinite(WEB_PORT) && WEB_PORT > 0 ? WEB_PORT : 5173;
+  for (let offset = 0; offset < 10; offset++) {
+    const candidatePort = preferredPort + offset;
+    const server = http.createServer((req, res) => {
+      const targetUrl = new URL(req.url || '/', 'http://' + (req.headers.host || 'localhost'));
+      if (targetUrl.pathname.startsWith('/api/')) {
+        proxyApiRequest(req, res, targetUrl);
+        return;
+      }
+      serveStaticRequest(req, res);
+    });
+    try {
+      await new Promise((resolve, reject) => {
+        const onError = error => {
+          server.removeListener('listening', onListening);
+          reject(error);
+        };
+        const onListening = () => {
+          server.removeListener('error', onError);
+          resolve();
+        };
+        server.once('error', onError);
+        server.once('listening', onListening);
+        server.listen(candidatePort, WEB_HOST);
+      });
+      webServer = server;
+      webServerPort = candidatePort;
+      console.log('网页访问服务已启动: http://127.0.0.1:' + webServerPort + '（局域网可用本机 IP 访问）');
+      return webServerPort;
+    } catch (error) {
+      try { server.close(); } catch (_) { }
+      if (error.code !== 'EADDRINUSE') throw error;
+    }
+  }
+  throw new Error('网页端口 ' + preferredPort + '-' + (preferredPort + 9) + ' 均不可用');
+}
+
+function stopWebServer() {
+  if (!webServer) return;
+  try { webServer.close(); } catch (_) { }
+  webServer = null;
 }
 
 function saveEncryptedFile(key, data) {
@@ -376,8 +487,10 @@ function createWindow() {
     });
     mainWindow.webContents.openDevTools();
   } else {
-    // 生产模式：加载打包后的文件
-    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+    // 生产模式：桌面窗口也通过本地网页服务加载，浏览器可访问同一个端口。
+    mainWindow.loadURL('http://127.0.0.1:' + webServerPort).catch(() => {
+      mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+    });
   }
 
   mainWindow.maximize();
@@ -452,15 +565,24 @@ app.whenReady().then(async () => {
     return;
   }
 
+  try {
+    await startWebServer();
+  } catch (err) {
+    createErrorWindow('网页服务启动失败', '无法启动网页访问端口。请确认端口未被占用。\n\n' + err.message);
+    return;
+  }
+
   createWindow();
 });
 
 app.on('window-all-closed', () => {
+  stopWebServer();
   stopBackend();
   app.quit();
 });
 
 app.on('before-quit', () => {
+  stopWebServer();
   // 关闭所有摄像头弹窗
   Object.keys(cameraPopouts).forEach(id => {
     try { cameraPopouts[id].close(); } catch (e) { }
