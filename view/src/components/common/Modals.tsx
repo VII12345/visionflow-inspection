@@ -3,6 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { storage } from '../../services/storage';
 import { BackendDirectoryPicker, type BackendImageDirectory } from './BackendDirectoryPicker';
 import { Button, Modal } from '../common/Modal';
+import { FieldHint } from './FieldHint';
 
 const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors placeholder:text-text-tertiary';
 const labelClass = 'text-xs text-text-secondary mb-1.5 block';
@@ -34,7 +35,7 @@ export const LoginModal: React.FC = () => {
     >
       <div className="flex flex-col gap-4">
         <div>
-          <label className={labelClass}>用户名</label>
+          <label className={labelClass}><FieldHint text="填写登录账户名称，登录时需要与账户列表中的名称完全一致。">用户名</FieldHint></label>
           <input type="text" placeholder="输入用户名" value={name}
             onChange={e => setName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleLogin()}
@@ -42,7 +43,7 @@ export const LoginModal: React.FC = () => {
           />
         </div>
         <div>
-          <label className={labelClass}>密码</label>
+          <label className={labelClass}><FieldHint text="填写当前账户密码。密码不会显示在界面上。">密码</FieldHint></label>
           <input type="password" placeholder="输入密码" value={pwd}
             onChange={e => setPwd(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleLogin()}
@@ -88,17 +89,17 @@ export const ChangePwdModal: React.FC = () => {
     >
       <div className="flex flex-col gap-4">
         <div>
-          <label className={labelClass}>旧密码</label>
+          <label className={labelClass}><FieldHint text="填写当前正在使用的密码，用于确认身份。">旧密码</FieldHint></label>
           <input type="password" placeholder="输入当前密码" value={oldPwd} onChange={e => setOldPwd(e.target.value)}
             className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>新密码</label>
+          <label className={labelClass}><FieldHint text="设置新的登录密码，建议使用不容易被猜到的组合。">新密码</FieldHint></label>
           <input type="password" placeholder="输入新密码" value={newPwd} onChange={e => setNewPwd(e.target.value)}
             className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>确认新密码</label>
+          <label className={labelClass}><FieldHint text="再次输入新密码，两次内容必须完全一致。">确认新密码</FieldHint></label>
           <input type="password" placeholder="再次输入新密码" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)}
             className={inputClass} />
         </div>
@@ -138,17 +139,17 @@ export const AddProductModal: React.FC = () => {
     >
       <div className="flex flex-col gap-4">
         <div>
-          <label className={labelClass}>产品名称</label>
+          <label className={labelClass}><FieldHint text="填写用户在界面中看到的产品名称，可以随时修改。">产品名称</FieldHint></label>
           <input type="text" placeholder="例如：成品一号" value={name} onChange={e => setName(e.target.value)}
             className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>模型标识</label>
+          <label className={labelClass}><FieldHint text="填写模型的稳定标识，用于保存和匹配训练模型。建议使用英文、数字或短横线。">模型标识</FieldHint></label>
           <input type="text" placeholder="例如：PRODUCT-500ml" value={model} onChange={e => setModel(e.target.value)}
             className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>尺寸规格</label>
+          <label className={labelClass}><FieldHint text="填写产品规格说明，仅用于界面显示和管理。">尺寸规格</FieldHint></label>
           <input type="text" placeholder="例如: 直径73mm x 高120mm" value={size} onChange={e => setSize(e.target.value)}
             className={inputClass} />
         </div>
@@ -192,7 +193,7 @@ export const LearnConfirmModal: React.FC<{ onConfirm: (categoryRoot: string) => 
         <div className="flex flex-col gap-4">
           <p className="text-xs text-text-secondary leading-5">请选择类别根目录。根目录下每个子文件夹代表一个类别，类别数量不限；例如可以同时包含“合格”“缺陷”“划伤”“异物”等多个子目录。</p>
           <div>
-            <label className={labelClass}>类别根目录</label>
+            <label className={labelClass}><FieldHint text="选择训练数据的根目录；下面每个有图片的子目录都会成为一个类别。">类别根目录</FieldHint></label>
             <div className="flex gap-2">
               <input type="text" placeholder="选择包含多个类别子目录的文件夹" value={categoryRoot} onChange={e => setCategoryRoot(e.target.value)} className={`${inputClass} flex-1`} />
               <Button variant="secondary" size="sm" onClick={browseLocalFolder}>选择本地目录</Button>

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
 import { Button } from '../common/Modal';
+import { FieldHint } from '../common/FieldHint';
 import type { ModelInfo } from '../../types';
 
 export const ModelSettingsTab: React.FC = () => {

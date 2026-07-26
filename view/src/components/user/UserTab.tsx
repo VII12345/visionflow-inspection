@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { storage } from '../../services/storage';
 import { useAppStore } from '../../store/useAppStore';
 import { Button, Badge } from '../common/Modal';
+import { FieldHint } from '../common/FieldHint';
 import type { User } from '../../types';
 
 const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors placeholder:text-text-tertiary';
@@ -75,7 +76,7 @@ export const UserTab: React.FC = () => {
           <h3 className="text-[15px] font-semibold text-text-primary mb-4">新建账户</h3>
           <div className="flex flex-col gap-4">
             <div>
-              <label className={labelClass}>名称</label>
+              <label className={labelClass}><FieldHint text="填写新账户的登录名称，不能与已有账户重复。">名称</FieldHint></label>
               <input
                 type="text" placeholder="输入用户名" value={newName}
                 onChange={e => setNewName(e.target.value)}
@@ -83,7 +84,7 @@ export const UserTab: React.FC = () => {
               />
             </div>
             <div>
-              <label className={labelClass}>密码设置</label>
+              <label className={labelClass}><FieldHint text="填写新账户的初始密码，建议不要使用过于简单的内容。">密码设置</FieldHint></label>
               <input
                 type="password" placeholder="输入密码" value={newPwd}
                 onChange={e => setNewPwd(e.target.value)}
@@ -91,7 +92,7 @@ export const UserTab: React.FC = () => {
               />
             </div>
             <div>
-              <label className={labelClass}>密码确认</label>
+              <label className={labelClass}><FieldHint text="再次输入初始密码，确认没有输入错误。">密码确认</FieldHint></label>
               <input
                 type="password" placeholder="再次输入密码" value={newPwd2}
                 onChange={e => setNewPwd2(e.target.value)}
@@ -99,7 +100,7 @@ export const UserTab: React.FC = () => {
               />
             </div>
             <div>
-              <label className={labelClass}>用户级别</label>
+              <label className={labelClass}><FieldHint text="管理员拥有全部权限；技术员可以启停设备并修改用户管理之外的设置；操作员只能启停设备。">用户级别</FieldHint></label>
               <select
                 value={newLevel}
                 onChange={e => setNewLevel(e.target.value as 'admin' | 'tech' | 'operator')}

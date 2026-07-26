@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
 import { Button } from '../common/Modal';
+import { FieldHint } from '../common/FieldHint';
 import type { PlcConfig } from '../../types';
 
 const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors';
@@ -107,9 +108,9 @@ export const PlcTab: React.FC = () => {
         </div>
         {loading ? <p className="text-xs text-text-tertiary">正在加载 PLC 配置...</p> : (
           <div className="grid grid-cols-2 gap-4">
-            <div><label className={labelClass}>PLC 服务地址</label><input value={config.base_url} onChange={e => setConfig(c => ({ ...c, base_url: e.target.value }))} className={inputClass} placeholder="例如：http://192.168.1.10:8088" /></div>
-            <div><label className={labelClass}>节点名称前缀</label><input value={config.node_prefix} onChange={e => setConfig(c => ({ ...c, node_prefix: e.target.value }))} className={inputClass} placeholder="例如：NODES.MODBUS.；没有前缀可留空" /></div>
-            <div><label className={labelClass}>请求超时（秒）</label><input type="number" min={0.1} max={120} step={0.1} value={config.timeout_seconds} onChange={e => setConfig(c => ({ ...c, timeout_seconds: Number(e.target.value) || 3 }))} className={inputClass} /></div>
+            <div><label className={labelClass}><FieldHint text="填写 PLC 程序提供的 HTTP 地址，例如 http://192.168.1.10:8088。请确认电脑能访问该地址。">PLC 服务地址</FieldHint></label><input value={config.base_url} onChange={e => setConfig(c => ({ ...c, base_url: e.target.value }))} className={inputClass} placeholder="例如：http://192.168.1.10:8088" /></div>
+            <div><label className={labelClass}><FieldHint text="如果 PLC 程序会自动给节点名称加统一前缀，就填写前缀；如果程序直接使用输入的完整名称，可以留空。">节点名称前缀</FieldHint></label><input value={config.node_prefix} onChange={e => setConfig(c => ({ ...c, node_prefix: e.target.value }))} className={inputClass} placeholder="例如：NODES.MODBUS.；没有前缀可留空" /></div>
+            <div><label className={labelClass}><FieldHint text="填写等待 PLC 返回结果的最长时间。网络较慢时可以适当增大，通常 3 秒即可。">请求超时（秒）</FieldHint></label><input type="number" min={0.1} max={120} step={0.1} value={config.timeout_seconds} onChange={e => setConfig(c => ({ ...c, timeout_seconds: Number(e.target.value) || 3 }))} className={inputClass} /></div>
             <div className="col-span-2"><p className="text-[11px] text-text-secondary">剔除类别请在“模型设置”中按模型分别选择；PLC 页面只负责连接地址和节点名称。</p></div>
           </div>
         )}

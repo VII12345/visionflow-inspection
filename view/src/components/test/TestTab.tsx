@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { storage } from '../../services/storage';
 import { Button } from '../common/Modal';
+import { FieldHint } from '../common/FieldHint';
 import { useAppStore } from '../../store/useAppStore';
 import { BackendDirectoryPicker, type BackendImageDirectory } from '../common/BackendDirectoryPicker';
 
@@ -361,7 +362,7 @@ export const TestTab: React.FC = () => {
         {/* Model + Mode */}
         <div className="flex items-end gap-4 mb-4">
           <div className="flex-1">
-            <label className="text-xs text-text-secondary mb-1.5 block">选择模型</label>
+            <label className="text-xs text-text-secondary mb-1.5 block"><FieldHint text="选择要验证的已训练模型；测试结果会使用该模型保存的类别名称。">选择模型</FieldHint></label>
             <select
               value={selectedModel}
               onChange={e => setSelectedModel(e.target.value)}
@@ -374,7 +375,7 @@ export const TestTab: React.FC = () => {
             </select>
           </div>
           <div className="w-48">
-            <label className="text-xs text-text-secondary mb-1.5 block">测试模式</label>
+            <label className="text-xs text-text-secondary mb-1.5 block"><FieldHint text="分类测试需要类别根目录并能计算准确率；批量推理只需要图片目录，不要求标签。">测试模式</FieldHint></label>
             <div className="flex rounded-md border border-gray-300 overflow-hidden">
               <button
                 onClick={() => { setMode('labeled'); setResult(null); }}
@@ -406,7 +407,7 @@ export const TestTab: React.FC = () => {
         {mode === 'labeled' ? (
           <div className="flex flex-col gap-3">
             <div>
-              <label className="text-xs text-text-secondary mb-1.5 block">类别根目录</label>
+              <label className="text-xs text-text-secondary mb-1.5 block"><FieldHint text="选择包含多个类别子目录的根目录，每个子目录名称就是一个类别。">类别根目录</FieldHint></label>
               <div className="flex gap-2">
                 <input type="text" placeholder="选择包含多个类别子目录的文件夹" value={categoryRootPath} readOnly
                   className={`${inputClass} flex-1 bg-gray-50 cursor-pointer`}
@@ -419,7 +420,7 @@ export const TestTab: React.FC = () => {
           </div>
         ) : (
           <div>
-            <label className="text-xs text-text-secondary mb-1.5 block">测试图片目录</label>
+            <label className="text-xs text-text-secondary mb-1.5 block"><FieldHint text="选择待测试图片所在文件夹；批量推理会读取其中支持的图片文件。">测试图片目录</FieldHint></label>
             <div className="flex gap-2">
               <input type="text" placeholder="选择包含图片的文件夹" value={folderPath} readOnly
                 className={`${inputClass} flex-1 bg-gray-50 cursor-pointer`}

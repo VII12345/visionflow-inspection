@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
 import { Button, Modal } from '../common/Modal';
+import { FieldHint } from '../common/FieldHint';
 
 interface Props {
   camId: number;
@@ -83,7 +84,7 @@ export const CameraConfigModal: React.FC<Props> = ({ camId, open, onClose }) => 
           <span className="text-[13px] text-text-primary font-medium">启用相机</span>
         </label>
         <div>
-          <label className={labelClass}>IP 地址</label>
+          <label className={labelClass}><FieldHint text="填写相机在当前局域网中的 IPv4 地址，例如 192.168.1.50。启用相机时必须填写正确。">IP 地址</FieldHint></label>
           <input type="text" value={ip} onChange={e => setIp(e.target.value)} placeholder="192.168.1.50"
             className={inputClass} />
         </div>
@@ -91,7 +92,7 @@ export const CameraConfigModal: React.FC<Props> = ({ camId, open, onClose }) => 
         <div className="grid grid-cols-2 gap-x-4 gap-y-3">
           {fieldMeta.map(m => (
             <div key={m.key} className={m.type === 'toggle' ? 'col-span-2 flex items-center gap-3' : ''}>
-              <label className={m.type !== 'toggle' ? labelClass : 'text-xs text-text-secondary'}>{m.label}</label>
+              <label className={m.type !== 'toggle' ? labelClass : 'text-xs text-text-secondary'}><FieldHint text={m.hint || '按现场相机说明和产线要求填写；不确定时请保持原值。'}>{m.label}</FieldHint></label>
               {m.type === 'select' ? (
                 <select value={String(fields[m.key] ?? '')} onChange={e => update(m.key, e.target.value)}
                   className={`${inputClass} appearance-none`}>
