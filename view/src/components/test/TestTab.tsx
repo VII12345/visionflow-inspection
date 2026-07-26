@@ -16,10 +16,12 @@ const STEP_LABELS: Record<string, string> = {
   model_call_ms: '调用模型',
   recognition_ms: '识别/置信度计算',
   inference_result_wait_ms: '等待推理结果',
+  inference_result_handoff_ms: '推理结果交接',
   result_output_ms: '输出结果',
   frame_copy_ms: '帧复制',
   save_submit_ms: '提交保存队列',
   save_queue_wait_ms: '保存队列等待',
+  save_queue_wait_excluding_write_ms: '写盘前队列等待',
   image_save_ms: '实际写盘',
   detection_pipeline_ms: '检测主流程',
   pipeline_ms: '单张完整流程',
@@ -62,6 +64,7 @@ const TIMING_TREE: TimingTreeNode[] = [
           { key: 'preprocess', label: '图像预处理', description: '', steps: ['preprocess_ms'] },
           { key: 'model-call', label: '调用模型', description: '', steps: ['model_call_ms'] },
           { key: 'recognition', label: '识别/置信度计算', description: '', steps: ['recognition_ms'] },
+          { key: 'result-handoff', label: '推理结果交接', description: '结果入队、线程唤醒以及测试线程取回结果的剩余时间。', steps: ['inference_result_handoff_ms'] },
         ],
       },
     ],
@@ -81,8 +84,15 @@ const TIMING_TREE: TimingTreeNode[] = [
     children: [
       { key: 'frame-copy', label: '帧复制', description: '', steps: ['frame_copy_ms'] },
       { key: 'save-submit', label: '提交保存队列', description: '', steps: ['save_submit_ms'] },
-      { key: 'save-queue-wait', label: '保存队列等待', description: '', steps: ['save_queue_wait_ms'] },
-      { key: 'image-save', label: '实际写盘', description: '', steps: ['image_save_ms'] },
+      {
+        key: 'save-wait',
+        label: '保存队列等待',
+        description: '下面两项相加等于从提交保存到写盘完成的墙钟等待，实际写盘不再重复计算。',
+        children: [
+          { key: 'save-queue-wait', label: '写盘前队列等待', description: '', steps: ['save_queue_wait_excluding_write_ms'] },
+          { key: 'image-save', label: '实际写盘', description: '', steps: ['image_save_ms'] },
+        ],
+      },
     ],
   },
 ];
@@ -90,6 +100,7 @@ const TIMING_TREE: TimingTreeNode[] = [
 const HIDDEN_TIMING_KEYS = new Set([
   'image_acquisition_ms',
   'inference_result_wait_ms',
+  'save_queue_wait_ms',
   'detection_pipeline_ms',
   'pipeline_ms',
 ]);
@@ -104,11 +115,13 @@ const STEP_EXPLANATIONS: Record<string, string> = {
   preprocess_ms: '将原图裁剪、缩放到模型输入尺寸，并进行归一化和训练/测试需要的图像预处理。',
   model_call_ms: '调用 PyTorch 模型执行前向推理，得到正反分类的原始输出。GPU/CPU 性能会直接影响此项。',
   recognition_ms: '将模型输出转换为类别、置信度和最终标签，完成识别结果计算。',
-  inference_result_wait_ms: '测试接口提交推理后，等待结果队列返回这一张图片结果的时间，包含队列和 Worker 处理完成的等待。',
+  inference_result_wait_ms: '测试接口提交推理后，等待结果队列返回这一张图片结果的完整墙钟时间；它是外层汇总，不和下方子项重复展示。',
+  inference_result_handoff_ms: '推理 Worker 的已拆分阶段结束后，结果入队、线程唤醒以及测试线程取回结果的剩余时间。',
   result_output_ms: '把推理结果整理为接口返回格式，并完成测试统计数据更新。',
   frame_copy_ms: '为异步保存创建一份独立的图像副本，避免保存线程和推理线程同时操作同一对象。',
   save_submit_ms: '把待保存图片和目标路径提交到异步保存队列，提交后实际写盘由后台保存线程执行。',
-  save_queue_wait_ms: '图片进入保存队列后，等待保存 Worker 取走的时间。磁盘写入繁忙或前面保存任务较多时会升高。',
+  save_queue_wait_ms: '从提交保存到保存完成的完整墙钟等待，包含排队等待和实际写盘；详细树中会拆成两个互不重叠的子项。',
+  save_queue_wait_excluding_write_ms: '保存任务入队后，在实际写盘开始前等待保存 Worker 或等待前序任务完成的时间。',
   image_save_ms: '保存 Worker 将图片编码为 BMP 并实际写入后端磁盘的耗时。磁盘速度、目录位置和文件大小都会影响此项。',
   detection_pipeline_ms: '从检测流程开始到输出检测结果的主流程耗时，便于观察推理链路整体开销。',
   pipeline_ms: '单张图片的完整端到端耗时，覆盖获取图片、推理、结果输出以及异步保存相关步骤。',
@@ -138,6 +151,7 @@ interface TestResult {
 interface TimingBreakdownProps {
   steps: Record<string, StepTiming>;
   stepLabels?: Record<string, string>;
+  overallAvgMs?: number;
 }
 
 const sumTimings = (items: StepTiming[]): StepTiming | null => {
@@ -155,7 +169,7 @@ const collectTimingKeys = (nodes: TimingTreeNode[]): string[] => nodes.flatMap(n
   ...(node.children ? collectTimingKeys(node.children) : []),
 ]);
 
-const TimingBreakdown: React.FC<TimingBreakdownProps> = ({ steps, stepLabels }) => {
+const TimingBreakdown: React.FC<TimingBreakdownProps> = ({ steps, stepLabels, overallAvgMs }) => {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const knownKeys = new Set(collectTimingKeys(TIMING_TREE));
   const extraSteps = Object.entries(steps).filter(([key]) => !HIDDEN_TIMING_KEYS.has(key) && !knownKeys.has(key));
@@ -224,13 +238,19 @@ ${STEP_EXPLANATIONS[key] || '该项表示测试链路中的一个独立计时步
   };
 
   const topLevelTiming = sumTimings(TIMING_TREE.map(getNodeTiming).filter((item): item is StepTiming => Boolean(item)));
+  const displayedGapMs = overallAvgMs != null && topLevelTiming ? overallAvgMs - topLevelTiming.avg_ms : null;
 
   return (
     <div className="border border-gray-100 rounded-md overflow-hidden">
       <div className="bg-gray-50 px-3 py-2 text-[10px] font-medium text-text-tertiary uppercase tracking-wide flex items-center justify-between">
         <span>分层操作耗时（毫秒）</span>
-        {topLevelTiming && <span className="normal-case text-text-secondary">子项平均合计 {topLevelTiming.avg_ms.toFixed(2)} ms · 累计 {topLevelTiming.total_ms.toFixed(2)} ms</span>}
+        {topLevelTiming && <span className="normal-case text-text-secondary">已展示子项平均合计 {topLevelTiming.avg_ms.toFixed(2)} ms · 累计 {topLevelTiming.total_ms.toFixed(2)} ms</span>}
       </div>
+      {displayedGapMs != null && (
+        <div className="px-3 py-2 text-[10px] text-text-tertiary bg-amber-50/50 border-b border-amber-100">
+          端到端单张平均 {overallAvgMs!.toFixed(2)} ms；与已展示分项相差 {Math.abs(displayedGapMs).toFixed(2)} ms。差值来自按要求隐藏的图片读取计时及测试级一次性准备，不是子项重复相加。
+        </div>
+      )}
       <div className="divide-y divide-gray-100">{TIMING_TREE.map(node => renderNode(node, 0))}</div>
       {extraSteps.length > 0 && (
         <div className="border-t border-gray-100">
@@ -487,7 +507,7 @@ export const TestTab: React.FC = () => {
                 <div className="text-[10px] text-text-tertiary uppercase tracking-wide">完整运行链路延迟</div>
                 <div className="text-[11px] text-text-tertiary">任务准备 → 推理链路 → 结果输出 → 保存图片</div>
               </div>
-              <div className="text-[11px] text-text-tertiary mb-2">父级合计均为可展开子项相加；流水线总耗时是端到端实测值，不与分项重复相加。</div>
+              <div className="text-[11px] text-text-tertiary mb-2">父级合计均为可展开子项相加；推理交接和写盘前等待已拆出，避免外层等待与内部步骤重复计算。</div>
               <div className="grid grid-cols-4 gap-4 mb-4">
                 <div className="bg-gray-50 rounded-md p-3 text-center" title={TIMING_SUMMARY_EXPLANATIONS.min}>
                   <div className="text-[10px] text-text-tertiary">单张最短</div>
@@ -507,7 +527,11 @@ export const TestTab: React.FC = () => {
                 </div>
               </div>
               {result.timing.steps && (
-                <TimingBreakdown steps={result.timing.steps} stepLabels={result.timing.step_labels} />
+                <TimingBreakdown
+                  steps={result.timing.steps}
+                  stepLabels={result.timing.step_labels}
+                  overallAvgMs={result.timing.avg_ms}
+                />
               )}
             </div>
           )}

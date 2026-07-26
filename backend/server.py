@@ -1778,10 +1778,12 @@ def test_model():
         "model_call_ms": "调用模型",
         "recognition_ms": "识别/置信度计算",
         "inference_result_wait_ms": "等待推理结果",
+        "inference_result_handoff_ms": "推理结果交接",
         "result_output_ms": "输出结果",
         "frame_copy_ms": "帧复制",
         "save_submit_ms": "提交保存队列",
         "save_queue_wait_ms": "保存队列等待",
+        "save_queue_wait_excluding_write_ms": "写盘前队列等待",
         "image_save_ms": "实际写盘",
         "detection_pipeline_ms": "检测主流程",
         "pipeline_ms": "单张完整流程",
@@ -1879,9 +1881,24 @@ def test_model():
                             raise RuntimeError("等待推理结果超时")
 
                         worker_timing = inference_result.get("timing", {})
-                        for key in ("inference_queue_wait_ms", "inference_batch_window_ms", "model_prepare_ms", "preprocess_ms", "model_call_ms", "recognition_ms"):
+                        worker_timing_keys = (
+                            "inference_queue_wait_ms",
+                            "inference_batch_window_ms",
+                            "model_prepare_ms",
+                            "preprocess_ms",
+                            "model_call_ms",
+                            "recognition_ms",
+                        )
+                        for key in worker_timing_keys:
                             if key in worker_timing:
                                 step_values[key].append(float(worker_timing[key]))
+                        inference_wait_ms = step_values["inference_result_wait_ms"][-1]
+                        worker_timing_total = sum(float(worker_timing.get(key, 0.0)) for key in worker_timing_keys)
+                        # “等待推理结果”是提交线程看到的完整墙钟时间，Worker 子项之外还包含
+                        # 结果入队、线程唤醒和跨线程交接；把这段剩余时间单独列出，避免父子重复相加。
+                        step_values["inference_result_handoff_ms"].append(
+                            max(0.0, inference_wait_ms - worker_timing_total)
+                        )
 
                         # 模拟实际 Worker 结果交回相机线程后的输出/统计更新。
                         t0 = time.perf_counter()
@@ -1922,10 +1939,17 @@ def test_model():
                         save_wait_start = time.perf_counter()
                         if not done_event.wait(timeout=30.0):
                             raise RuntimeError("等待异步保存完成超时")
-                        step_values["save_queue_wait_ms"].append((time.perf_counter() - save_wait_start) * 1000)
+                        save_queue_wait_ms = (time.perf_counter() - save_wait_start) * 1000
+                        step_values["save_queue_wait_ms"].append(save_queue_wait_ms)
                         if completion.get("error"):
                             raise RuntimeError(f"图片保存失败: {completion['error']}")
-                        step_values["image_save_ms"].append(float(completion.get("write_ms", 0.0)))
+                        image_save_ms = float(completion.get("write_ms", 0.0))
+                        step_values["image_save_ms"].append(image_save_ms)
+                        # 保存队列等待已经覆盖从入队到写盘完成的墙钟时间，实际写盘是其中的子区间。
+                        # 拆出写盘前等待后，保存阶段的子项可以无重叠地相加。
+                        step_values["save_queue_wait_excluding_write_ms"].append(
+                            max(0.0, save_queue_wait_ms - image_save_ms)
+                        )
 
                         detection_end = time.perf_counter()
                         result["timing"] = {
@@ -1934,10 +1958,12 @@ def test_model():
                                 **worker_timing,
                                 "inference_submit_ms": step_values["inference_submit_ms"][-1],
                                 "inference_result_wait_ms": step_values["inference_result_wait_ms"][-1],
+                                "inference_result_handoff_ms": step_values["inference_result_handoff_ms"][-1],
                                 "result_output_ms": step_values["result_output_ms"][-1],
                                 "frame_copy_ms": step_values["frame_copy_ms"][-1],
                                 "save_submit_ms": step_values["save_submit_ms"][-1],
                                 "save_queue_wait_ms": step_values["save_queue_wait_ms"][-1],
+                                "save_queue_wait_excluding_write_ms": step_values["save_queue_wait_excluding_write_ms"][-1],
                                 "image_save_ms": step_values["image_save_ms"][-1],
                             }.items()
                         }
