@@ -1370,9 +1370,14 @@ def delete_photo(cam_id, filename):
         return jsonify({"success": False, "error": "Invalid camera ID"}), 400
 
     safe_name = Path(filename).name
-    file_path = Config.CAPTURE_DIR / f"cam{cam_id}" / safe_name
+    file_path = None
+    for sub in ["正", "反", "未分类", ""]:
+        candidate = Config.CAPTURE_DIR / f"cam{cam_id}" / sub / safe_name
+        if candidate.exists() and candidate.is_file():
+            file_path = candidate
+            break
 
-    if not file_path.exists():
+    if file_path is None:
         return jsonify({"success": False, "error": "Photo not found"}), 404
 
     try:
@@ -1396,7 +1401,7 @@ def cleanup_photos():
 
         # 收集所有照片文件，按修改时间排序
         files = []
-        for sub in ["正", "反", "未分類", ""]:
+        for sub in ["正", "反", "未分类", ""]:
             subdir = capture_dir / sub
             if not subdir.exists():
                 continue
