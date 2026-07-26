@@ -1,4 +1,4 @@
-const API_BASE = typeof window !== 'undefined'
+const API_BASE = typeof window !== 'undefined' && window.location.protocol !== 'file:' && window.location.hostname
   ? `${window.location.protocol}//${window.location.hostname}:5000`
   : 'http://127.0.0.1:5000';
 
@@ -84,9 +84,16 @@ export const api = {
       results: { filename: string; expected?: string; predicted: string; confidence: number; correct?: boolean; time_ms?: number; timing?: Record<string, number> }[];
     }>('/api/test', { method: 'POST', body: params }),
 
-  // Photos
+  // Statistics
+  getStats: () => backendFetch<Record<number, { detected: number; defective: number }>>('/api/stats'),
+  resetStats: (camId: number) => backendFetch<{ success: boolean; stats?: { detected: number; defective: number } }>(`/api/stats/reset/${camId}`, { method: 'POST' }),
+
+  // Photo save settings and photos
+  getSaveSettings: () => backendFetch<{ success: boolean; settings: Record<number, { saveGood: boolean; saveBad: boolean }> }>('/api/save-settings'),
+  saveSaveSettings: (camId: number, settings: { saveGood: boolean; saveBad: boolean }) =>
+    backendFetch<{ success: boolean; settings?: { saveGood: boolean; saveBad: boolean }; error?: string }>(`/api/save-settings/${camId}`, { method: 'POST', body: settings }),
   getPhotos: (camId: number) => backendFetch<{ success: boolean; photos: { filename: string; mtime: string; size: number; result: string; timestamp: number }[]; okCount: number; ngCount: number }>(`/api/photos/${camId}`),
-  getPhotoUrl: (camId: number, filename: string) => `${API_BASE}/api/photos/${camId}/${filename}`,
+  getPhotoUrl: (camId: number, filename: string) => `${API_BASE}/api/photos/${camId}/${encodeURIComponent(filename)}`,
 
   // Hardware & Device
   getHardware: () => backendFetch<{

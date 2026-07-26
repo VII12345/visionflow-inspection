@@ -24,6 +24,13 @@ export const CameraDetailTab: React.FC<Props> = ({ camId }) => {
 
   const loadPhotos = useCallback(async () => {
     try {
+      const settingsData = await api.getSaveSettings();
+      if (settingsData.success && settingsData.settings) {
+        setSaveSettings(settingsData.settings);
+      }
+    } catch { /* keep local settings as a fallback */ }
+
+    try {
       const statusData = await api.status();
       const cams = (statusData as Record<string, unknown>).cameras as Record<string, { stats?: { detected: number; defective: number } }>;
       if (cams && cams[camId]?.stats) {
@@ -71,24 +78,43 @@ export const CameraDetailTab: React.FC<Props> = ({ camId }) => {
     return () => { if (refreshRef.current) clearInterval(refreshRef.current); };
   }, [isRunning, loadPhotos]);
 
+  const updateSaveSettings = async (next: { saveGood: boolean; saveBad: boolean }) => {
+    const previous = saveSettings[camId] || { saveGood: true, saveBad: true };
+    setSaveSettings(current => ({ ...current, [camId]: next }));
+    try {
+      const response = await api.saveSaveSettings(camId, next);
+      if (!response.success) throw new Error(response.error || '后端保存失败');
+      const persisted = storage.getSaveSettings();
+      persisted[camId] = next;
+      storage.saveSaveSettings(persisted);
+    } catch (error) {
+      setSaveSettings(current => ({ ...current, [camId]: previous }));
+      showMessage(`保存照片开关失败: ${(error as Error).message}`);
+    }
+  };
+
   const toggleSaveGood = (val: boolean) => {
-    const s = storage.getSaveSettings();
-    s[camId] = { ...s[camId], saveGood: val };
-    storage.saveSaveSettings(s);
-    setSaveSettings({ ...s });
+    const current = saveSettings[camId] || { saveGood: true, saveBad: true };
+    void updateSaveSettings({ ...current, saveGood: val });
   };
 
   const toggleSaveBad = (val: boolean) => {
-    const s = storage.getSaveSettings();
-    s[camId] = { ...s[camId], saveBad: val };
-    storage.saveSaveSettings(s);
-    setSaveSettings({ ...s });
+    const current = saveSettings[camId] || { saveGood: true, saveBad: true };
+    void updateSaveSettings({ ...current, saveBad: val });
   };
 
-  const resetStats = () => {
-    storage.resetCameraStats(camId);
-    setStats({ ...storage.getCameraStats() });
-    showMessage(`Cam ${camId} 统计已清零`);
+  const resetStats = async () => {
+    try {
+      const response = await api.resetStats(camId);
+      if (!response.success) throw new Error('后端清零失败');
+      const current = storage.getCameraStats();
+      current[camId] = response.stats || { detected: 0, defective: 0 };
+      storage.saveCameraStats(current);
+      setStats({ ...current });
+      showMessage(`Cam ${camId} 统计已清零`);
+    } catch (error) {
+      showMessage(`Cam ${camId} 统计清零失败: ${(error as Error).message}`);
+    }
   };
 
   const handleRightClick = (e: React.MouseEvent, photoId: string) => {
