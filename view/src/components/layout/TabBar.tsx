@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../services/api';
 import type { TabId } from '../../types';
+import { canAccessTab } from '../../services/permissions';
 
 const TABS: { id: TabId; label: string; fixed: boolean }[] = [
   { id: 'run', label: '运行', fixed: true },
@@ -18,6 +19,7 @@ const selectClass = 'device-select bg-white/90 border border-gray-200 rounded-md
 
 export const TabBar: React.FC = () => {
   const activeTab = useAppStore(s => s.activeTab);
+  const user = useAppStore(s => s.user);\n  const canEditDevice = user?.level !== 'operator';
   const setActiveTab = useAppStore(s => s.setActiveTab);
   const dynamicTabs = useAppStore(s => s.dynamicTabs);
   const closeDynamicTab = useAppStore(s => s.closeDynamicTab);
@@ -71,7 +73,7 @@ export const TabBar: React.FC = () => {
   return (
     <nav className="tab-bar flex items-center border-b shrink-0 px-6 relative">
       <div className="tab-list flex gap-0 flex-1 overflow-x-auto">
-        {TABS.map(tab => (
+        {TABS.filter(tab => canAccessTab(user?.level || null, tab.id)).map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
@@ -106,7 +108,7 @@ export const TabBar: React.FC = () => {
           );
         })}
       </div>
-      <div className="device-panel flex items-center gap-3 shrink-0 pr-2">
+      {canEditDevice && <div className="device-panel flex items-center gap-3 shrink-0 pr-2">
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] text-text-tertiary font-medium">训练</span>
           <select value={trainingDevice} onChange={e => saveDevice('training', e.target.value)} className={selectClass}>

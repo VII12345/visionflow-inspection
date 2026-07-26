@@ -78,7 +78,11 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
-  user: (() => { const u = storage.getCurrentUser(); return u ? { ...u, password: '' } : null; })(),
+  user: (() => {
+    if (!storage.getRememberLogin()) { storage.setCurrentUser(null); return null; }
+    const u = storage.getCurrentUser();
+    return u ? { ...u, password: '' } : null;
+  })(),
   isRunning: false,
   lineCount: storage.getLineCount(),
   catalogRevision: 0,
@@ -118,7 +122,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     const found = users.find(u => u.name === name && u.password === password);
     if (found) {
       set({ user: { id: found.id, name: found.name, level: found.level, password: '' } });
-      storage.setCurrentUser({ id: found.id, name: found.name, level: found.level, password: '' });
+      if (storage.getRememberLogin()) {
+        storage.setCurrentUser({ id: found.id, name: found.name, level: found.level, password: '' });
+      } else {
+        storage.setCurrentUser(null);
+      }
       get().showMessage(`登录成功，欢迎 ${found.name}`);
       return true;
     }

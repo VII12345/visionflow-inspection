@@ -1,8 +1,10 @@
+export type UserLevel = 'admin' | 'tech' | 'operator';
+
 export interface User {
   id: number;
   name: string;
   password: string;
-  level: 'admin' | 'tech' | 'operator';
+  level: UserLevel;
 }
 
 export interface Product {

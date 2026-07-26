@@ -25,6 +25,7 @@ function set<T>(key: string, data: T): void {
 
 const defaults = {
   users: [{ id: 1, name: 'admin', password: 'admin', level: 'admin' }] as User[],
+  rememberLogin: true,
   products: [] as Product[],
   lineCount: 4,
   runLayout: { id: 'two', columns: 2, order: [] } as RunLayout,
@@ -148,6 +149,8 @@ export const storage = {
     return { type: 'localStorage' as const, path: '浏览器本地存储' };
   },
 
+  getRememberLogin: () => Boolean(get('rememberLogin', defaults.rememberLogin)),
+  setRememberLogin: (remember: boolean) => set('rememberLogin', remember),
   getCurrentUser: (): User | null => get('currentUser', null),
   setCurrentUser: (user: User | null) => set('currentUser', user),
 };

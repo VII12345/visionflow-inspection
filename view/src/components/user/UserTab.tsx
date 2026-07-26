@@ -20,8 +20,16 @@ export const UserTab: React.FC = () => {
   const [newPwd, setNewPwd] = useState('');
   const [newPwd2, setNewPwd2] = useState('');
   const [newLevel, setNewLevel] = useState<'admin' | 'tech' | 'operator'>('operator');
+  const [rememberLogin, setRememberLogin] = useState(storage.getRememberLogin());
 
   const refreshUsers = () => setUsers([...storage.getUsers()]);
+  const saveRememberLogin = (checked: boolean) => {
+    if (!checkAdmin()) return;
+    storage.setRememberLogin(checked);
+    setRememberLogin(checked);
+    if (!checked) storage.setCurrentUser(null);
+    showMessage(checked ? '下次打开系统将自动保持当前登录账户' : '已关闭保持登录，下次打开系统需要重新登录');
+  };
 
   useEffect(() => {
     const interval = setInterval(refreshUsers, 10000);
@@ -67,6 +75,10 @@ export const UserTab: React.FC = () => {
     setNewName('');
     showMessage(`用户 ${newName} 已删除`);
   };
+
+  if (currentUser?.level !== 'admin') {
+    return <div className="h-full flex items-center justify-center text-sm text-text-tertiary">用户管理仅限管理员使用。</div>;
+  }
 
   return (
     <div className="flex gap-6 h-full overflow-auto">
@@ -121,8 +133,9 @@ export const UserTab: React.FC = () => {
         <div className="bg-gray-50 rounded-lg border border-gray-100 p-5 text-xs text-text-secondary leading-relaxed">
           <p className="text-text-primary font-medium mb-2 text-[13px]">权限说明</p>
           <p className="mb-1"><span className="font-medium text-text-primary">管理员</span> — 最高权限，可操作所有功能</p>
-          <p className="mb-1"><span className="font-medium text-text-primary">技术员</span> — 启停设备 + 相机设置</p>
-          <p><span className="font-medium text-text-primary">操作员</span> — 仅启动 / 停止设备</p>
+          <p className="mb-1"><span className="font-medium text-text-primary">技术员</span> — 启停设备 + 用户管理之外的各类设置</p>
+          <p className="mb-2"><span className="font-medium text-text-primary">操作员</span> — 仅启动 / 停止设备</p>
+          <label className="flex items-center gap-2 pt-2 border-t border-gray-200 cursor-pointer"><input type="checkbox" checked={rememberLogin} onChange={e => saveRememberLogin(e.target.checked)} className="w-4 h-4 accent-accent rounded" /><span className="font-medium text-text-primary">保持登录</span><span className="text-text-tertiary">（下次打开自动登录当前账户）</span></label>
         </div>
       </div>
 

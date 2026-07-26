@@ -19,9 +19,11 @@ import { TrainingCompleteModal } from './components/settings/TrainingCompleteMod
 import { api } from './services/api';
 import { storage } from './services/storage';
 import type { TabId } from './types';
+import { canAccessTab } from './services/permissions';
 
 const App: React.FC = () => {
   const activeTab = useAppStore(s => s.activeTab);
+  const user = useAppStore(s => s.user);
   const loginModal = useAppStore(s => s.loginModal);
   const changePwdModal = useAppStore(s => s.changePwdModal);
   const addProductModal = useAppStore(s => s.addProductModal);
@@ -33,6 +35,9 @@ const App: React.FC = () => {
   const cameraConfigCamId = useAppStore(s => s.cameraConfigCamId);
   const setCameraConfigCamId = useAppStore(s => s.setCameraConfigCamId);
   const setModal = useAppStore(s => s.setModal);
+  useEffect(() => {
+    if (!canAccessTab(user?.level || null, activeTab)) useAppStore.getState().setActiveTab('run');
+  }, [activeTab, user?.level]);
   const showMessage = useAppStore(s => s.showMessage);
   const statusMessage = useAppStore(s => s.statusMessage);
   const setEnvResult = useAppStore(s => s.setEnvResult);

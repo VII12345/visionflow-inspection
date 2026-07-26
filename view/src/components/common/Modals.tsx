@@ -66,6 +66,7 @@ export const ChangePwdModal: React.FC = () => {
   const showMessage = useAppStore(s => s.showMessage);
 
   const handleChange = () => {
+    if (user?.level !== 'admin') { setError('只有管理员可以修改密码'); return; }
     setError('');
     if (!oldPwd || !newPwd || !confirmPwd) { setError('请填写所有密码字段'); return; }
     const users = storage.getUsers();

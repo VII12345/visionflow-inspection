@@ -32,6 +32,7 @@ export const RunTab: React.FC = () => {
   const lineCount = useAppStore(s => s.lineCount);
   const catalogRevision = useAppStore(s => s.catalogRevision);
   const user = useAppStore(s => s.user);
+  const canEditRun = user?.level !== 'operator';
   const setModal = useAppStore(s => s.setModal);
   const showMessage = useAppStore(s => s.showMessage);
   const raiseAlarm = useAppStore(s => s.raiseAlarm);
@@ -48,9 +49,10 @@ export const RunTab: React.FC = () => {
         togglePopoutCam(camId);
       });
     }
-  }, [togglePopoutCam]);
+  }, [togglePopoutCam, canEditRun]);
 
   const handlePopout = useCallback((camId: number) => {
+    if (!canEditRun) return;
     window.electronAPI?.openCameraPopout(camId);
     togglePopoutCam(camId);
   }, [togglePopoutCam]);
@@ -291,7 +293,7 @@ export const RunTab: React.FC = () => {
           <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${isRunning ? 'bg-ok' : 'bg-gray-300'}`} />
           {isRunning ? '运行中' : '系统已停止'}
         </span>
-        <label className="flex items-center gap-2 text-xs text-text-secondary">
+        {canEditRun && <label className="flex items-center gap-2 text-xs text-text-secondary">
           CAM 布局
           <select
             value={layout.id}
@@ -300,7 +302,7 @@ export const RunTab: React.FC = () => {
           >
             {LAYOUT_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
           </select>
-        </label>
+        </label>}
         <div className="ml-auto flex items-center gap-6 text-xs text-text-secondary bg-surface rounded-lg px-5 py-2">
           <span>OK <span className="text-ok font-semibold ml-1">{totalStats.ok}</span></span>
           <span>NG <span className="text-ng font-semibold ml-1">{totalStats.ng}</span></span>
@@ -308,7 +310,7 @@ export const RunTab: React.FC = () => {
         </div>
       </div>
 
-      {showCustomLayout && (
+      {canEditRun && showCustomLayout && (
         <div className="bg-white border border-gray-100 rounded-lg shadow-card px-4 py-3 mb-4 shrink-0 flex items-center gap-3 flex-wrap">
           <span className="text-xs font-medium text-text-primary">自由缩放布局</span>
           <span className="text-[11px] text-text-tertiary">拖动卡片交换位置，拖动卡片右下角手柄自由缩放；页面会自动重新排布。</span>
@@ -359,7 +361,7 @@ export const RunTab: React.FC = () => {
               : undefined;
 
           return (
-            <div ref={element => { cardRefs.current[camId] = element; }} key={camId} draggable onDragStart={event => handleCamDragStart(event, camId)} onDragOver={event => { event.preventDefault(); setDropTargetCamId(camId); }} onDrop={event => handleCamDrop(event, camId)} onDragEnd={() => { setDraggingCamId(null); setDropTargetCamId(null); }} className={`relative bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden flex flex-col cursor-grab active:cursor-grabbing transition-shadow ${dropTargetCamId === camId && draggingCamId !== camId ? 'cam-card-drop-target' : ''} ${draggingCamId === camId ? 'cam-card-dragging' : ''}`} style={cardStyle}>
+            <div ref={element => { cardRefs.current[camId] = element; }} key={camId} draggable={canEditRun} onDragStart={event => canEditRun && handleCamDragStart(event, camId)} onDragOver={event => { if (canEditRun) { event.preventDefault(); setDropTargetCamId(camId); } }} onDrop={event => canEditRun && handleCamDrop(event, camId)} onDragEnd={() => { setDraggingCamId(null); setDropTargetCamId(null); }} className={`relative bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden flex flex-col cursor-grab active:cursor-grabbing transition-shadow ${dropTargetCamId === camId && draggingCamId !== camId ? 'cam-card-drop-target' : ''} ${draggingCamId === camId ? 'cam-card-dragging' : ''}`} style={cardStyle}>
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
                 <span className="text-[13px]">
@@ -380,7 +382,7 @@ export const RunTab: React.FC = () => {
                     <span className="text-accent ml-2 text-[11px]">(已弹出)</span>
                   )}
                 </span>
-                <div className="flex items-center gap-3">
+                {canEditRun && <div className="flex items-center gap-3">
                   <button
                     onClick={() => handlePopout(camId)}
                     className={`text-xs transition-colors ${
@@ -398,7 +400,7 @@ export const RunTab: React.FC = () => {
                   >
                     详情
                   </button>
-                </div>
+                </div>}
               </div>
 
               {/* Image Area */}
@@ -426,7 +428,7 @@ export const RunTab: React.FC = () => {
                 <span className={`${resultColor || 'text-text-tertiary'} min-w-0 break-words text-center`}>{resultText}</span>
                 <span className="text-text-tertiary">{camStatus?.lastFrameTime || ''}</span>
               </div>
-              {layout.id === 'custom' && (
+              {canEditRun && layout.id === 'custom' && (
                 <div
                   className="absolute right-1 bottom-1 z-20 w-4 h-4 rounded-sm cursor-nwse-resize bg-accent/40 hover:bg-accent/70"
                   onPointerDown={event => startCardResize(event, camId)}

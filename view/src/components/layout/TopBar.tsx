@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { Button } from '../common/Modal';
+import { canAccessTab } from '../../services/permissions';
 
 const roleLabels: Record<string, string> = { admin: '管理员', tech: '技术员', operator: '操作员' };
 
@@ -25,7 +26,7 @@ export const TopBar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-2.5">
-        <button onClick={() => setActiveTab('help')} className="w-8 h-8 rounded-full border border-gray-200 bg-white/80 text-text-secondary hover:text-accent hover:border-accent transition-colors text-sm font-semibold" title="打开说明书">?</button>
+        {canAccessTab(user?.level || null, 'help') && <button onClick={() => setActiveTab('help')} className="w-8 h-8 rounded-full border border-gray-200 bg-white/80 text-text-secondary hover:text-accent hover:border-accent transition-colors text-sm font-semibold" title="打开说明书">?</button>}
         {user ? (
           <>
             <div className="hidden sm:flex items-center gap-2.5 mr-1 px-3 py-1.5 rounded-md bg-white/70 border border-gray-100">
@@ -37,7 +38,7 @@ export const TopBar: React.FC = () => {
                 <span className="text-[10px] text-text-tertiary">{roleLabels[user.level]}</span>
               </span>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setModal('changePwd', true)}>修改密码</Button>
+            {user.level === 'admin' && <Button variant="ghost" size="sm" onClick={() => setModal('changePwd', true)}>修改密码</Button>}
             <Button variant="secondary" size="sm" onClick={logout}>登出</Button>
           </>
         ) : (
