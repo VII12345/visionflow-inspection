@@ -34,6 +34,47 @@ def set_camera_product(cam_id, model_name):
     logger.info(f"Cam{cam_id} → 模型: {model_name or '默认(种子)'}")
 
 
+def warmup_model(model, model_name="__default__"):
+    """在正式识别前初始化 CUDA/PyTorch 算子并执行一次空推理。"""
+    try:
+        device = next(model.parameters()).device
+        if device.type == "cuda" and torch.cuda.is_available():
+            torch.cuda.init()
+        dummy = torch.zeros((1, 3, 224, 224), device=device)
+        with torch.no_grad():
+            model(dummy)
+        if device.type == "cuda" and torch.cuda.is_available():
+            torch.cuda.synchronize(device)
+        logger.info(f"模型预热完成: {model_name} ({device})")
+        return True
+    except Exception as exc:
+        logger.warning(f"模型预热失败，将在首次识别时重试: {model_name} - {exc}")
+        return False
+
+
+def preload_all_models():
+    """服务启动时预加载并预热 data/ 中所有已训练模型。"""
+    if Config.DEVICE.startswith("cuda") and torch.cuda.is_available():
+        torch.cuda.init()
+        logger.info("CUDA 运行时已提前初始化")
+
+    model_paths = sorted(Config.DATA_DIR.glob("jar_classifier_*.pth"))
+    loaded = 0
+    if model_paths:
+        # 默认模型供 Worker 启动使用，同时把具名模型全部放入缓存。
+        if load_model():
+            loaded += 1
+        for model_path in model_paths:
+            model_name = model_path.stem.replace("jar_classifier_", "")
+            if model_name and model_name not in models and load_model(model_name):
+                loaded += 1
+    else:
+        # 没有训练模型时仍预热未训练模型，避免第一次识别再初始化运行时。
+        if load_model():
+            loaded += 1
+    logger.info(f"启动预加载完成: {loaded} 个模型已加载并预热")
+
+
 def load_model(model_name=None):
     """加载模型。model_name=None 时加载第一个已训练的模型。"""
     global models, model_loaded
@@ -55,6 +96,8 @@ def load_model(model_name=None):
         else:
             logger.warning(f"模型文件不存在: {model_path}，使用未训练模型")
             m.eval()
+
+        warmup_model(m, model_name or "__default__")
 
         # 缓存
         cache_key = model_name or "__default__"
@@ -88,6 +131,7 @@ def reload_all_models(device_str=None):
             # 移动模型参数和缓冲区到目标设备
             m.to(target_device)
             m.eval()
+            warmup_model(m, cache_key)
             reloaded += 1
             logger.info(f"模型 '{cache_key}' 已切换到 {target_device}")
         except Exception as e:

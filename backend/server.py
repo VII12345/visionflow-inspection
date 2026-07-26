@@ -23,6 +23,7 @@ from .inference_worker import (
     submit_inference,
     get_inference_result,
     set_camera_product,
+    preload_all_models,
 )
 from . import inference_worker
 from .env_check import run_environment_check
@@ -2311,6 +2312,12 @@ def run_server():
     except Exception as e:
         logger.error(f"相机管理器初始化失败: {e}")
         logger.warning("相机功能将不可用，服务器将在受限模式下运行")
+
+    # 启动前预加载并预热全部已训练模型，避免第一张图片承担模型/CUDA初始化耗时。
+    try:
+        preload_all_models()
+    except Exception as e:
+        logger.warning(f"模型启动预加载失败，首次识别时将按需加载: {e}")
 
     # 启动推理 worker
     start_inference_worker()
