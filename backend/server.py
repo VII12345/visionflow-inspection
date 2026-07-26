@@ -202,6 +202,7 @@ def hardware_info():
                             ],
                             capture_output=True,
                             text=True,
+                            errors="replace",
                             timeout=5,
                         )
                         val = result.stdout.strip()
@@ -217,6 +218,7 @@ def hardware_info():
                             ["wmic", "cpu", "get", "name"],
                             capture_output=True,
                             text=True,
+                            errors="replace",
                             timeout=5,
                         )
                         lines = [
@@ -231,7 +233,8 @@ def hardware_info():
 
             elif platform.system() == "Linux":
                 result = subprocess.run(
-                    ["cat", "/proc/cpuinfo"], capture_output=True, text=True, timeout=5
+                    ["cat", "/proc/cpuinfo"], capture_output=True, text=True,
+                    errors="replace", timeout=5
                 )
                 for line in result.stdout.split("\n"):
                     if "model name" in line:
@@ -243,6 +246,7 @@ def hardware_info():
                     ["sysctl", "-n", "machdep.cpu.brand_string"],
                     capture_output=True,
                     text=True,
+                    errors="replace",
                     timeout=5,
                 )
                 cpu_model = result.stdout.strip()
@@ -274,6 +278,7 @@ def hardware_info():
                         ],
                         capture_output=True,
                         text=True,
+                        errors="replace",
                         timeout=5,
                     )
                     val = result.stdout.strip()
@@ -288,6 +293,7 @@ def hardware_info():
                             ["wmic", "memorychip", "get", "speed"],
                             capture_output=True,
                             text=True,
+                            errors="replace",
                             timeout=5,
                         )
                         for line in result.stdout.split("\n"):
@@ -303,6 +309,7 @@ def hardware_info():
                         ["dmidecode", "-t", "memory"],
                         capture_output=True,
                         text=True,
+                        errors="replace",
                         timeout=5,
                     )
                     for line in result.stdout.split("\n"):
@@ -351,6 +358,7 @@ def hardware_info():
                         ["netsh", "wlan", "show", "interfaces"],
                         capture_output=True,
                         text=True,
+                        errors="replace",
                         timeout=5,
                     )
                     current_name = None
@@ -385,6 +393,7 @@ def hardware_info():
                         ],
                         capture_output=True,
                         text=True,
+                        errors="replace",
                         timeout=5,
                     )
                     import json as _json_local
