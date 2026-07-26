@@ -25,55 +25,74 @@ const STEP_LABELS: Record<string, string> = {
   pipeline_ms: '单张完整流程',
 };
 
-// 按完整检测链路分组：大项是可折叠的流程阶段，小项是该阶段内的实际计时。
-interface TimingGroup {
+// 按完整检测链路建立树形结构。父级耗时只由子项相加得到，
+// 不再把“等待推理结果/检测主流程/单张完整流程”等外层汇总计时重复展示。
+interface TimingTreeNode {
   key: string;
   label: string;
   description: string;
-  steps: string[];
+  steps?: string[];
+  children?: TimingTreeNode[];
 }
 
-const TIMING_GROUPS: TimingGroup[] = [
+const TIMING_TREE: TimingTreeNode[] = [
   {
     key: 'prepare',
     label: '任务准备',
     description: '准备模型路由并扫描测试文件',
-    steps: ['model_route_prepare_ms', 'file_enumeration_ms'],
+    children: [
+      { key: 'model-route', label: '模型路由/准备', description: '', steps: ['model_route_prepare_ms'] },
+      { key: 'file-enumeration', label: '文件枚举', description: '', steps: ['file_enumeration_ms'] },
+    ],
   },
   {
     key: 'inference',
     label: '推理链路',
     description: '提交任务、排队并完成模型推理',
-    steps: [
-      'inference_submit_ms',
-      'inference_result_wait_ms',
-      'inference_queue_wait_ms',
-      'inference_batch_window_ms',
-      'model_prepare_ms',
-      'preprocess_ms',
-      'model_call_ms',
-      'recognition_ms',
+    children: [
+      { key: 'inference-submit', label: '提交推理队列', description: '', steps: ['inference_submit_ms'] },
+      {
+        key: 'inference-wait',
+        label: '等待推理结果',
+        description: '下面各项之和表示从 Worker 取任务到结果生成的可拆分耗时',
+        children: [
+          { key: 'queue-wait', label: '推理队列等待', description: '', steps: ['inference_queue_wait_ms'] },
+          { key: 'batch-window', label: '推理批窗口', description: '', steps: ['inference_batch_window_ms'] },
+          { key: 'model-prepare', label: 'Worker 获取模型', description: '', steps: ['model_prepare_ms'] },
+          { key: 'preprocess', label: '图像预处理', description: '', steps: ['preprocess_ms'] },
+          { key: 'model-call', label: '调用模型', description: '', steps: ['model_call_ms'] },
+          { key: 'recognition', label: '识别/置信度计算', description: '', steps: ['recognition_ms'] },
+        ],
+      },
     ],
   },
   {
     key: 'output',
     label: '结果输出',
-    description: '整理识别结果并完成检测流程统计',
-    steps: ['result_output_ms', 'detection_pipeline_ms'],
+    description: '整理识别结果',
+    children: [
+      { key: 'result-output', label: '输出结果', description: '', steps: ['result_output_ms'] },
+    ],
   },
   {
     key: 'save',
     label: '图片保存',
     description: '将结果图片交给异步保存线程并写入磁盘',
-    steps: ['frame_copy_ms', 'save_submit_ms', 'save_queue_wait_ms', 'image_save_ms'],
-  },
-  {
-    key: 'overall',
-    label: '整体耗时',
-    description: '单张图片从流程开始到全部处理完成',
-    steps: ['pipeline_ms'],
+    children: [
+      { key: 'frame-copy', label: '帧复制', description: '', steps: ['frame_copy_ms'] },
+      { key: 'save-submit', label: '提交保存队列', description: '', steps: ['save_submit_ms'] },
+      { key: 'save-queue-wait', label: '保存队列等待', description: '', steps: ['save_queue_wait_ms'] },
+      { key: 'image-save', label: '实际写盘', description: '', steps: ['image_save_ms'] },
+    ],
   },
 ];
+
+const HIDDEN_TIMING_KEYS = new Set([
+  'image_acquisition_ms',
+  'inference_result_wait_ms',
+  'detection_pipeline_ms',
+  'pipeline_ms',
+]);
 
 const STEP_EXPLANATIONS: Record<string, string> = {
   file_enumeration_ms: '扫描所选目录并枚举支持的图片文件，统计本次测试需要处理的文件数量。只包含文件查找和列表生成，不包含图片解码。',
@@ -121,13 +140,42 @@ interface TimingBreakdownProps {
   stepLabels?: Record<string, string>;
 }
 
+const sumTimings = (items: StepTiming[]): StepTiming | null => {
+  if (items.length === 0) return null;
+  return items.reduce((sum, item) => ({
+    avg_ms: sum.avg_ms + item.avg_ms,
+    min_ms: sum.min_ms + item.min_ms,
+    max_ms: sum.max_ms + item.max_ms,
+    total_ms: sum.total_ms + item.total_ms,
+  }), { avg_ms: 0, min_ms: 0, max_ms: 0, total_ms: 0 });
+};
+
+const collectTimingKeys = (nodes: TimingTreeNode[]): string[] => nodes.flatMap(node => [
+  ...(node.steps || []),
+  ...(node.children ? collectTimingKeys(node.children) : []),
+]);
+
 const TimingBreakdown: React.FC<TimingBreakdownProps> = ({ steps, stepLabels }) => {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const knownKeys = new Set<string>(TIMING_GROUPS.flatMap(group => group.steps));
-  const extraSteps = Object.entries(steps).filter(([key]) => key !== 'image_acquisition_ms' && !knownKeys.has(key));
+  const knownKeys = new Set(collectTimingKeys(TIMING_TREE));
+  const extraSteps = Object.entries(steps).filter(([key]) => !HIDDEN_TIMING_KEYS.has(key) && !knownKeys.has(key));
 
-  const renderStep = (key: string, step: StepTiming) => (
-    <div key={key} className="grid grid-cols-[minmax(160px,1.4fr)_repeat(4,minmax(70px,1fr))] items-center pl-10 pr-3 py-2 text-xs border-l-2 border-accent/15 ml-4 hover:bg-blue-50/30">
+  const getNodeTiming = (node: TimingTreeNode): StepTiming | null => {
+    if (node.children) {
+      return sumTimings(node.children.map(getNodeTiming).filter((item): item is StepTiming => Boolean(item)));
+    }
+    return sumTimings((node.steps || []).map(key => steps[key]).filter((item): item is StepTiming => Boolean(item)));
+  };
+
+  const toggle = (key: string) => setCollapsed(current => {
+    const next = new Set(current);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    return next;
+  });
+
+  const renderStep = (key: string, step: StepTiming, depth: number) => (
+    <div key={key} className={`grid grid-cols-[minmax(160px,1.4fr)_repeat(4,minmax(70px,1fr))] items-center py-2 pr-3 text-xs border-l-2 border-accent/15 hover:bg-blue-50/30 ${depth > 0 ? 'ml-6 pl-4' : 'pl-3'}`}>
       <span
         className="text-text-primary font-medium cursor-help border-b border-dotted border-text-tertiary/60 w-fit"
         title={`${stepLabels?.[key] || STEP_LABELS[key] || key}
@@ -143,57 +191,57 @@ ${STEP_EXPLANATIONS[key] || '该项表示测试链路中的一个独立计时步
     </div>
   );
 
-  const toggle = (key: string) => setCollapsed(current => {
-    const next = new Set(current);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    return next;
-  });
+  const renderNode = (node: TimingTreeNode, depth: number): React.ReactNode => {
+    const timing = getNodeTiming(node);
+    if (!timing) return null;
+    if (!node.children) {
+      return renderStep(node.steps?.[0] || node.key, timing, depth);
+    }
+    const visibleChildren = node.children.filter(child => Boolean(getNodeTiming(child)));
+    if (visibleChildren.length === 0) return null;
+    const isCollapsed = collapsed.has(node.key);
+    return (
+      <section key={node.key} className={depth > 0 ? 'border-l-2 border-accent/20 ml-4' : ''}>
+        <button
+          type="button"
+          onClick={() => toggle(node.key)}
+          aria-expanded={!isCollapsed}
+          className={`w-full grid grid-cols-[minmax(160px,1.4fr)_repeat(4,minmax(70px,1fr))] items-center gap-2 px-3 py-2.5 text-left ${depth === 0 ? 'bg-white' : 'bg-blue-50/35'} hover:bg-blue-50/70`}
+        >
+          <span className="flex items-center gap-2 min-w-0">
+            <span className="w-4 shrink-0 text-center text-accent font-bold">{isCollapsed ? '›' : '⌄'}</span>
+            <span className={`${depth === 0 ? 'text-[13px]' : 'text-xs'} font-semibold text-text-primary truncate`} title={node.description || node.label}>{node.label}</span>
+          </span>
+          <span className="text-[10px] text-text-secondary text-right whitespace-nowrap">平均 {timing.avg_ms.toFixed(2)}</span>
+          <span className="text-[10px] text-text-secondary text-right whitespace-nowrap">最短 {timing.min_ms.toFixed(2)}</span>
+          <span className="text-[10px] text-text-secondary text-right whitespace-nowrap">最长 {timing.max_ms.toFixed(2)}</span>
+          <span className="text-[10px] text-text-primary font-medium text-right whitespace-nowrap" title={node.description || '该项耗时为所有可见子项目的对应指标之和。'}>合计 {timing.total_ms.toFixed(2)}</span>
+        </button>
+        {node.description && <div className={`text-[10px] text-text-tertiary px-3 pb-1.5 ${depth > 0 ? 'pl-11' : 'pl-9'}`}>{node.description}</div>}
+        {!isCollapsed && <div className="bg-gray-50/40">{visibleChildren.map(child => renderNode(child, depth + 1))}</div>}
+      </section>
+    );
+  };
+
+  const topLevelTiming = sumTimings(TIMING_TREE.map(getNodeTiming).filter((item): item is StepTiming => Boolean(item)));
 
   return (
     <div className="border border-gray-100 rounded-md overflow-hidden">
-      <div className="bg-gray-50 px-3 py-2 text-[10px] font-medium text-text-tertiary uppercase tracking-wide">逐项操作耗时（毫秒）</div>
-      <div className="divide-y divide-gray-100">
-        {TIMING_GROUPS.map(group => {
-          const entries = group.steps
-            .map(key => [key, steps[key]] as const)
-            .filter((entry): entry is [string, StepTiming] => Boolean(entry[1]));
-          if (entries.length === 0) return null;
-          const isCollapsed = collapsed.has(group.key);
-          return (
-            <section key={group.key}>
-              <button
-                type="button"
-                onClick={() => toggle(group.key)}
-                aria-expanded={!isCollapsed}
-                className="w-full flex items-center gap-2 px-3 py-2.5 bg-white hover:bg-blue-50/50 text-left"
-              >
-                <span className="w-4 text-center text-accent font-bold">{isCollapsed ? '›' : '⌄'}</span>
-                <span className="text-[13px] font-semibold text-text-primary">{group.label}</span>
-                <span className="text-[11px] text-text-tertiary flex-1">{group.description}</span>
-                <span className="text-[10px] text-text-tertiary">{entries.length} 项</span>
-              </button>
-              {!isCollapsed && <div className="bg-gray-50/40">{entries.map(([key, step]) => renderStep(key, step))}</div>}
-            </section>
-          );
-        })}
-        {extraSteps.length > 0 && (
-          <section>
-            <button
-              type="button"
-              onClick={() => toggle('extra')}
-              aria-expanded={!collapsed.has('extra')}
-              className="w-full flex items-center gap-2 px-3 py-2.5 bg-white hover:bg-blue-50/50 text-left"
-            >
-              <span className="w-4 text-center text-accent font-bold">{collapsed.has('extra') ? '›' : '⌄'}</span>
-              <span className="text-[13px] font-semibold text-text-primary">其他步骤</span>
-              <span className="text-[11px] text-text-tertiary flex-1">后端新增的计时项</span>
-              <span className="text-[10px] text-text-tertiary">{extraSteps.length} 项</span>
-            </button>
-            {!collapsed.has('extra') && <div className="bg-gray-50/40">{extraSteps.map(([key, step]) => renderStep(key, step))}</div>}
-          </section>
-        )}
+      <div className="bg-gray-50 px-3 py-2 text-[10px] font-medium text-text-tertiary uppercase tracking-wide flex items-center justify-between">
+        <span>分层操作耗时（毫秒）</span>
+        {topLevelTiming && <span className="normal-case text-text-secondary">子项平均合计 {topLevelTiming.avg_ms.toFixed(2)} ms · 累计 {topLevelTiming.total_ms.toFixed(2)} ms</span>}
       </div>
+      <div className="divide-y divide-gray-100">{TIMING_TREE.map(node => renderNode(node, 0))}</div>
+      {extraSteps.length > 0 && (
+        <div className="border-t border-gray-100">
+          <button type="button" onClick={() => toggle('extra')} aria-expanded={!collapsed.has('extra')} className="w-full flex items-center gap-2 px-3 py-2.5 bg-white hover:bg-blue-50/50 text-left">
+            <span className="w-4 text-center text-accent font-bold">{collapsed.has('extra') ? '›' : '⌄'}</span>
+            <span className="text-[13px] font-semibold text-text-primary">其他步骤</span>
+            <span className="text-[11px] text-text-tertiary flex-1">后端新增的计时项</span>
+          </button>
+          {!collapsed.has('extra') && <div className="bg-gray-50/40">{extraSteps.map(([key, step]) => renderStep(key, step, 0))}</div>}
+        </div>
+      )}
     </div>
   );
 };
@@ -439,6 +487,7 @@ export const TestTab: React.FC = () => {
                 <div className="text-[10px] text-text-tertiary uppercase tracking-wide">完整运行链路延迟</div>
                 <div className="text-[11px] text-text-tertiary">任务准备 → 推理链路 → 结果输出 → 保存图片</div>
               </div>
+              <div className="text-[11px] text-text-tertiary mb-2">父级合计均为可展开子项相加；流水线总耗时是端到端实测值，不与分项重复相加。</div>
               <div className="grid grid-cols-4 gap-4 mb-4">
                 <div className="bg-gray-50 rounded-md p-3 text-center" title={TIMING_SUMMARY_EXPLANATIONS.min}>
                   <div className="text-[10px] text-text-tertiary">单张最短</div>
@@ -507,7 +556,7 @@ export const TestTab: React.FC = () => {
                           <details>
                             <summary className="cursor-pointer text-accent" title="展开后可查看这张图片各个处理步骤的单次耗时。">查看</summary>
                             <div className="absolute right-0 z-20 mt-1 bg-white border border-gray-200 rounded-md shadow-lg p-2 min-w-[220px]">
-                              {Object.entries(r.timing).filter(([key]) => key !== 'image_acquisition_ms').map(([key, value]) => (
+                              {Object.entries(r.timing).filter(([key]) => !HIDDEN_TIMING_KEYS.has(key)).map(([key, value]) => (
                                 <div key={key} className="flex justify-between gap-4 py-0.5 text-[10px]">
                                   <span>{STEP_LABELS[key] || key}</span>
                                   <span className="font-medium">{value.toFixed(2)} ms</span>
