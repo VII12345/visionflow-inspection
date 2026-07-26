@@ -26,6 +26,30 @@ const STEP_LABELS: Record<string, string> = {
   pipeline_ms: '单张完整流程',
 };
 
+// 按真实测试链路排列：任务准备 → 图片读取 → 推理队列/Worker → 输出 → 保存。
+// inference_result_wait_ms 是提交后到结果返回的总等待，放在推理队列入口处，
+// 其数值会覆盖后续 Worker 子步骤，不应与子步骤相加。
+const STEP_ORDER = [
+  'model_route_prepare_ms',
+  'file_enumeration_ms',
+  'image_acquisition_ms',
+  'inference_submit_ms',
+  'inference_result_wait_ms',
+  'inference_queue_wait_ms',
+  'inference_batch_window_ms',
+  'model_prepare_ms',
+  'preprocess_ms',
+  'model_call_ms',
+  'recognition_ms',
+  'result_output_ms',
+  'frame_copy_ms',
+  'save_submit_ms',
+  'save_queue_wait_ms',
+  'image_save_ms',
+  'detection_pipeline_ms',
+  'pipeline_ms',
+];
+
 const STEP_EXPLANATIONS: Record<string, string> = {
   file_enumeration_ms: '扫描所选目录并枚举支持的图片文件，统计本次测试需要处理的文件数量。只包含文件查找和列表生成，不包含图片解码。',
   model_route_prepare_ms: '根据当前选择的模型建立测试任务的模型路由，并准备对应的模型缓存。模型首次加载或切换时可能明显增加。',
@@ -331,7 +355,15 @@ export const TestTab: React.FC = () => {
                 <div className="border border-gray-100 rounded-md overflow-hidden">
                   <div className="bg-gray-50 px-3 py-2 text-[10px] font-medium text-text-tertiary uppercase tracking-wide">逐项操作耗时（毫秒）</div>
                   <div className="divide-y divide-gray-100">
-                    {Object.entries(result.timing.steps).map(([key, step]) => (
+                    {Object.entries(result.timing.steps)
+                      .sort(([left], [right]) => {
+                        const leftIndex = STEP_ORDER.indexOf(left);
+                        const rightIndex = STEP_ORDER.indexOf(right);
+                        const safeLeft = leftIndex === -1 ? STEP_ORDER.length : leftIndex;
+                        const safeRight = rightIndex === -1 ? STEP_ORDER.length : rightIndex;
+                        return safeLeft - safeRight;
+                      })
+                      .map(([key, step]) => (
                       <div key={key} className="grid grid-cols-[minmax(160px,1.4fr)_repeat(4,minmax(70px,1fr))] items-center px-3 py-2 text-xs">
                         <span
                           className="text-text-primary font-medium cursor-help border-b border-dotted border-text-tertiary/60"
