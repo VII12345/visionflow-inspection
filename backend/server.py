@@ -1216,7 +1216,8 @@ def get_status():
 def get_frame(cam_id):
     """获取最新帧（JPEG）"""
     if cam_id not in latest_frames:
-        return jsonify({"error": "No frame available"}), 404
+        # 相机已配置但尚未产生第一帧时，不视为接口不存在；用 204 告知前端暂时无图像，避免轮询日志持续刷 404。
+        return "", 204
 
     try:
         img = latest_frames[cam_id]
