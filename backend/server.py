@@ -1673,11 +1673,106 @@ def _stop_save_worker():
 # ========== 相机工作线程 ==========
 
 
+def _process_frame_pipeline(cam_id, frame, frame_count, *, timing_enabled=False, wait_for_save=False, received_perf=None):
+    """处理一张已经拿到的图片；真实相机和模拟接口共用此流水线。"""
+    received_perf = received_perf or time.perf_counter()
+    latest_frames[cam_id] = frame
+    timing_values = {}
+    result = None
+    submitted = False
+    pipeline_start = received_perf
+
+    if inference_worker.model_loaded:
+        submit_start = time.perf_counter()
+        submitted = submit_inference(cam_id, frame, timed=timing_enabled)
+        if timing_enabled:
+            timing_values["inference_submit_ms"] = (time.perf_counter() - submit_start) * 1000
+    else:
+        logger.warning(f"Camera {cam_id}: model_loaded=False，跳过检测")
+
+    if submitted:
+        wait_start = time.perf_counter()
+        result = get_inference_result(cam_id, timeout=5.0)
+        if timing_enabled:
+            timing_values["inference_result_wait_ms"] = (time.perf_counter() - wait_start) * 1000
+        if not result:
+            logger.warning(f"Camera {cam_id}: 推理超时，跳过此帧")
+            return {"success": False, "error": "推理超时", "submitted": submitted, "timing": timing_values}
+
+        latest_results[cam_id] = result
+        stats[cam_id]["detected"] += 1
+        plc_config = get_plc_config()
+        model_name = inference_worker.camera_product_map.get(cam_id)
+        reject_labels = _get_model_reject_labels(model_name)
+        should_reject = result["label"] in reject_labels
+        if should_reject:
+            stats[cam_id]["defective"] += 1
+        if plc_config.get("enabled", True) and should_reject:
+            try:
+                plc_service.with_base_url(plc_config.get("base_url", plc_service.base_url)).write_reject_signal(cam_id)
+            except (PlcWriteError, ValueError) as exc:
+                logger.error(f"Camera {cam_id}: 结果写入 PLC 失败: {exc}")
+        logger.info(f"Camera {cam_id}: #{frame_count} → {result['label']} ({result['confidence']:.2f})")
+    else:
+        logger.warning(f"Camera {cam_id}: 模型未就绪，无法推理")
+        stats[cam_id]["detected"] += 1
+
+    if timing_enabled:
+        output_start = time.perf_counter()
+        timing_values["result_output_ms"] = (time.perf_counter() - output_start) * 1000
+
+    try:
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        millis = int((time.time() * 1000) % 1000)
+        if submitted and result:
+            tag = result["label"]
+            model_name = inference_worker.camera_product_map.get(cam_id)
+            reject_labels = _get_model_reject_labels(model_name)
+            setting_key = "saveBad" if tag in reject_labels else "saveGood"
+            should_save = save_settings.get(cam_id, {}).get(setting_key, True)
+            subdir = tag
+        else:
+            tag = "未分类"
+            should_save = True
+            subdir = tag
+        if should_save:
+            filename = f"CAM{cam_id}_{timestamp}_{millis:03d}.bmp"
+            save_path = Config.CAPTURE_DIR / f"cam{cam_id}" / subdir / filename
+            if timing_enabled and wait_for_save:
+                done_event = threading.Event()
+                completion = {}
+                copy_start = time.perf_counter()
+                save_copy = frame.copy()
+                timing_values["frame_copy_ms"] = (time.perf_counter() - copy_start) * 1000
+                submit_save_start = time.perf_counter()
+                submitted_save = _submit_save(save_copy, save_path, done_event, completion)
+                timing_values["save_submit_ms"] = (time.perf_counter() - submit_save_start) * 1000
+                if submitted_save:
+                    wait_save_start = time.perf_counter()
+                    if not done_event.wait(timeout=30.0):
+                        return {"success": False, "error": "等待图片保存完成超时", "submitted": submitted, "timing": timing_values}
+                    save_wait_ms = (time.perf_counter() - wait_save_start) * 1000
+                    timing_values["save_queue_wait_ms"] = save_wait_ms
+                    timing_values["image_save_ms"] = float(completion.get("write_ms", 0.0))
+                    timing_values["save_queue_wait_excluding_write_ms"] = max(0.0, save_wait_ms - timing_values["image_save_ms"])
+                else:
+                    return {"success": False, "error": "保存队列已满", "submitted": submitted, "timing": timing_values}
+            else:
+                _submit_save(frame.copy(), save_path)
+    except Exception as exc:
+        logger.error(f"Camera {cam_id}: 提交存盘失败: {exc}")
+
+    camera_states[cam_id]["lastFrameTime"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    camera_states[cam_id]["totalTriggers"] = frame_count
+    timing_values["detection_pipeline_ms"] = max(0.0, (time.perf_counter() - pipeline_start) * 1000 - timing_values.get("save_queue_wait_ms", 0.0) - timing_values.get("image_save_ms", 0.0))
+    timing_values["pipeline_ms"] = (time.perf_counter() - pipeline_start) * 1000
+    if result is not None and timing_enabled:
+        result = {**result, "time_ms": round(timing_values["pipeline_ms"], 2), "timing": {key: round(value, 2) for key, value in timing_values.items()}}
+    return {"success": True, "result": result, "submitted": submitted, "timing": timing_values, "frame_count": frame_count}
+
+
 def camera_worker(cam_id):
-    """
-    相机工作线程（触发模式）
-    阻塞等待传感器触发 → 抓帧 → 推理 → 更新结果 → 继续等待下一个触发
-    """
+    """真实相机线程：等待触发并把图片交给共享处理流水线。"""
     logger.info(f"Camera {cam_id} worker 启动（触发模式：等待传感器信号...）")
     cam = cameras[cam_id]
     frame_count = 0
@@ -1686,103 +1781,110 @@ def camera_worker(cam_id):
 
     while system_running and cam.running:
         try:
-            # 阻塞等待传感器触发并抓帧
             timeout = getattr(cam, "trigger_timeout", Config.CAMERA_TRIGGER_TIMEOUT_MS)
             frame = cam.grab_frame(timeout_ms=timeout)
-
             if frame is None:
-                # 超时未收到触发信号，继续等待
                 wait_count += 1
                 if wait_count % 10 == 0:
-                    logger.debug(
-                        f"Camera {cam_id}: 等待传感器触发中... (已等待 {wait_count * Config.CAMERA_TRIGGER_TIMEOUT_MS / 1000:.0f}s)"
-                    )
+                    logger.debug(f"Camera {cam_id}: 等待传感器触发中... (已等待 {wait_count * Config.CAMERA_TRIGGER_TIMEOUT_MS / 1000:.0f}s)")
                 continue
-
-            # 收到触发，拿到了新照片！
             wait_count = 0
             frame_count += 1
-            latest_frames[cam_id] = frame
-
             logger.info(f"Camera {cam_id}: 收到触发信号 #{frame_count}，开始推理...")
-
-            # 提交并等待推理结果
-            submitted = False
-            if inference_worker.model_loaded:
-                submitted = submit_inference(cam_id, frame)
-            else:
-                logger.warning(f"Camera {cam_id}: model_loaded=False，跳过检测")
-
-            if submitted:
-                # 阻塞等待推理完成
-                result = get_inference_result(cam_id, timeout=5.0)
-                if result:
-                    latest_results[cam_id] = result
-                    stats[cam_id]["detected"] += 1
-                    plc_config = get_plc_config()
-                    model_name = inference_worker.camera_product_map.get(cam_id)
-                    reject_labels = _get_model_reject_labels(model_name)
-                    should_reject = result["label"] in reject_labels
-                    if should_reject:
-                        stats[cam_id]["defective"] += 1
-                    if plc_config.get("enabled", True) and should_reject:
-                        try:
-                            plc_service.with_base_url(plc_config.get("base_url", plc_service.base_url)).write_reject_signal(cam_id)
-                        except (PlcWriteError, ValueError) as e:
-                            logger.error(f"Camera {cam_id}: 结果写入 PLC 失败: {e}")
-                    logger.info(
-                        f"Camera {cam_id}: #{frame_count} → {result['label']} ({result['confidence']:.2f})"
-                    )
-                else:
-                    logger.warning(f"Camera {cam_id}: 推理超时，跳过此帧")
-                    continue
-            else:
-                # 模型未就绪，记录但不推理
-                logger.warning(f"Camera {cam_id}: 模型未就绪，无法推理")
-                stats[cam_id]["detected"] += 1
-
-            # 照片存盘 — 异步写入，不阻塞抓帧循环。各类别照片的保存开关
-            # 来自 /api/save-settings，并且在后端进程内直接生效。
-            try:
-                timestamp = time.strftime("%Y%m%d_%H%M%S")
-                millis = int((time.time() * 1000) % 1000)
-                if submitted and result:
-                    plc_config = get_plc_config()
-                    tag = result["label"]
-                    model_name = inference_worker.camera_product_map.get(cam_id)
-                    reject_labels = _get_model_reject_labels(model_name)
-                    setting_key = "saveBad" if tag in reject_labels else "saveGood"
-                    should_save = save_settings.get(cam_id, {}).get(setting_key, True)
-                    subdir = tag
-                else:
-                    tag = "未分类"
-                    should_save = True
-                    subdir = tag
-                if should_save:
-                    filename = f"CAM{cam_id}_{timestamp}_{millis:03d}.bmp"
-                    save_path = Config.CAPTURE_DIR / f"cam{cam_id}" / subdir / filename
-                    # 异步提交存盘（非阻塞，存盘在后台线程慢慢写）
-                    _submit_save(frame.copy(), save_path)
-            except Exception as e:
-                logger.error(f"Camera {cam_id}: 提交存盘失败: {e}")
-
-            # 更新状态
-            camera_states[cam_id]["lastFrameTime"] = time.strftime("%Y-%m-%dT%H:%M:%S")
-            camera_states[cam_id]["totalTriggers"] = frame_count
-
-            # 计算实际触发频率（触发/秒）
+            outcome = _process_frame_pipeline(cam_id, frame, frame_count)
+            if not outcome.get("success") and outcome.get("error") == "推理超时":
+                continue
             elapsed = time.time() - start_time
             if elapsed > 0:
                 camera_states[cam_id]["fps"] = round(frame_count / elapsed, 2)
-
-        except Exception as e:
-            logger.error(f"Camera {cam_id} worker 错误: {e}")
-            camera_states[cam_id]["error"] = str(e)
+        except Exception as exc:
+            logger.error(f"Camera {cam_id} worker 错误: {exc}")
+            camera_states[cam_id]["error"] = str(exc)
             camera_states[cam_id]["state"] = "error"
-            # 短暂等待后重试
             time.sleep(1)
 
     logger.info(f"Camera {cam_id} worker 停止（共处理 {frame_count} 张图片）")
+
+
+def _ensure_runtime_camera_slot(cam_id):
+    camera_states.setdefault(cam_id, {
+        "state": "disconnected",
+        "serial": None,
+        "lastFrameTime": None,
+        "totalTriggers": 0,
+        "fps": 0,
+        "error": None,
+    })
+    stats.setdefault(cam_id, {"detected": 0, "defective": 0})
+
+
+def _decode_received_image():
+    from PIL import Image
+    import base64
+    data = request.get_json(silent=True) if request.is_json else None
+    file = request.files.get("image") if not request.is_json else None
+    if data is not None and data.get("image_base64"):
+        return Image.open(io.BytesIO(base64.b64decode(data["image_base64"]))).convert("RGB"), data, None
+    if file is not None:
+        return Image.open(file.stream).convert("RGB"), None, file.filename
+    raise ValueError("请上传 image 图片文件")
+
+
+@app.route("/api/simulate/frame", methods=["POST"])
+def simulate_frame():
+    """接收一张图片，执行与真实相机完全相同的检测流水线。"""
+    received_perf = time.perf_counter()
+    try:
+        image, data, filename = _decode_received_image()
+        form = data or request.form
+        cam_id = int(form.get("camera_id", 1))
+        if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
+            return jsonify({"success": False, "error": "无效的相机编号"}), 400
+        model_name = form.get("model_name")
+        if model_name:
+            set_camera_product(cam_id, str(model_name))
+        _ensure_runtime_camera_slot(cam_id)
+        camera_states[cam_id]["state"] = "running"
+        camera_states[cam_id]["error"] = None
+        frame_count = int(camera_states[cam_id].get("totalTriggers") or 0) + 1
+        outcome = _process_frame_pipeline(cam_id, image, frame_count, timing_enabled=True, received_perf=received_perf)
+        if not outcome.get("success"):
+            return jsonify(outcome), 504 if outcome.get("error") == "推理超时" else 500
+        return jsonify({"success": True, "source": "simulated", "camera_id": cam_id, "filename": filename, **outcome})
+    except Exception as exc:
+        logger.error(f"模拟接收图片失败: {exc}", exc_info=True)
+        return jsonify({"success": False, "error": str(exc)}), 400
+
+
+@app.route("/api/test/simulated-run", methods=["POST"])
+def test_simulated_run():
+    """测试模拟接收图片接口；从接口开始接收图片时刻统计耗时。"""
+    received_perf = time.perf_counter()
+    try:
+        image, data, filename = _decode_received_image()
+        form = data or request.form
+        cam_id = int(form.get("camera_id", 1))
+        if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
+            return jsonify({"success": False, "error": "无效的相机编号"}), 400
+        model_name = form.get("model_name")
+        if model_name:
+            set_camera_product(cam_id, str(model_name))
+        _ensure_runtime_camera_slot(cam_id)
+        camera_states[cam_id]["state"] = "running"
+        frame_count = int(camera_states[cam_id].get("totalTriggers") or 0) + 1
+        outcome = _process_frame_pipeline(cam_id, image, frame_count, timing_enabled=True, wait_for_save=True, received_perf=received_perf)
+        if not outcome.get("success"):
+            return jsonify(outcome), 504 if outcome.get("error") == "推理超时" else 500
+        timing_values = outcome.get("timing", {})
+        steps = {key: {"avg_ms": round(value, 2), "min_ms": round(value, 2), "max_ms": round(value, 2), "total_ms": round(value, 2)} for key, value in timing_values.items()}
+        result = outcome.get("result")
+        pipeline_ms = timing_values.get("pipeline_ms", 0.0)
+        row = {"filename": filename or "模拟图片", "predicted": result.get("label") if result else "未分类", "confidence": result.get("confidence", 0) if result else 0, "time_ms": result.get("time_ms") if result else pipeline_ms, "timing": result.get("timing", {}) if result else {}}
+        summary = {"avg_ms": pipeline_ms, "min_ms": pipeline_ms, "max_ms": pipeline_ms, "total_ms": pipeline_ms, "pipeline_total_ms": pipeline_ms, "steps": steps, "step_labels": {}}
+        return jsonify({"success": True, "mode": "simulated", "camera_id": cam_id, "total": 1, "correct": None, "accuracy": None, "categories": [], "category_counts": {}, "timing": summary, "results": [row]})
+    except Exception as exc:
+        logger.error(f"模拟运行测试失败: {exc}", exc_info=True)
+        return jsonify({"success": False, "error": str(exc)}), 400
 
 
 # ========== 模型设置辅助 ==========
