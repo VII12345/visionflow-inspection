@@ -47,32 +47,6 @@ async function backendFetch<T = unknown>(url: string, options?: {
   return data as T;
 }
 
-async function uploadImage<T>(url: string, file: File, fields: Record<string, string | number> = {}): Promise<T> {
-  if (window.electronAPI) {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    let binary = '';
-    const chunkSize = 0x8000;
-    for (let index = 0; index < bytes.length; index += chunkSize) {
-      binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
-    }
-    return backendFetch<T>(url, {
-      method: 'POST',
-      body: { ...fields, image_base64: btoa(binary), filename: file.name },
-    });
-  }
-  const form = new FormData();
-  form.append('image', file, file.name);
-  Object.entries(fields).forEach(([key, value]) => form.append(key, String(value)));
-  const response = await fetch(`${API_BASE}${url}`, { method: 'POST', body: form });
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!response.ok) {
-    const errorData = data as { error?: string; message?: string };
-    throw new Error(errorData.error || errorData.message || `后端请求失败 (${response.status})`);
-  }
-  return data as T;
-}
-
 export const api = {
   // Health
   health: () => backendFetch<{ status: string }>('/api/health'),
@@ -92,9 +66,6 @@ export const api = {
     backendFetch<{ success: boolean; message?: string; plcSuccess?: boolean; plcError?: string }>(`/api/cameras/config/${camId}`, { method: 'POST', body: config }),
   testRejectSignal: (camId: number) =>
     backendFetch<{ success: boolean; camera?: number; address?: string; value?: number; error?: string }>(`/api/cameras/${camId}/plc/test-reject`, { method: 'POST' }),
-
-  // Image simulation
-  simulateFrame: (file: File, cameraId = 1, modelName?: string) => uploadImage<{ success: boolean; source?: string; camera_id?: number; result?: Record<string, unknown>; timing?: Record<string, unknown>; error?: string }>('/api/simulate/frame', file, { camera_id: cameraId, ...(modelName ? { model_name: modelName } : {}) }),
 
   // Training
   startTraining: (params: { categoryRootPath?: string; classAPath?: string; classBPath?: string; folderPath?: string; modelName: string }) =>
