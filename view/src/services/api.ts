@@ -80,7 +80,7 @@ export const api = {
   // System control
   start: (camProducts?: Record<number, string>, lineCount?: number) => backendFetch<{ success: boolean; message?: string; errors?: string[] }>('/api/start', { method: 'POST', body: { camProducts, line_count: lineCount } }),
   stop: () => backendFetch<{ success: boolean; message?: string }>('/api/stop', { method: 'POST' }),
-  status: () => backendFetch<{ cameras: Record<number, { state: string; result?: { label: string; confidence: number }; lastFrameTime?: string; totalTriggers?: number; stats?: { detected: number; defective: number }; error?: string; source?: 'camera' | 'simulated' }> }>('/api/status'),
+  status: () => backendFetch<{ cameras: Record<number, { state: string; result?: { label: string; confidence: number }; lastFrameTime?: string; totalTriggers?: number; stats?: { detected: number; defective: number }; error?: string }> }>('/api/status'),
 
   // Frames
   getFrame: (camId: number) => backendFetch<ArrayBuffer>(`/api/frame/${camId}`, { responseType: 'blob' }),

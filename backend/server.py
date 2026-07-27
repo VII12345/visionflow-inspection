@@ -1194,7 +1194,6 @@ def get_status():
             "lastFrameTime": state["lastFrameTime"],
             "stats": stats[i],
             "error": state["error"],
-            "source": state.get("source", "camera"),
         }
 
         # 添加最新检测结果
@@ -1816,7 +1815,6 @@ def _ensure_runtime_camera_slot(cam_id):
         "totalTriggers": 0,
         "fps": 0,
         "error": None,
-        "source": "camera",
     })
     stats.setdefault(cam_id, {"detected": 0, "defective": 0})
 
@@ -1848,7 +1846,6 @@ def simulate_frame():
             set_camera_product(cam_id, str(model_name))
         _ensure_runtime_camera_slot(cam_id)
         camera_states[cam_id]["state"] = "running"
-        camera_states[cam_id]["source"] = "simulated"
         camera_states[cam_id]["error"] = None
         frame_count = int(camera_states[cam_id].get("totalTriggers") or 0) + 1
         outcome = _process_frame_pipeline(cam_id, image, frame_count, timing_enabled=True, received_perf=received_perf)
@@ -1875,7 +1872,6 @@ def test_simulated_run():
             set_camera_product(cam_id, str(model_name))
         _ensure_runtime_camera_slot(cam_id)
         camera_states[cam_id]["state"] = "running"
-        camera_states[cam_id]["source"] = "simulated"
         frame_count = int(camera_states[cam_id].get("totalTriggers") or 0) + 1
         outcome = _process_frame_pipeline(cam_id, image, frame_count, timing_enabled=True, wait_for_save=True, received_perf=received_perf)
         if not outcome.get("success"):

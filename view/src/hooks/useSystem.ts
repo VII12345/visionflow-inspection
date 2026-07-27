@@ -15,8 +15,15 @@ export function useSystemPolling(isRunning: boolean) {
   }, []);
 
   useEffect(() => {
-    poll();
-    intervalRef.current = setInterval(poll, 500);
+    if (isRunning) {
+      poll();
+      intervalRef.current = setInterval(poll, 500);
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
@@ -44,8 +51,10 @@ export function useFrameUpdater(isRunning: boolean) {
       setFrames(prev => ({ ...prev, ...newFrames }));
     }
 
-    updateFrames();
-    intervalRef.current = setInterval(updateFrames, 1000);
+    if (isRunning) {
+      updateFrames();
+      intervalRef.current = setInterval(updateFrames, 1000);
+    }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };

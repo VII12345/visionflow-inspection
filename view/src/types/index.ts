@@ -70,7 +70,6 @@ export interface CameraStatus {
   totalTriggers?: number;
   stats?: CameraStats;
   error?: string;
-  source?: 'camera' | 'simulated';
 }
 
 export interface SystemStatus {
