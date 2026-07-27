@@ -28,7 +28,6 @@ from .inference_worker import (
 from . import inference_worker
 from .env_check import run_environment_check
 from .plc_service import get_plc_config, save_plc_config, PlcWriteError, PlcService, plc_service
-from .simulation_runtime import SimulationRuntime
 
 
 # 初始化 Flask
@@ -44,7 +43,6 @@ latest_frames = {}  # {cam_id: PIL.Image}
 latest_results = {}  # {cam_id: {label, confidence, timestamp}}
 stats = {i: {"detected": 0, "defective": 0} for i in range(1, Config.CAMERA_COUNT + 1)}
 env_check_result = None  # 环境检测结果缓存
-simulation_runtime = SimulationRuntime()  # 与真实相机完全独立的接口模拟运行状态
 
 
 def initialize_camera_manager():
@@ -681,34 +679,13 @@ def _apply_line_count(count):
 
 
 def _load_device_config():
-    defaults = {
-        "training_device": Config.DEVICE,
-        "inference_device": Config.DEVICE,
-        # 模拟接收图片默认关闭，避免改变真实相机运行方式。
-        "simulation_enabled": False,
-    }
     if _device_config_path.exists():
         try:
             with open(_device_config_path, "r", encoding="utf-8") as f:
-                raw = _json.load(f)
-            if isinstance(raw, dict):
-                merged = {**defaults, **raw}
-                merged["simulation_enabled"] = bool(raw.get("simulation_enabled", False))
-                return merged
+                return _json.load(f)
         except Exception:
             pass
-    return defaults
-
-
-def _simulation_enabled():
-    return bool(_load_device_config().get("simulation_enabled", False))
-
-
-def _simulation_disabled_response():
-    return jsonify({
-        "success": False,
-        "error": "模拟功能当前未启用，请先在设置界面打开模拟运行开关",
-    }), 403
+    return {"training_device": Config.DEVICE, "inference_device": Config.DEVICE}
 
 
 def _save_device_config(cfg):
@@ -753,8 +730,6 @@ def get_device_config():
 @app.route("/api/settings/device", methods=["POST"])
 def update_device_config():
     """更新设备选择配置"""
-    if system_running or simulation_runtime.running:
-        return jsonify({"success": False, "message": "运行中不能修改设备和模拟运行设置"}), 409
     import torch
 
     data = request.get_json()
@@ -774,13 +749,7 @@ def update_device_config():
             {"success": False, "message": f"无效的推理设备: {inference_device}"}
         ), 400
 
-    existing = _load_device_config()
-    simulation_enabled = bool(data.get("simulation_enabled", existing.get("simulation_enabled", False)))
-    cfg = {
-        "training_device": training_device,
-        "inference_device": inference_device,
-        "simulation_enabled": simulation_enabled,
-    }
+    cfg = {"training_device": training_device, "inference_device": inference_device}
     _save_device_config(cfg)
 
     # 更新运行时配置
@@ -1706,8 +1675,8 @@ def _stop_save_worker():
 # ========== 相机工作线程 ==========
 
 
-def _process_real_frame_pipeline(cam_id, frame, frame_count, *, timing_enabled=False, wait_for_save=False, received_perf=None):
-    """处理一张已经拿到的图片；真实相机专用流水线。"""
+def _process_frame_pipeline(cam_id, frame, frame_count, *, timing_enabled=False, wait_for_save=False, received_perf=None):
+    """处理一张已经拿到的图片；真实相机和模拟接口共用此流水线。"""
     received_perf = received_perf or time.perf_counter()
     latest_frames[cam_id] = frame
     timing_values = {}
@@ -1824,7 +1793,7 @@ def camera_worker(cam_id):
             wait_count = 0
             frame_count += 1
             logger.info(f"Camera {cam_id}: 收到触发信号 #{frame_count}，开始推理...")
-            outcome = _process_real_frame_pipeline(cam_id, frame, frame_count)
+            outcome = _process_frame_pipeline(cam_id, frame, frame_count)
             if not outcome.get("success") and outcome.get("error") == "推理超时":
                 continue
             elapsed = time.time() - start_time
@@ -1839,6 +1808,19 @@ def camera_worker(cam_id):
     logger.info(f"Camera {cam_id} worker 停止（共处理 {frame_count} 张图片）")
 
 
+def _ensure_runtime_camera_slot(cam_id):
+    camera_states.setdefault(cam_id, {
+        "state": "disconnected",
+        "serial": None,
+        "lastFrameTime": None,
+        "totalTriggers": 0,
+        "fps": 0,
+        "error": None,
+        "source": "camera",
+    })
+    stats.setdefault(cam_id, {"detected": 0, "defective": 0})
+
+
 def _decode_received_image():
     from PIL import Image
     import base64
@@ -1851,61 +1833,9 @@ def _decode_received_image():
     raise ValueError("请上传 image 图片文件")
 
 
-def _simulation_process_kwargs():
-    return {"config": Config, "inference_worker": inference_worker, "submit_inference": submit_inference, "get_inference_result": get_inference_result, "get_reject_labels": _get_model_reject_labels, "get_plc_config": get_plc_config, "plc_service": plc_service, "plc_error_type": PlcWriteError, "save_settings": save_settings, "submit_save": _submit_save, "logger": logger}
-
-
-@app.route("/api/simulate/start", methods=["POST"])
-def start_simulation():
-    if not _simulation_enabled():
-        return _simulation_disabled_response()
-    if system_running:
-        return jsonify({"success": False, "error": "真实相机正在运行，不能切换到模拟运行"}), 409
-    simulation_runtime.start(Config.CAMERA_COUNT)
-    return jsonify({"success": True, "source": "simulated", "message": "模拟运行已启动"})
-
-
-@app.route("/api/simulate/stop", methods=["POST"])
-def stop_simulation():
-    simulation_runtime.stop(Config.CAMERA_COUNT)
-    return jsonify({"success": True, "source": "simulated", "message": "模拟运行已停止"})
-
-
-@app.route("/api/simulate/status", methods=["GET"])
-def get_simulation_status():
-    payload = simulation_runtime.status(Config.CAMERA_COUNT)
-    payload["system"]["modelLoaded"] = inference_worker.model_loaded
-    return jsonify(payload)
-
-
-@app.route("/api/simulate/output", methods=["GET"])
-def get_simulation_output():
-    return jsonify({"success": True, "output": simulation_runtime.get_output()})
-
-
-@app.route("/api/simulate/frame/<int:cam_id>", methods=["GET"])
-def get_simulation_frame(cam_id):
-    if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
-        return jsonify({"success": False, "error": "无效的相机编号"}), 400
-    frame = simulation_runtime.get_frame(cam_id)
-    if frame is None:
-        return "", 204
-    try:
-        buffer = io.BytesIO()
-        frame.save(buffer, format="JPEG", quality=85)
-        buffer.seek(0)
-        return send_file(buffer, mimetype="image/jpeg")
-    except Exception as exc:
-        logger.error(f"获取模拟画面失败: {exc}")
-        return jsonify({"success": False, "error": str(exc)}), 500
-
-
 @app.route("/api/simulate/frame", methods=["POST"])
 def simulate_frame():
-    if not _simulation_enabled():
-        return _simulation_disabled_response()
-    if not simulation_runtime.running:
-        return jsonify({"success": False, "error": "模拟运行尚未启动，请先点击启动按钮"}), 409
+    """接收一张图片，执行与真实相机完全相同的检测流水线。"""
     received_perf = time.perf_counter()
     try:
         image, data, filename = _decode_received_image()
@@ -1916,10 +1846,15 @@ def simulate_frame():
         model_name = form.get("model_name")
         if model_name:
             set_camera_product(cam_id, str(model_name))
-        outcome = simulation_runtime.process(cam_id, image, timing_enabled=True, received_perf=received_perf, model_name=model_name, **_simulation_process_kwargs())
+        _ensure_runtime_camera_slot(cam_id)
+        camera_states[cam_id]["state"] = "running"
+        camera_states[cam_id]["source"] = "simulated"
+        camera_states[cam_id]["error"] = None
+        frame_count = int(camera_states[cam_id].get("totalTriggers") or 0) + 1
+        outcome = _process_frame_pipeline(cam_id, image, frame_count, timing_enabled=True, received_perf=received_perf)
         if not outcome.get("success"):
             return jsonify(outcome), 504 if outcome.get("error") == "推理超时" else 500
-        return jsonify({"success": True, "filename": filename, **outcome})
+        return jsonify({"success": True, "source": "simulated", "camera_id": cam_id, "filename": filename, **outcome})
     except Exception as exc:
         logger.error(f"模拟接收图片失败: {exc}", exc_info=True)
         return jsonify({"success": False, "error": str(exc)}), 400
@@ -1927,10 +1862,7 @@ def simulate_frame():
 
 @app.route("/api/test/simulated-run", methods=["POST"])
 def test_simulated_run():
-    if not _simulation_enabled():
-        return _simulation_disabled_response()
-    if not simulation_runtime.running:
-        return jsonify({"success": False, "error": "模拟运行尚未启动，请先点击启动按钮"}), 409
+    """测试模拟接收图片接口；从接口开始接收图片时刻统计耗时。"""
     received_perf = time.perf_counter()
     try:
         image, data, filename = _decode_received_image()
@@ -1941,7 +1873,11 @@ def test_simulated_run():
         model_name = form.get("model_name")
         if model_name:
             set_camera_product(cam_id, str(model_name))
-        outcome = simulation_runtime.process(cam_id, image, timing_enabled=True, wait_for_save=True, received_perf=received_perf, model_name=model_name, **_simulation_process_kwargs())
+        _ensure_runtime_camera_slot(cam_id)
+        camera_states[cam_id]["state"] = "running"
+        camera_states[cam_id]["source"] = "simulated"
+        frame_count = int(camera_states[cam_id].get("totalTriggers") or 0) + 1
+        outcome = _process_frame_pipeline(cam_id, image, frame_count, timing_enabled=True, wait_for_save=True, received_perf=received_perf)
         if not outcome.get("success"):
             return jsonify(outcome), 504 if outcome.get("error") == "推理超时" else 500
         timing_values = outcome.get("timing", {})
@@ -1950,7 +1886,7 @@ def test_simulated_run():
         pipeline_ms = timing_values.get("pipeline_ms", 0.0)
         row = {"filename": filename or "模拟图片", "predicted": result.get("label") if result else "未分类", "confidence": result.get("confidence", 0) if result else 0, "time_ms": result.get("time_ms") if result else pipeline_ms, "timing": result.get("timing", {}) if result else {}}
         summary = {"avg_ms": pipeline_ms, "min_ms": pipeline_ms, "max_ms": pipeline_ms, "total_ms": pipeline_ms, "pipeline_total_ms": pipeline_ms, "steps": steps, "step_labels": {}}
-        return jsonify({"success": True, "mode": "simulated", "camera_id": cam_id, "total": 1, "correct": None, "accuracy": None, "categories": [], "category_counts": {}, "timing": summary, "results": [row], "simulation_output": outcome.get("simulation_output")})
+        return jsonify({"success": True, "mode": "simulated", "camera_id": cam_id, "total": 1, "correct": None, "accuracy": None, "categories": [], "category_counts": {}, "timing": summary, "results": [row]})
     except Exception as exc:
         logger.error(f"模拟运行测试失败: {exc}", exc_info=True)
         return jsonify({"success": False, "error": str(exc)}), 400

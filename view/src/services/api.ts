@@ -81,14 +81,9 @@ export const api = {
   start: (camProducts?: Record<number, string>, lineCount?: number) => backendFetch<{ success: boolean; message?: string; errors?: string[] }>('/api/start', { method: 'POST', body: { camProducts, line_count: lineCount } }),
   stop: () => backendFetch<{ success: boolean; message?: string }>('/api/stop', { method: 'POST' }),
   status: () => backendFetch<{ cameras: Record<number, { state: string; result?: { label: string; confidence: number }; lastFrameTime?: string; totalTriggers?: number; stats?: { detected: number; defective: number }; error?: string; source?: 'camera' | 'simulated' }> }>('/api/status'),
-  startSimulation: () => backendFetch<{ success: boolean; message?: string; error?: string }>('/api/simulate/start', { method: 'POST' }),
-  stopSimulation: () => backendFetch<{ success: boolean; message?: string; error?: string }>('/api/simulate/stop', { method: 'POST' }),
-  simulationStatus: () => backendFetch<{ cameras: Record<number, { state: string; result?: { label: string; confidence: number }; lastFrameTime?: string; totalTriggers?: number; stats?: { detected: number; defective: number }; error?: string; source?: 'simulated' }> }>('/api/simulate/status'),
-  simulationOutput: () => backendFetch<{ success: boolean; output?: { camera_id: number; frame_count: number; label: string; confidence: number; time_ms?: number; received_at?: string; source?: string } | null }>('/api/simulate/output'),
 
   // Frames
   getFrame: (camId: number) => backendFetch<ArrayBuffer>(`/api/frame/${camId}`, { responseType: 'blob' }),
-  getSimulationFrame: (camId: number) => backendFetch<ArrayBuffer>(`/api/simulate/frame/${camId}`, { responseType: 'blob' }),
 
   // Camera config
   getCameraConfig: (camId: number) => backendFetch<{ success: boolean; config: Record<string, unknown> }>(`/api/cameras/config/${camId}`),
@@ -99,7 +94,7 @@ export const api = {
     backendFetch<{ success: boolean; camera?: number; address?: string; value?: number; error?: string }>(`/api/cameras/${camId}/plc/test-reject`, { method: 'POST' }),
 
   // Image simulation
-  simulateFrame: (file: File, cameraId = 1, modelName?: string) => uploadImage<{ success: boolean; source?: string; camera_id?: number; result?: Record<string, unknown>; simulation_output?: Record<string, unknown>; timing?: Record<string, unknown>; error?: string }>('/api/simulate/frame', file, { camera_id: cameraId, ...(modelName ? { model_name: modelName } : {}) }),
+  simulateFrame: (file: File, cameraId = 1, modelName?: string) => uploadImage<{ success: boolean; source?: string; camera_id?: number; result?: Record<string, unknown>; timing?: Record<string, unknown>; error?: string }>('/api/simulate/frame', file, { camera_id: cameraId, ...(modelName ? { model_name: modelName } : {}) }),
   testSimulatedRun: (file: File, cameraId = 1, modelName?: string) => uploadImage<{ success: boolean; mode?: string; total?: number; timing?: Record<string, unknown>; results?: Array<Record<string, unknown>>; error?: string }>('/api/test/simulated-run', file, { camera_id: cameraId, ...(modelName ? { model_name: modelName } : {}) }),
 
   // Training
@@ -181,9 +176,9 @@ export const api = {
       checks: Record<string, { label: string; pass: boolean; detail: string }>;
     }
   }>('/api/hardware'),
-  getDeviceConfig: () => backendFetch<{ success: boolean; config: { training_device: string; inference_device: string; simulation_enabled?: boolean } }>('/api/settings/device'),
-  saveDeviceConfig: (config: { training_device: string; inference_device: string; simulation_enabled?: boolean }) =>
-    backendFetch<{ success: boolean; message?: string; config?: { training_device: string; inference_device: string; simulation_enabled?: boolean } }>('/api/settings/device', { method: 'POST', body: config }),
+  getDeviceConfig: () => backendFetch<{ success: boolean; config: { training_device: string; inference_device: string } }>('/api/settings/device'),
+  saveDeviceConfig: (config: { training_device: string; inference_device: string }) =>
+    backendFetch<{ success: boolean; message?: string; config?: { training_device: string; inference_device: string } }>('/api/settings/device', { method: 'POST', body: config }),
 
   getLineCount: () => backendFetch<{ success: boolean; line_count: number }>('/api/settings/line-count'),
   saveLineCount: (line_count: number) =>

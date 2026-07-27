@@ -42,7 +42,6 @@ const App: React.FC = () => {
   const statusMessage = useAppStore(s => s.statusMessage);
   const setEnvResult = useAppStore(s => s.setEnvResult);
   const setLineCount = useAppStore(s => s.setLineCount);
-  const setSimulationEnabled = useAppStore(s => s.setSimulationEnabled);
   const raiseAlarm = useAppStore(s => s.raiseAlarm);
   const dynamicTabs = useAppStore(s => s.dynamicTabs);
   const learnCallback = useAppStore(s => s.learnCallback);
@@ -57,14 +56,6 @@ const App: React.FC = () => {
     }).catch(() => { /* 后端健康检查会提示连接异常 */ });
     return () => { cancelled = true; };
   }, [setLineCount]);
-
-  useEffect(() => {
-    let cancelled = false;
-    api.getDeviceConfig().then(data => {
-      if (!cancelled && data.success) setSimulationEnabled(Boolean(data.config.simulation_enabled));
-    }).catch(() => { /* 设置页可以稍后重试 */ });
-    return () => { cancelled = true; };
-  }, [setSimulationEnabled]);
 
   // Startup health and environment checks. Failures are visible as a popup plus a restrained full-screen flash.
   useEffect(() => {

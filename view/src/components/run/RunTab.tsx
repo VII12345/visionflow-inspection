@@ -21,7 +21,6 @@ const LAYOUT_OPTIONS: { id: RunLayoutId; label: string; columns: number }[] = [
 const clampColumns = (columns: number) => Math.min(4, Math.max(1, Math.round(columns) || 2));
 export const RunTab: React.FC = () => {
   const isRunning = useAppStore(s => s.isRunning);
-  const simulationEnabled = useAppStore(s => s.simulationEnabled);
   const [layout, setLayout] = useState<RunLayout>(() => storage.getRunLayout());
   const [customColumnsDraft, setCustomColumnsDraft] = useState(String(layout.columns || 2));
   const [customOrderDraft, setCustomOrderDraft] = useState(layout.order.join(', '));
@@ -58,8 +57,8 @@ export const RunTab: React.FC = () => {
     togglePopoutCam(camId);
   }, [togglePopoutCam]);
 
-  const status = useSystemPolling(isRunning, simulationEnabled);
-  const frames = useFrameUpdater(isRunning, simulationEnabled);
+  const status = useSystemPolling(isRunning);
+  const frames = useFrameUpdater(isRunning);
 
   // Sync model learned status from backend
   const [products, setProducts] = React.useState(storage.getProducts());
@@ -218,23 +217,15 @@ export const RunTab: React.FC = () => {
     if (!user) { setModal('login', true); return; }
     if (isRunning) { showMessage('系统已在运行中'); return; }
     try {
-      if (simulationEnabled) {
-        const result = await api.startSimulation();
-        if (result.success) {
-          setRunning(true);
-          showMessage('模拟运行已启动，等待接口接收图片');
-        } else {
-          showMessage('模拟启动失败: ' + (result.error || result.message || '未知错误'));
-        }
-        return;
-      }
       const cfg = storage.getLineConfig();
       const prods = storage.getProducts();
       const camProducts: Record<number, string> = {};
       for (const item of cfg) {
         if (item.productId) {
           const prod = prods.find(p => p.id === item.productId);
-          if (prod?.learned) camProducts[item.line] = prod.model;
+          if (prod?.learned) {
+            camProducts[item.line] = prod.model;
+          }
         }
       }
       const result = await api.start(camProducts, lineCount);
@@ -265,22 +256,22 @@ export const RunTab: React.FC = () => {
         details: [message],
       });
     }
-  }, [user, isRunning, simulationEnabled, lineCount, setModal, showMessage, raiseAlarm, setRunning]);
+  }, [user, isRunning, lineCount, setModal, showMessage, raiseAlarm, setRunning]);
 
   const stopSystem = useCallback(async () => {
     if (!isRunning) { showMessage('系统已停止'); return; }
     try {
-      const result = simulationEnabled ? await api.stopSimulation() : await api.stop();
+      const result = await api.stop();
       if ((result as { success: boolean }).success) {
         setRunning(false);
-        showMessage(simulationEnabled ? '模拟运行已停止' : '系统已停止检测');
+        showMessage('系统已停止检测');
       } else {
-        showMessage('停止失败: ' + ((result as { message?: string; error?: string }).message || (result as { error?: string }).error || '未知错误'));
+        showMessage('停止失败: ' + (result as { message?: string }).message);
       }
     } catch (e) {
       showMessage('停止失败: ' + (e as Error).message);
     }
-  }, [isRunning, simulationEnabled, setRunning, showMessage]);
+  }, [isRunning, setRunning, showMessage]);
 
   const totalStats = { ok: 0, ng: 0, total: 0 };
   for (let i = 1; i <= lineCount; i++) {
