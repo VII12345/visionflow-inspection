@@ -124,7 +124,7 @@ const TIMING_SUMMARY_EXPLANATIONS: Record<string, string> = {
 
 const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors placeholder:text-text-tertiary';
 
-type TestMode = 'labeled' | 'unlabeled';
+type TestMode = 'labeled' | 'unlabeled' | 'simulated';
 
 interface TestResult {
   filename: string;
@@ -264,6 +264,7 @@ export const TestTab: React.FC = () => {
 
   // Unlabeled mode path
   const [folderPath, setFolderPath] = useState('');
+  const [simulatedFile, setSimulatedFile] = useState<File | null>(null);
   const [pickerTarget, setPickerTarget] = useState<'categoryRoot' | 'folder' | null>(null);
 
   const [testing, setTesting] = useState(false);
@@ -327,6 +328,17 @@ export const TestTab: React.FC = () => {
     setTesting(true);
 
     try {
+      if (mode === 'simulated') {
+        if (!simulatedFile) { setError('请选择一张图片'); setTesting(false); return; }
+        const data = await api.testSimulatedRun(simulatedFile, 1, selectedModel);
+        if (data.success) {
+          setResult({ total: data.total || 1, timing: data.timing as typeof result extends null ? never : NonNullable<typeof result>['timing'], results: (data.results || []) as unknown as NonNullable<typeof result>['results'] });
+        } else {
+          setError(data.error || '模拟运行测试失败');
+        }
+        return;
+      }
+
       const params: { model_name: string; mode: 'labeled' | 'unlabeled'; category_root_path?: string; folder_path?: string } = {
         model_name: selectedModel,
         mode,
@@ -375,31 +387,31 @@ export const TestTab: React.FC = () => {
             </select>
           </div>
           <div className="w-48">
-            <label className="text-xs text-text-secondary mb-1.5 block"><FieldHint text="分类测试需要类别根目录并能计算准确率；批量推理只需要图片目录，不要求标签。">测试模式</FieldHint></label>
+            <label className="text-xs text-text-secondary mb-1.5 block"><FieldHint text="分类测试需要类别根目录并能计算准确率；批量推理只需要图片目录；模拟运行会把上传图片送入真实检测流水线。">测试模式</FieldHint></label>
             <div className="flex rounded-md border border-gray-300 overflow-hidden">
               <button
-                onClick={() => { setMode('labeled'); setResult(null); }}
+                onClick={() => { setMode('labeled'); setResult(null); setSimulatedFile(null); }}
                 className={`flex-1 py-2 text-xs font-medium transition-colors ${mode === 'labeled' ? 'bg-accent text-white' : 'bg-white text-text-secondary hover:bg-gray-50'}`}
               >分类测试</button>
               <button
-                onClick={() => { setMode('unlabeled'); setResult(null); }}
+                onClick={() => { setMode('unlabeled'); setResult(null); setSimulatedFile(null); }}
                 className={`flex-1 py-2 text-xs font-medium transition-colors ${mode === 'unlabeled' ? 'bg-accent text-white' : 'bg-white text-text-secondary hover:bg-gray-50'}`}
               >批量推理</button>
+              <button
+                onClick={() => { setMode('simulated'); setResult(null); }}
+                className={`flex-1 py-2 text-xs font-medium transition-colors ${mode === 'simulated' ? 'bg-accent text-white' : 'bg-white text-text-secondary hover:bg-gray-50'}`}
+              >模拟运行</button>
             </div>
           </div>
         </div>
 
-        <div className={`rounded-md border px-4 py-3 mb-4 ${mode === 'labeled' ? 'bg-blue-50/60 border-blue-100' : 'bg-emerald-50/60 border-emerald-100'}`}>
+        <div className={`rounded-md border px-4 py-3 mb-4 ${mode === 'labeled' ? 'bg-blue-50/60 border-blue-100' : mode === 'simulated' ? 'bg-violet-50/60 border-violet-100' : 'bg-emerald-50/60 border-emerald-100'}`}>
           {mode === 'labeled' ? (
-            <>
-              <div className="text-xs font-semibold text-accent mb-1">分类测试：模型性能测试</div>
-              <p className="text-[11px] text-text-secondary leading-5">用于验证模型准确率、各类别分类正确率和置信度表现。该模式重点关注识别结果是否正确，不代表真实产线的异步时序压力。</p>
-            </>
+            <><div className="text-xs font-semibold text-accent mb-1">分类测试：模型性能测试</div><p className="text-[11px] text-text-secondary leading-5">用于验证模型准确率、各类别分类正确率和置信度表现，不代表真实产线的异步时序压力。</p></>
+          ) : mode === 'simulated' ? (
+            <><div className="text-xs font-semibold text-violet-700 mb-1">模拟运行：从接口接收图片开始计时</div><p className="text-[11px] text-text-secondary leading-5">选择一张图片后，系统通过图片接口进入真实检测流水线，统计从接收图片开始到推理、结果处理和保存完成的各阶段耗时。</p></>
           ) : (
-            <>
-              <div className="text-xs font-semibold text-ok mb-1">批量推理：真实环境模拟测试</div>
-              <p className="text-[11px] text-text-secondary leading-5">逐张模拟产线流程：提交真实推理队列 → Worker 异步推理 → 输出结果 → 提交异步保存队列 → 等待实际写盘完成，并统计处理阶段延迟；读取图片本身不计入耗时。</p>
-            </>
+            <><div className="text-xs font-semibold text-ok mb-1">批量推理：真实环境模拟测试</div><p className="text-[11px] text-text-secondary leading-5">逐张模拟产线流程：提交真实推理队列 → Worker 异步推理 → 输出结果 → 提交异步保存队列 → 等待实际写盘完成，并统计处理阶段延迟。</p></>
           )}
         </div>
 
@@ -417,6 +429,12 @@ export const TestTab: React.FC = () => {
               </div>
             </div>
             <p className="text-[11px] text-text-tertiary">根目录下每个子文件夹代表一个类别，类别数量不限。网页版不能直接选择浏览器所在电脑的本地文件夹，测试图片需要位于后端电脑。</p>
+          </div>
+        ) : mode === 'simulated' ? (
+          <div>
+            <label className="text-xs text-text-secondary mb-1.5 block"><FieldHint text="选择一张图片，通过接口送入与真实相机相同的检测流水线。">模拟图片</FieldHint></label>
+            <input type="file" accept="image/*" onChange={e => setSimulatedFile(e.target.files?.[0] || null)} className={inputClass} />
+            <p className="text-[11px] text-text-tertiary mt-1">{simulatedFile ? `已选择：${simulatedFile.name}` : '请选择一张图片进行接口模拟运行测试。'}</p>
           </div>
         ) : (
           <div>
