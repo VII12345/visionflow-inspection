@@ -105,8 +105,8 @@ export const api = {
 
   // Models
   getModels: () => backendFetch<{ success: boolean; models: ModelInfo[] }>('/api/models'),
-  saveModelSettings: (modelName: string, rejectLabels: string[]) =>
-    backendFetch<{ success: boolean; model?: string; categories?: string[]; reject_labels?: string[]; error?: string }>(`/api/models/${encodeURIComponent(modelName)}/settings`, { method: 'POST', body: { reject_labels: rejectLabels } }),
+  saveModelSettings: (modelName: string, rejectLabels: string[], categoryDescriptions: Record<string, string> = {}) =>
+    backendFetch<{ success: boolean; model?: string; categories?: string[]; reject_labels?: string[]; category_descriptions?: Record<string, string>; error?: string }>(`/api/models/${encodeURIComponent(modelName)}/settings`, { method: 'POST', body: { reject_labels: rejectLabels, category_descriptions: categoryDescriptions } }),
 
   // Model testing
   testModel: (params: { model_name: string; mode: 'labeled' | 'unlabeled'; category_root_path?: string; class_a_path?: string; class_b_path?: string; folder_path?: string }) =>

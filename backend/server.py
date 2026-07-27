@@ -1943,6 +1943,11 @@ def list_models():
                 "reject_labels": [str(item) for item in metadata.get("reject_labels", []) if str(item) in categories]
                 if isinstance(metadata.get("reject_labels"), list)
                 else _get_model_reject_labels(name),
+                "category_descriptions": {
+                    str(key): str(value)
+                    for key, value in (metadata.get("category_descriptions", {}) or {}).items()
+                    if str(key) in categories and str(value).strip()
+                },
             })
     except Exception as e:
         logger.error(f"扫描模型文件失败: {e}")
@@ -1965,15 +1970,24 @@ def save_model_settings(model_name):
         label = str(item).strip()
         if label and label in categories and label not in reject_labels:
             reject_labels.append(label)
+    raw_descriptions = data.get("category_descriptions", {})
+    descriptions = {}
+    if isinstance(raw_descriptions, dict):
+        descriptions = {
+            category: str(raw_descriptions.get(category, "")).strip()
+            for category in categories
+            if str(raw_descriptions.get(category, "")).strip()
+        }
     metadata["categories"] = categories
     metadata["num_classes"] = len(categories)
     metadata["reject_labels"] = reject_labels
+    metadata["category_descriptions"] = descriptions
     try:
         metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     except OSError as exc:
         logger.error(f"保存模型设置失败: {exc}", exc_info=True)
         return jsonify({"success": False, "error": f"保存模型设置失败: {exc}"}), 500
-    return jsonify({"success": True, "model": model_name, "categories": categories, "reject_labels": reject_labels})
+    return jsonify({"success": True, "model": model_name, "categories": categories, "reject_labels": reject_labels, "category_descriptions": descriptions})
 
 
 # ========== 模型测试 API ==========

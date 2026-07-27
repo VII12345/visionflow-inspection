@@ -16,7 +16,7 @@ export const ModelSettingsTab: React.FC = () => {
     setLoading(true);
     try {
       const result = await api.getModels();
-      if (result.success) setModels(result.models || []);
+      if (result.success) setModels((result.models || []).map(model => ({ ...model, category_descriptions: model.category_descriptions || {} })));
     } catch (error) {
       showMessage(`模型列表加载失败: ${(error as Error).message}`);
     } finally {
@@ -27,6 +27,12 @@ export const ModelSettingsTab: React.FC = () => {
   useEffect(() => { void load(); }, [load]);
 
   const canEdit = user?.level === 'admin' || user?.level === 'tech';
+
+  const updateCategoryDescription = (modelName: string, label: string, description: string) => {
+    setModels(current => current.map(model => model.name === modelName
+      ? { ...model, category_descriptions: { ...model.category_descriptions, [label]: description } }
+      : model));
+  };
 
   const toggleRejectLabel = (modelName: string, label: string) => {
     setModels(current => current.map(model => {
@@ -45,7 +51,7 @@ export const ModelSettingsTab: React.FC = () => {
     }
     setSaving(model.name);
     try {
-      const result = await api.saveModelSettings(model.name, model.reject_labels);
+      const result = await api.saveModelSettings(model.name, model.reject_labels, model.category_descriptions);
       if (!result.success) throw new Error(result.error || '保存失败');
       showMessage(`模型“${model.name}”的剔除类别已保存`);
       await load();
@@ -63,7 +69,7 @@ export const ModelSettingsTab: React.FC = () => {
           <div>
             <h2 className="text-[15px] font-semibold text-text-primary">模型设置</h2>
             <p className="text-xs text-text-secondary mt-2 leading-5">
-              每个模型可以单独选择哪些类别需要剔除。实际检测时，系统会根据当前线体使用的模型读取这里的设置；没有勾选的类别不会触发 PLC 剔除信号。
+              每个模型可以单独选择哪些类别需要剔除。类别名称来自训练图片的子文件夹；如果名称是“类别1”“类别2”这类不直观的名称，可以在下方补充实际含义，方便现场人员识别。
             </p>
           </div>
           <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>刷新</Button>
@@ -93,11 +99,20 @@ export const ModelSettingsTab: React.FC = () => {
                 {model.categories.map(category => {
                   const checked = model.reject_labels.includes(category);
                   return (
-                    <label key={category} className={`flex items-center gap-2 rounded-md border px-3 py-2.5 text-xs cursor-pointer transition-colors ${checked ? 'border-red-200 bg-red-50 text-red-700' : 'border-gray-200 bg-white text-text-secondary hover:bg-gray-50'}`}>
-                      <input type="checkbox" checked={checked} disabled={!canEdit} onChange={() => toggleRejectLabel(model.name, category)} className="w-4 h-4 accent-red-600" />
-                      <span className="truncate">{category}</span>
-                      <span className="ml-auto text-[10px] text-text-tertiary">{checked ? '剔除' : '放行'}</span>
-                    </label>
+                    <div key={category} className={`rounded-md border px-3 py-2.5 text-xs transition-colors ${checked ? 'border-red-200 bg-red-50/60' : 'border-gray-200 bg-white'}`}>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={checked} disabled={!canEdit} onChange={() => toggleRejectLabel(model.name, category)} className="w-4 h-4 accent-red-600" />
+                        <span className="truncate text-text-primary">{category}</span>
+                        <span className="ml-auto text-[10px] text-text-tertiary">{checked ? '剔除' : '放行'}</span>
+                      </label>
+                      <input
+                        value={model.category_descriptions[category] || ''}
+                        onChange={event => updateCategoryDescription(model.name, category, event.target.value)}
+                        disabled={!canEdit}
+                        placeholder="填写这个类别的实际含义"
+                        className="mt-2 w-full bg-white/80 border border-gray-200 rounded px-2 py-1 text-[11px] text-text-secondary outline-none focus:border-accent"
+                      />
+                    </div>
                   );
                 })}
               </div>

@@ -117,6 +117,7 @@ export interface ModelInfo {
   categories: string[];
   num_classes: number;
   reject_labels: string[];
+  category_descriptions: Record<string, string>;
 }
 
 export interface PlcCameraMapping {
