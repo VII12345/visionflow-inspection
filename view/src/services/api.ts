@@ -95,7 +95,6 @@ export const api = {
 
   // Image simulation
   simulateFrame: (file: File, cameraId = 1, modelName?: string) => uploadImage<{ success: boolean; source?: string; camera_id?: number; result?: Record<string, unknown>; timing?: Record<string, unknown>; error?: string }>('/api/simulate/frame', file, { camera_id: cameraId, ...(modelName ? { model_name: modelName } : {}) }),
-  testSimulatedRun: (file: File, cameraId = 1, modelName?: string) => uploadImage<{ success: boolean; mode?: string; total?: number; timing?: Record<string, unknown>; results?: Array<Record<string, unknown>>; error?: string }>('/api/test/simulated-run', file, { camera_id: cameraId, ...(modelName ? { model_name: modelName } : {}) }),
 
   // Training
   startTraining: (params: { categoryRootPath?: string; classAPath?: string; classBPath?: string; folderPath?: string; modelName: string }) =>
