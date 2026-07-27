@@ -20,6 +20,8 @@ interface AppState {
   // System
   isRunning: boolean;
   setRunning: (running: boolean) => void;
+  simulationEnabled: boolean;
+  setSimulationEnabled: (enabled: boolean) => void;
   lineCount: number;
   catalogRevision: number;
   setLineCount: (count: number) => void;
@@ -84,6 +86,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     return u ? { ...u, password: '' } : null;
   })(),
   isRunning: false,
+  simulationEnabled: false,
   lineCount: storage.getLineCount(),
   catalogRevision: 0,
   activeTab: 'run',
@@ -141,6 +144,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setRunning: (running) => set({ isRunning: running }),
+  setSimulationEnabled: (enabled) => set({ simulationEnabled: enabled }),
   setLineCount: (count) => {
     const nextCount = storage.saveLineCount(count);
     set({ lineCount: nextCount });

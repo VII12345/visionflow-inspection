@@ -28,6 +28,7 @@ a = Analysis(
         'torch.cuda.amp',
         'numpy',
         'backend.server',
+        'backend.simulation_runtime',
         'backend.config',
         'backend.logger',
         'backend.training',

@@ -13,6 +13,8 @@ export const SettingsTab: React.FC = () => {
   const setModal = useAppStore(s => s.setModal);
   const setCameraConfigCamId = useAppStore(s => s.setCameraConfigCamId);
   const isRunning = useAppStore(s => s.isRunning);
+  const simulationEnabled = useAppStore(s => s.simulationEnabled);
+  const setSimulationEnabled = useAppStore(s => s.setSimulationEnabled);
   const lineCount = useAppStore(s => s.lineCount);
   const setLineCount = useAppStore(s => s.setLineCount);
   const showMessage = useAppStore(s => s.showMessage);
@@ -22,6 +24,7 @@ export const SettingsTab: React.FC = () => {
   const [filter, setFilter] = useState('');
   const [selectedModel, setSelectedModel] = useState<{ model: string; id: number } | null>(null);
   const [lineCountDraft, setLineCountDraft] = useState(String(lineCount));
+  const [savingSimulation, setSavingSimulation] = useState(false);
 
   // Training progress from store (persists across tab switches)
   const trainingRunning = useAppStore(s => s.trainingRunning);
@@ -71,6 +74,15 @@ export const SettingsTab: React.FC = () => {
   useEffect(() => {
     (async () => {
       try {
+        const config = await api.getDeviceConfig();
+        if (config.success) setSimulationEnabled(Boolean(config.config.simulation_enabled));
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
         const hw = await api.getHardware();
         if (hw.success) setHwInfo(hw.hardware);
       } catch { /* ignore */ }
@@ -81,6 +93,28 @@ export const SettingsTab: React.FC = () => {
     const interval = setInterval(refresh, 10000);
     return () => clearInterval(interval);
   }, [refresh]);
+
+  const toggleSimulation = async (enabled: boolean) => {
+    if (isRunning) {
+      showMessage('系统运行中不能修改模拟运行开关');
+      return;
+    }
+    setSavingSimulation(true);
+    try {
+      const current = await api.getDeviceConfig();
+      const result = await api.saveDeviceConfig({
+        ...current.config,
+        simulation_enabled: enabled,
+      });
+      if (!result.success) throw new Error(result.message || '保存模拟运行开关失败');
+      setSimulationEnabled(enabled);
+      showMessage(enabled ? '已启用模拟运行功能' : '已关闭模拟运行功能');
+    } catch (e) {
+      showMessage('保存模拟运行开关失败: ' + ((e as Error).message || '未知错误'));
+    } finally {
+      setSavingSimulation(false);
+    }
+  };
 
   const saveLineCount = async () => {
     const nextCount = Number(lineCountDraft);
@@ -286,6 +320,25 @@ export const SettingsTab: React.FC = () => {
           </div>
           <p className="text-[11px] text-text-tertiary mt-3">支持 1-16 条线体；保存后运行界面 CAM 数量、帧轮询和相机配置入口同步更新。</p>
         </div>
+
+        {/* Simulation */}
+        <div className="bg-white rounded-lg shadow-card border border-gray-100 p-6">
+          <h3 className="text-[15px] font-semibold text-text-primary mb-3">模拟运行</h3>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={simulationEnabled}
+              disabled={!user || (user.level !== 'admin' && user.level !== 'tech') || isRunning || savingSimulation}
+              onChange={e => toggleSimulation(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-accent"
+            />
+            <span>
+              <span className="block text-[13px] text-text-primary font-medium">启用接口接收图片模拟运行</span>
+              <span className="block text-[11px] text-text-tertiary mt-1 leading-5">默认关闭。打开后，模拟运行测试和稳定性测试脚本才可以通过接口送入图片；真实相机运行方式不变。系统运行中不能修改此开关。</span>
+            </span>
+          </label>
+        </div>
+
         {/* Camera Config */}
         <div className="bg-white rounded-lg shadow-card border border-gray-100 p-6">
           <h3 className="text-[15px] font-semibold text-text-primary mb-4">相机参数设置</h3>
