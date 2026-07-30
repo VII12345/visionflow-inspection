@@ -39,6 +39,7 @@ camera_manager = None
 cameras = {}  # {cam_id: camera_instance}
 camera_states = {}  # {cam_id: state_dict}
 system_running = False
+line_enabled = {i: True for i in range(1, Config.CAMERA_COUNT + 1)}
 latest_frames = {}  # {cam_id: PIL.Image}
 latest_results = {}  # {cam_id: {label, confidence, timestamp}}
 stats = {i: {"detected": 0, "defective": 0} for i in range(1, Config.CAMERA_COUNT + 1)}
@@ -649,9 +650,10 @@ def _load_line_count():
 
 def _apply_line_count(count):
     """更新运行时线体/相机槽位数量，并补齐相机配置。"""
-    global stats
+    global stats, line_enabled
     count = _normalize_line_count(count)
     Config.CAMERA_COUNT = count
+    line_enabled = {i: line_enabled.get(i, True) for i in range(1, count + 1)}
     camera_config_manager.ensure_camera_slots(count)
     stats = {
         i: stats.get(i, {"detected": 0, "defective": 0})
@@ -975,20 +977,88 @@ def test_reject_signal(cam_id):
         ), 502
 
 
+def _stop_camera(cam_id):
+    """停止并清理单个相机实例。"""
+    cam = cameras.pop(cam_id, None)
+    if cam is not None:
+        try:
+            cam.stop_grabbing()
+        except Exception as e:
+            logger.warning(f"Cam{cam_id} 停止取流失败: {e}")
+        try:
+            cam.disconnect()
+        except Exception as e:
+            logger.warning(f"Cam{cam_id} 断开失败: {e}")
+    if cam_id in camera_states:
+        camera_states[cam_id]["state"] = "ready"
+        camera_states[cam_id]["error"] = None
+        camera_states[cam_id]["fps"] = 0
+
+
+def _start_camera(cam_id, cam_config, available_cameras):
+    """按配置连接并启动单个相机，返回 (success, error_message)。"""
+    target_ip = cam_config.get("ip")
+    device_index = next(
+        (idx for idx, cam_info in enumerate(available_cameras) if cam_info.get("ip") == target_ip),
+        None,
+    )
+    if device_index is None:
+        error_msg = f"Cam{cam_id} 未找到IP为 {target_ip} 的相机"
+        camera_states[cam_id]["state"] = "error"
+        camera_states[cam_id]["error"] = f"未找到IP: {target_ip}"
+        logger.warning(error_msg)
+        return False, error_msg
+
+    _stop_camera(cam_id)
+    try:
+        cam = camera_manager.create_camera(cam_id, device_index)
+        cameras[cam_id] = cam
+        cam.connect()
+        cam.set_exposure_time(cam_config.get("exposureTime", 5000))
+        cam.set_gain(cam_config.get("gain", 0))
+        cam.set_trigger_delay(cam_config.get("triggerDelay", 0))
+        cam.set_line_debouncer(cam_config.get("lineDebouncerTime", 50))
+        cam.set_strobe(
+            cam_config.get("strobeEnable", False),
+            cam_config.get("strobeDelay", 0),
+            cam_config.get("strobeDuration", 1000),
+        )
+        cam.start_grabbing(
+            trigger_source=cam_config.get("triggerSource", "Line0"),
+            trigger_activation=cam_config.get("triggerActivation", "RisingEdge"),
+        )
+        cam.trigger_timeout = cam_config.get("triggerTimeout", 30000)
+        threading.Thread(target=camera_worker, args=(cam_id,), daemon=True).start()
+
+        info = cam.get_info()
+        camera_states[cam_id]["state"] = "running"
+        camera_states[cam_id]["triggerMode"] = "hardware"
+        camera_states[cam_id]["totalTriggers"] = 0
+        camera_states[cam_id]["serial"] = info["serial"]
+        camera_states[cam_id]["model"] = info["model"]
+        camera_states[cam_id]["ip"] = info.get("ip")
+        camera_states[cam_id]["error"] = None
+        logger.info(f"Cam{cam_id} 启动成功: {info['model']} ({target_ip})")
+        return True, None
+    except Exception as e:
+        error_msg = f"Cam{cam_id} 启动失败: {str(e)}"
+        logger.error(error_msg)
+        _stop_camera(cam_id)
+        camera_states[cam_id]["state"] = "error"
+        camera_states[cam_id]["error"] = str(e)
+        return False, error_msg
+
+
 @app.route("/api/start", methods=["POST"])
 def start_system():
-    """启动所有相机"""
-    global system_running
+    """启动选中的相机；未传 camera_ids 时启动所有已启用相机。"""
+    global system_running, line_enabled
 
     if system_running:
         return jsonify({"success": False, "message": "系统已在运行中"})
 
     try:
         logger.info("启动系统...")
-
-        # 读取摄像头-产品映射（前端传入）
-        from .inference_worker import set_camera_product
-
         data = request.get_json(silent=True) or {}
         requested_count = data.get("line_count")
         if requested_count is not None:
@@ -996,165 +1066,146 @@ def start_system():
                 _apply_line_count(requested_count)
             except (TypeError, ValueError):
                 return jsonify({"success": False, "message": "线体数量无效"}), 400
+
         cam_products = data.get("camProducts", {})
         for cam_id_str, model_name in cam_products.items():
             set_camera_product(int(cam_id_str), model_name if model_name else None)
         logger.info(f"摄像头-产品映射: {cam_products}")
 
         if camera_manager is None:
-            return jsonify(
-                {
-                    "success": False,
-                    "message": "相机管理器未初始化，请检查 MVS SDK 安装或查看环境检测结果",
-                }
-            ), 500
+            return jsonify({
+                "success": False,
+                "message": "相机管理器未初始化，请检查 MVS SDK 安装或查看环境检测结果",
+            }), 500
 
-        system_running = True
-
-        # 获取启用的相机配置
         enabled_cameras = camera_config_manager.get_enabled_cameras()
+        requested_ids = data.get("camera_ids")
+        if requested_ids is not None:
+            try:
+                requested_ids = {int(cam_id) for cam_id in requested_ids}
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "message": "线路选择无效"}), 400
+            invalid_ids = requested_ids - set(range(1, Config.CAMERA_COUNT + 1))
+            if invalid_ids:
+                return jsonify({"success": False, "message": "线路选择超出范围"}), 400
+            line_enabled = {i: i in requested_ids for i in range(1, Config.CAMERA_COUNT + 1)}
+            enabled_cameras = {
+                cam_id: cam_config
+                for cam_id, cam_config in enabled_cameras.items()
+                if cam_id in requested_ids
+            }
+        else:
+            requested_ids = {i for i in range(1, Config.CAMERA_COUNT + 1) if line_enabled.get(i, True)}
+            enabled_cameras = {
+                cam_id: cam_config
+                for cam_id, cam_config in enabled_cameras.items()
+                if cam_id in requested_ids
+            }
 
         if not enabled_cameras:
-            logger.warning("没有启用的相机配置")
-            system_running = False
-            return jsonify(
-                {
-                    "success": False,
-                    "message": "没有启用的相机，请先在设置中配置相机IP地址",
-                }
-            ), 400
+            logger.warning("没有选中的已启用相机配置")
+            return jsonify({
+                "success": False,
+                "message": "没有选中的相机，请先启用线路并配置相机IP地址",
+            }), 400
 
-        # 枚举可用的物理相机
+        system_running = True
         available_cameras = camera_manager.enumerate_cameras()
         logger.info(f"检测到 {len(available_cameras)} 台物理相机")
-
-        # 根据配置的IP地址匹配相机
-        started_count = 0
+        started_cameras = []
         errors = []
 
         for cam_id, cam_config in enabled_cameras.items():
-            target_ip = cam_config["ip"]
-            logger.info(f"尝试连接 Cam{cam_id} (IP: {target_ip})...")
-
-            # 在枚举的相机中查找匹配的IP
-            device_info = None
-            device_index = None
-
-            for idx, cam_info in enumerate(available_cameras):
-                if cam_info.get("ip") == target_ip:
-                    device_info = cam_info
-                    device_index = idx
-                    break
-
-            if device_info is None:
-                error_msg = f"Cam{cam_id} 未找到IP为 {target_ip} 的相机"
-                logger.warning(error_msg)
+            ok, error_msg = _start_camera(cam_id, cam_config, available_cameras)
+            if ok:
+                started_cameras.append(cam_id)
+            elif error_msg:
                 errors.append(error_msg)
-                camera_states[cam_id]["state"] = "error"
-                camera_states[cam_id]["error"] = f"未找到IP: {target_ip}"
-                continue
 
-            try:
-                # 创建并连接相机
-                cam = camera_manager.create_camera(cam_id, device_index)
-                cameras[cam_id] = cam
-                cam.connect()
-
-                # 设置曝光和增益
-                exposure_time = cam_config.get("exposureTime", 5000)
-                gain = cam_config.get("gain", 0)
-                cam.set_exposure_time(exposure_time)
-                cam.set_gain(gain)
-
-                # 设置触发延时
-                trigger_delay = cam_config.get("triggerDelay", 0)
-                cam.set_trigger_delay(trigger_delay)
-
-                # 设置线路滤波（防误触发）
-                debouncer = cam_config.get("lineDebouncerTime", 50)
-                cam.set_line_debouncer(debouncer)
-
-                # 设置频闪输出（外部光源控制）
-                strobe_enable = cam_config.get("strobeEnable", False)
-                cam.set_strobe(
-                    strobe_enable,
-                    cam_config.get("strobeDelay", 0),
-                    cam_config.get("strobeDuration", 1000),
-                )
-
-                # 读取触发配置并启动取流
-                trigger_source = cam_config.get("triggerSource", "Line0")
-                trigger_activation = cam_config.get("triggerActivation", "RisingEdge")
-                trigger_timeout = cam_config.get("triggerTimeout", 30000)
-                cam.start_grabbing(
-                    trigger_source=trigger_source, trigger_activation=trigger_activation
-                )
-                # 将超时存入相机实例，worker 使用
-                cam.trigger_timeout = trigger_timeout
-
-                # 启动相机工作线程
-                thread = threading.Thread(
-                    target=camera_worker, args=(cam_id,), daemon=True
-                )
-                thread.start()
-
-                # 更新状态
-                camera_states[cam_id]["state"] = "running"
-                camera_states[cam_id]["triggerMode"] = "hardware"
-                camera_states[cam_id]["totalTriggers"] = 0
-                info = cam.get_info()
-                camera_states[cam_id]["serial"] = info["serial"]
-                camera_states[cam_id]["model"] = info["model"]
-                camera_states[cam_id]["ip"] = info.get("ip")
-                camera_states[cam_id]["error"] = None
-
-                logger.info(f"Cam{cam_id} 启动成功: {info['model']} ({target_ip})")
-                started_count += 1
-
-            except Exception as e:
-                error_msg = f"Cam{cam_id} 启动失败: {str(e)}"
-                logger.error(error_msg)
-                errors.append(error_msg)
-                camera_states[cam_id]["state"] = "error"
-                camera_states[cam_id]["error"] = str(e)
-                # 断开已连接的相机，避免设备残留占用
-                try:
-                    if cam_id in cameras:
-                        cameras[cam_id].disconnect()
-                        del cameras[cam_id]
-                except Exception:
-                    pass
-
-        if started_count == 0:
+        if not started_cameras:
             system_running = False
-            return jsonify(
-                {"success": False, "message": "所有相机启动失败", "errors": errors}
-            ), 500
+            return jsonify({"success": False, "message": "所有选中的相机启动失败", "errors": errors}), 500
 
-        message = f"系统启动成功，启动了 {started_count}/{len(enabled_cameras)} 个相机"
+        message = f"系统启动成功，启动了 {len(started_cameras)}/{len(enabled_cameras)} 个相机"
         if errors:
             message += f"，{len(errors)} 个相机启动失败"
-
         logger.info(message)
-        return jsonify(
-            {
-                "success": True,
-                "message": message,
-                "started": started_count,
-                "total": len(enabled_cameras),
-                "errors": errors if errors else None,
-            }
-        )
-
+        return jsonify({
+            "success": True,
+            "message": message,
+            "started": len(started_cameras),
+            "started_cameras": started_cameras,
+            "total": len(enabled_cameras),
+            "errors": errors if errors else None,
+            "running": system_running,
+        })
     except Exception as e:
         logger.error(f"启动失败: {e}")
         system_running = False
         return jsonify({"success": False, "message": f"启动失败: {str(e)}"}), 500
 
 
+@app.route("/api/lines/<int:cam_id>", methods=["POST"])
+def set_line_enabled(cam_id):
+    """运行中实时启停单条线路；系统停止时也会保存线路选择。"""
+    global system_running, line_enabled
+
+    if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
+        return jsonify({"success": False, "message": "线路编号无效"}), 400
+
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data.get("enabled"), bool):
+        return jsonify({"success": False, "message": "enabled 必须是布尔值"}), 400
+
+    enabled = data["enabled"]
+    line_enabled[cam_id] = enabled
+    if not enabled:
+        _stop_camera(cam_id)
+        if not cameras:
+            system_running = False
+        return jsonify({
+            "success": True,
+            "enabled": False,
+            "running": system_running,
+            "message": f"线路 {cam_id} 已关闭",
+        })
+
+    if camera_manager is None:
+        line_enabled[cam_id] = False
+        return jsonify({"success": False, "message": "相机管理器未初始化"}), 500
+
+    cam_config = camera_config_manager.get_camera_config(cam_id)
+    if not cam_config or not cam_config.get("enabled") or not cam_config.get("ip"):
+        line_enabled[cam_id] = False
+        return jsonify({"success": False, "message": f"线路 {cam_id} 尚未配置可用相机"}), 400
+
+    try:
+        if not system_running:
+            system_running = True
+        available_cameras = camera_manager.enumerate_cameras()
+        ok, error_msg = _start_camera(cam_id, cam_config, available_cameras)
+        if not ok:
+            line_enabled[cam_id] = False
+            if not cameras:
+                system_running = False
+            return jsonify({"success": False, "message": error_msg or f"线路 {cam_id} 启动失败", "running": system_running}), 500
+        return jsonify({
+            "success": True,
+            "enabled": True,
+            "running": system_running,
+            "message": f"线路 {cam_id} 已启动",
+        })
+    except Exception as e:
+        line_enabled[cam_id] = False
+        if not cameras:
+            system_running = False
+        logger.error(f"线路 {cam_id} 启动失败: {e}")
+        return jsonify({"success": False, "message": str(e), "running": system_running}), 500
+
+
 @app.route("/api/stop", methods=["POST"])
 def stop_system():
-    """停止所有相机"""
+    """停止所有相机。"""
     global system_running
 
     if not system_running:
@@ -1163,16 +1214,10 @@ def stop_system():
     try:
         logger.info("停止系统...")
         system_running = False
-
-        # 停止所有相机
-        for i in range(1, Config.CAMERA_COUNT + 1):
-            if i in cameras:
-                cameras[i].stop_grabbing()
-                cameras[i].disconnect()
-                camera_states[i]["state"] = "ready"
-
+        for cam_id in list(cameras.keys()):
+            _stop_camera(cam_id)
         logger.info("系统停止成功")
-        return jsonify({"success": True, "message": "系统停止成功"})
+        return jsonify({"success": True, "message": "系统停止成功", "running": False})
     except Exception as e:
         logger.error(f"停止失败: {e}")
         return jsonify({"success": False, "message": f"停止失败: {str(e)}"}), 500
@@ -1186,6 +1231,7 @@ def get_status():
         state = camera_states[i]
         camera_status[str(i)] = {
             "state": state["state"],
+            "lineEnabled": line_enabled.get(i, True),
             "serial": state["serial"],
             "model": state["model"],
             "triggerMode": state["triggerMode"],

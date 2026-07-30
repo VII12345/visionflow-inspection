@@ -30,6 +30,9 @@ export const RunTab: React.FC = () => {
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const [resizeSession, setResizeSession] = useState<{ camId: number; startX: number; startY: number; colSpan: number; rowSpan: number } | null>(null);
   const lineCount = useAppStore(s => s.lineCount);
+  const [lineEnabled, setLineEnabled] = useState<Record<number, boolean>>(() =>
+    Object.fromEntries(Array.from({ length: lineCount }, (_, index) => [index + 1, true]))
+  );
   const catalogRevision = useAppStore(s => s.catalogRevision);
   const user = useAppStore(s => s.user);
   const canEditRun = user?.level !== 'operator';
@@ -228,7 +231,12 @@ export const RunTab: React.FC = () => {
           }
         }
       }
-      const result = await api.start(camProducts, lineCount);
+      const activeLineIds = Array.from({ length: lineCount }, (_, index) => index + 1).filter(camId => lineEnabled[camId] !== false);
+      if (activeLineIds.length === 0) {
+        showMessage('请至少启用一条线路');
+        return;
+      }
+      const result = await api.start(camProducts, lineCount, activeLineIds);
       const startResult = result as { success: boolean; message?: string; errors?: string[] };
       if (startResult.success) {
         setRunning(true);
@@ -256,7 +264,7 @@ export const RunTab: React.FC = () => {
         details: [message],
       });
     }
-  }, [user, isRunning, lineCount, setModal, showMessage, raiseAlarm, setRunning]);
+  }, [user, isRunning, lineCount, lineEnabled, setModal, showMessage, raiseAlarm, setRunning]);
 
   const stopSystem = useCallback(async () => {
     if (!isRunning) { showMessage('系统已停止'); return; }
@@ -273,6 +281,22 @@ export const RunTab: React.FC = () => {
     }
   }, [isRunning, setRunning, showMessage]);
 
+  const toggleLine = useCallback(async (camId: number) => {
+    if (!canEditRun) return;
+    const nextEnabled = lineEnabled[camId] === false;
+    try {
+      const result = await api.setLineEnabled(camId, nextEnabled);
+      if (result.success) {
+        setLineEnabled(previous => ({ ...previous, [camId]: nextEnabled }));
+        if (typeof result.running === 'boolean') setRunning(result.running);
+        showMessage(nextEnabled ? `线路 ${camId} 已启用` : `线路 ${camId} 已停用`);
+      } else {
+        showMessage(result.message || `线路 ${camId} 操作失败`);
+      }
+    } catch (error) {
+      showMessage(`线路 ${camId} 操作失败: ${(error as Error).message}`);
+    }
+  }, [canEditRun, lineEnabled, setRunning, showMessage]);
   const totalStats = { ok: 0, ng: 0, total: 0 };
   for (let i = 1; i <= lineCount; i++) {
     const s = status.cameras[i]?.stats;
@@ -383,6 +407,17 @@ export const RunTab: React.FC = () => {
                   )}
                 </span>
                 {canEditRun && <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => toggleLine(camId)}
+                    className={`text-xs px-2 py-1 rounded border transition-colors ${
+                      lineEnabled[camId] !== false
+                        ? 'border-emerald-200 bg-emerald-50 text-ok hover:bg-emerald-100'
+                        : 'border-gray-200 bg-gray-50 text-text-tertiary hover:bg-gray-100'
+                    }`}
+                    title={lineEnabled[camId] !== false ? '停用此线路' : '启用此线路'}
+                  >
+                    线体 {lineEnabled[camId] !== false ? '开' : '关'}
+                  </button>
                   <button
                     onClick={() => handlePopout(camId)}
                     className={`text-xs transition-colors ${

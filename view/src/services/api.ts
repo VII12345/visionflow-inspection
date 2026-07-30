@@ -52,9 +52,10 @@ export const api = {
   health: () => backendFetch<{ status: string }>('/api/health'),
 
   // System control
-  start: (camProducts?: Record<number, string>, lineCount?: number) => backendFetch<{ success: boolean; message?: string; errors?: string[] }>('/api/start', { method: 'POST', body: { camProducts, line_count: lineCount } }),
-  stop: () => backendFetch<{ success: boolean; message?: string }>('/api/stop', { method: 'POST' }),
-  status: () => backendFetch<{ cameras: Record<number, { state: string; result?: { label: string; confidence: number }; lastFrameTime?: string; totalTriggers?: number; stats?: { detected: number; defective: number }; error?: string }> }>('/api/status'),
+  start: (camProducts?: Record<number, string>, lineCount?: number, cameraIds?: number[]) => backendFetch<{ success: boolean; message?: string; errors?: string[]; started_cameras?: number[]; running?: boolean }>('/api/start', { method: 'POST', body: { camProducts, line_count: lineCount, camera_ids: cameraIds } }),
+  stop: () => backendFetch<{ success: boolean; message?: string; running?: boolean }>('/api/stop', { method: 'POST' }),
+  setLineEnabled: (camId: number, enabled: boolean) => backendFetch<{ success: boolean; enabled?: boolean; running?: boolean; message?: string }>(`/api/lines/${camId}`, { method: 'POST', body: { enabled } }),
+  status: () => backendFetch<{ cameras: Record<number, { state: string; lineEnabled?: boolean; result?: { label: string; confidence: number }; lastFrameTime?: string; totalTriggers?: number; stats?: { detected: number; defective: number }; error?: string }> }>('/api/status'),
 
   // Frames
   getFrame: (camId: number) => backendFetch<ArrayBuffer>(`/api/frame/${camId}`, { responseType: 'blob' }),

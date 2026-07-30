@@ -61,6 +61,7 @@ export interface SaveSettings {
 }
 
 export interface CameraStatus {
+  lineEnabled?: boolean;
   state: 'running' | 'disconnected' | 'ready' | 'error';
   result?: {
     label: string;
