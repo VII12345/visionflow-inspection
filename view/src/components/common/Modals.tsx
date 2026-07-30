@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { storage } from '../../services/storage';
+import { isTauri, selectLocalFolder } from '../../services/native';
 import { BackendDirectoryPicker, type BackendImageDirectory } from './BackendDirectoryPicker';
 import { Button, Modal } from '../common/Modal';
 import { FieldHint } from './FieldHint';
@@ -166,12 +167,12 @@ export const LearnConfirmModal: React.FC<{ onConfirm: (categoryRoot: string) => 
   const showMessage = useAppStore(s => s.showMessage);
 
   const browseLocalFolder = async () => {
-    if (!window.electronAPI?.selectFolder) {
+    if (!isTauri()) {
       showMessage('网页版暂不支持选择当前电脑的本地文件夹，请使用“选择后端目录”');
       return;
     }
     try {
-      const path = await window.electronAPI.selectFolder();
+      const path = await selectLocalFolder();
       if (path) setCategoryRoot(path);
     } catch (error) {
       showMessage(`选择本地目录失败: ${(error as Error).message}`);
@@ -208,3 +209,4 @@ export const LearnConfirmModal: React.FC<{ onConfirm: (categoryRoot: string) => 
     </>
   );
 };
+

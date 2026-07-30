@@ -67,3 +67,24 @@ Thumbs.db
 build_cpu/
 dist_portable_cpu/
 view/release_cpu_*/
+
+# Tauri generated build output and platform sidecars
+view/src-tauri/target/
+view/src-tauri/binaries/*
+!view/src-tauri/binaries/.gitkeep
+
+view/src-tauri/resources/
+
+
+dist_portable_tauri/
+build_tauri/
+pyinstaller-build-tauri-portable.log
+
+
+dist_portable_tauri_full/
+build_tauri_full/
+dist_tauri_full_installer/
+build_tauri_full_installer/
+pyinstaller-build-tauri-full.log
+pyinstaller-build-tauri-cpu.log
+

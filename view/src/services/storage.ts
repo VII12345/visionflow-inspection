@@ -1,14 +1,9 @@
 import type { User, Product, LineConfig, CameraConfig, CameraStats, SaveSettings, Photo, RunLayout } from '../types';
+import { getDataPath, isTauri, loadData, saveData } from './native';
 
-const isElectron = () => typeof window !== 'undefined' && window.electronAPI;
+let nativeDataPath = '浏览器本地存储';
 
 function get<T>(key: string, fallback: T): T {
-  if (isElectron()) {
-    try {
-      const data = window.electronAPI.loadData(key);
-      if (data !== null && data !== undefined) return data as T;
-    } catch { /* ignore */ }
-  }
   try {
     const raw = localStorage.getItem('vision_' + key);
     if (raw) return JSON.parse(raw);
@@ -17,12 +12,9 @@ function get<T>(key: string, fallback: T): T {
 }
 
 function set<T>(key: string, data: T): void {
-  if (isElectron()) {
-    try { window.electronAPI.saveData(key, data); } catch { /* ignore */ }
-  }
   localStorage.setItem('vision_' + key, JSON.stringify(data));
+  if (isTauri()) void saveData(key, data).catch(() => { /* keep local cache available */ });
 }
-
 const defaults = {
   users: [{ id: 1, name: 'admin', password: 'admin', level: 'admin' }] as User[],
   rememberLogin: true,
@@ -79,6 +71,19 @@ function normalizeLineConfig(raw: LineConfig[], count: number): LineConfig[] {
 }
 
 export const storage = {
+  initialize: async () => {
+    if (!isTauri()) return;
+    const keys = ['users', 'rememberLogin', 'products', 'lineCount', 'lineConfig', 'runLayout', 'cameraConfig', 'cameraStats', 'photos', 'saveSettings', 'currentUser'];
+    await Promise.all(keys.map(async key => {
+      try {
+        const data = await loadData(key);
+        if (data !== null && data !== undefined) localStorage.setItem('vision_' + key, JSON.stringify(data));
+      } catch { /* use the local cache/defaults */ }
+    }));
+    try {
+      nativeDataPath = await getDataPath();
+    } catch { /* keep browser label */ }
+  },
   getUsers: () => get('users', defaults.users),
   saveUsers: (users: User[]) => set('users', users),
 
@@ -140,14 +145,9 @@ export const storage = {
   getSaveSettings: () => get('saveSettings', defaults.saveSettings),
   saveSaveSettings: (st: Record<number, SaveSettings>) => set('saveSettings', st),
 
-  getStorageInfo: () => {
-    if (isElectron()) {
-      try {
-        return { type: 'encrypted' as const, path: window.electronAPI.getDataPath() };
-      } catch { /* ignore */ }
-    }
-    return { type: 'localStorage' as const, path: '浏览器本地存储' };
-  },
+  getStorageInfo: () => isTauri()
+    ? { type: 'encrypted' as const, path: nativeDataPath }
+    : { type: 'localStorage' as const, path: '浏览器本地存储' },
 
   getRememberLogin: () => Boolean(get('rememberLogin', defaults.rememberLogin)),
   setRememberLogin: (remember: boolean) => set('rememberLogin', remember),
@@ -156,3 +156,4 @@ export const storage = {
 };
 
 export default storage;
+

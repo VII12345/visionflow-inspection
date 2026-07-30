@@ -1,0 +1,32 @@
+[package]
+name = "vision-inspection"
+version = "2.0.0"
+description = "视觉检测系统 Tauri 桌面端"
+authors = ["Vision System"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "vision_inspection_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+tauri-plugin-dialog = "2"
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+aes-gcm = "0.10"
+scrypt = "0.11"
+hex = "0.4"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+default = ["custom-protocol"]
+
+
+

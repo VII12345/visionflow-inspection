@@ -1,7 +1,6 @@
-﻿# 视觉检测系统 V2.0 — CPU-only 免安装便携版一键打包脚本
-# 输出：仅 CPU PyTorch 的 Electron 便携目录；不携带 CUDA/cuDNN DLL。
+# 视觉检测系统 V2.0 — CPU-only Tauri 安装包一键打包脚本
+# 输出：仅 CPU PyTorch 的 Tauri Windows 安装包；不携带 CUDA/cuDNN DLL。
 # 用法：.\build_portable_cpu.ps1 [-Proxy http://127.0.0.1:10808]
-# GPU 版请继续使用 build_portable.ps1。
 
 param([string]$Proxy = "")
 
@@ -68,34 +67,41 @@ if ($gpuDlls) { throw "CPU 包检测到 GPU DLL，已终止发布: $(($gpuDlls.N
 $backendSize = Get-DirectorySizeMiB $BackendDir
 Write-Host "  ✓ CPU 后端完成 ($backendSize MB，未检测到 CUDA DLL)" -ForegroundColor Green
 
-Write-Host "[4/5] 组装 Electron CPU-only 便携目录..." -ForegroundColor Yellow
+Write-Host "[4/5] 组装 Tauri CPU-only sidecar 并生成安装包..." -ForegroundColor Yellow
 if (Test-Path -LiteralPath $ResourcesBackendDir) { Remove-Item -LiteralPath $ResourcesBackendDir -Recurse -Force }
 New-Item -ItemType Directory -Path $ResourcesBackendDir -Force | Out-Null
 Copy-Item (Join-Path $BackendDir '*') -Destination $ResourcesBackendDir -Recurse -Force
+
 Push-Location (Join-Path $ProjectRoot "view")
 try {
-    $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-    $electronOutput = "release_cpu_$timestamp"
-    npx electron-builder --win --dir --config.directories.output=$electronOutput
-    if ($LASTEXITCODE -ne 0) { throw "Electron Builder 构建失败" }
-    $releaseDir = Join-Path $ProjectRoot "view\$electronOutput\win-unpacked"
-    $builtExe = Join-Path $releaseDir "视觉检测系统.exe"
-    if (-not (Test-Path -LiteralPath $builtExe)) { throw "Electron 打包失败：未找到 $builtExe" }
-    Write-Host "[5/5] 整理 CPU-only 输出..." -ForegroundColor Yellow
-    $finalDir = Join-Path $OutputDir "视觉检测系统_CPU_免安装版"
-    if (Test-Path -LiteralPath $finalDir) { Remove-Item -LiteralPath $finalDir -Recurse -Force }
-    New-Item -ItemType Directory -Path $finalDir -Force | Out-Null
-    Copy-Item (Join-Path $releaseDir '*') -Destination $finalDir -Recurse -Force
+    npm run build
+    if ($LASTEXITCODE -ne 0) { throw "前端构建失败" }
+    npm run tauri:prepare
+    if ($LASTEXITCODE -ne 0) { throw "Tauri sidecar 准备失败" }
+    npx tauri build --bundles nsis
+    if ($LASTEXITCODE -ne 0) { throw "Tauri 构建失败" }
 }
 finally { Pop-Location }
 
-$batLines = @('@echo off', 'chcp 65001 >nul', 'title 视觉检测系统 V2.0 (CPU-only)', 'echo 正在启动 CPU-only 视觉检测系统...', 'start "" "视觉检测系统.exe"')
-$batPath = Join-Path $finalDir "启动系统_CPU版.bat"
+$bundleDir = Join-Path $ProjectRoot "view\src-tauri\target\release\bundle\nsis"
+$installer = Get-ChildItem -LiteralPath $bundleDir -Filter *.exe -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not $installer) { throw "Tauri CPU 构建完成但未找到 NSIS 安装包: $bundleDir" }
+
+Write-Host "[5/5] 整理 CPU-only 输出..." -ForegroundColor Yellow
+$finalDir = Join-Path $OutputDir "视觉检测系统_CPU_Tauri_安装包"
+if (Test-Path -LiteralPath $finalDir) { Remove-Item -LiteralPath $finalDir -Recurse -Force }
+New-Item -ItemType Directory -Path $finalDir -Force | Out-Null
+$finalInstaller = Join-Path $finalDir "视觉检测系统_CPU_Tauri_Setup.exe"
+Copy-Item -LiteralPath $installer.FullName -Destination $finalInstaller -Force
+$batLines = @('@echo off', 'chcp 65001 >nul', 'title 视觉检测系统 V2.0 CPU-only Tauri 版', 'echo 请先运行安装包完成安装，然后从开始菜单启动系统。')
+$batPath = Join-Path $finalDir "安装说明_CPU版.bat"
 [System.IO.File]::WriteAllLines($batPath, $batLines, [System.Text.UTF8Encoding]::new($true))
 $finalSize = Get-DirectorySizeMiB $finalDir
-Write-Host "✓ CPU-only 便携版打包完成：$finalDir ($finalSize MB)" -ForegroundColor Green
+Write-Host "✓ CPU-only Tauri 发布完成：$finalDir ($finalSize MB)" -ForegroundColor Green
 
-# 清理临时构建目录；保留 .venv_cpu，供下次 CPU 打包复用。
+# 清理临时构建目录；保留 .venv_cpu 和 Tauri target 供增量构建复用。
 if (Test-Path -LiteralPath $DistDir) { Remove-Item -LiteralPath $DistDir -Recurse -Force }
 if (Test-Path -LiteralPath $BuildDir) { Remove-Item -LiteralPath $BuildDir -Recurse -Force }
-if (Test-Path -LiteralPath (Join-Path $ProjectRoot "view\$electronOutput")) { Remove-Item -LiteralPath (Join-Path $ProjectRoot "view\$electronOutput") -Recurse -Force }
+
+
+

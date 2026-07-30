@@ -1,29 +1,23 @@
 import type { ModelInfo, PlcConfig } from '../types';
-const isElectron = typeof window !== 'undefined' && Boolean(window.electronAPI);
-const isWebPage = typeof window !== 'undefined' && window.location.protocol !== 'file:' && !isElectron;
+import { isTauri } from './native';
+const isWebPage = typeof window !== 'undefined' && window.location.protocol !== 'file:' && !isTauri();
 const configuredBackend = typeof window !== 'undefined'
   ? new URLSearchParams(window.location.search).get('backend')
   : null;
 // Web 模式优先使用同源 /api，由 Vite web:dev/web:preview 代理到后端，
 // 避免局域网浏览器的 Private Network Access 预检拦截 POST 请求。
-const API_BASE = isWebPage
-  ? (configuredBackend || '')
-  : 'http://127.0.0.1:5000';
+const API_BASE = isTauri()
+  ? 'http://127.0.0.1:5000'
+  : isWebPage
+    ? (configuredBackend || '')
+    : 'http://127.0.0.1:5000';
 
 async function backendFetch<T = unknown>(url: string, options?: {
   method?: string;
   body?: unknown;
   responseType?: string;
 }): Promise<T> {
-  if (window.electronAPI) {
-    return window.electronAPI.backendFetch(url, {
-      method: options?.method || 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      body: options?.body,
-      responseType: options?.responseType,
-    }) as Promise<T>;
-  }
-  // Fallback: direct fetch
+  // Direct fetch to the Flask backend
   const res = await fetch(`${API_BASE}${url}`, {
     method: options?.method || 'GET',
     headers: { 'Content-Type': 'application/json' },
@@ -159,3 +153,4 @@ export const api = {
 };
 
 export default api;
+

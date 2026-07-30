@@ -8,7 +8,7 @@
 
 ```
 ┌──────────────────────────────────┐
-│   Electron 桌面应用 (React/TS)    │
+│   Tauri 桌面应用 (React/TS)    │
 │   view/ — Vite + Tailwind CSS    │
 └──────────────┬───────────────────┘
                │ HTTP (Flask :5000)
@@ -29,7 +29,7 @@
 ### 运行环境
 
 - **Windows 10/11 64 位**
-- 免安装版用户无需单独安装 Python、Node.js；开发运行和重新打包需要 Python 3.9+、Node.js 18+
+- 免安装版用户无需单独安装 Python、Node.js；开发运行和重新打包需要 Python 3.9+、Node.js 18+、Rust stable 与 Cargo
 - 海康机器视觉 MVS 摄像头 SDK：请从[海康机器人机器视觉 SDK 下载页](https://www.hikrobotics.com/cn/machinevision/service/download/?module=0)下载并安装，与系统位数保持一致
 - PLC 服务：安装并运行[xeden3/LECPServer](https://github.com/xeden3/LECPServer)，并在系统“PLC”页面填写对应服务地址、节点前缀和超时
 - GigE 相机与后端电脑处于同一局域网；相机 IP、触发线和 PLC 网络可达
@@ -40,7 +40,7 @@
 - Python 3.9+（推荐 3.12）
 - Node.js 18+
 - 可访问 PyPI；CPU-only 打包还需要访问 PyTorch CPU wheel 源
-- GPU 版可使用项目现有 `build_portable.ps1`；CPU-only 版使用 `build_portable_cpu.ps1`，脚本会在独立 `.venv_cpu` 中安装 CPU PyTorch，不复用 GPU 虚拟环境
+- 当前发布链提供 CPU-only 和 GPU+CPU 完整两套：CPU-only 免安装版使用 `build_portable_tauri.ps1`，CPU-only NSIS 安装包使用 `build_portable_cpu.ps1`；完整版免安装使用 `build_portable_tauri_full.ps1`，完整版 NSIS 安装包使用 `build_installer_tauri_full.ps1`
 ## 快速开始（开发模式）
 
 ```powershell
@@ -61,11 +61,11 @@ npm install
 npm run dev
 ```
 
-浏览器打开 `http://127.0.0.1:5173`（Vite 开发服务器），或使用 Electron：
+浏览器打开 `http://127.0.0.1:5173`（Vite 开发服务器），或使用 Tauri：
 
 ```powershell
 cd view
-npm run electron:dev
+npm run tauri:dev
 ```
 
 局域网 Web 访问（在后端电脑执行）：
@@ -76,26 +76,33 @@ npm run web:dev
 # 其他设备浏览器访问 http://<后端电脑IP>:5173
 ```
 
-Web 模式下，训练和测试图片必须位于后端电脑；在页面中使用“选择后端目录”。Electron 模式仍可使用“选择本地目录”。
+Web 模式下，训练和测试图片必须位于后端电脑；在页面中使用“选择后端目录”。Tauri 模式仍可使用“选择本地目录”。
 
 ## 打包发布
 
 ```powershell
-.\build_portable.ps1
 ```
 
-输出到 `releases/视觉检测系统_免安装版/`，包含：
-- `视觉检测系统.exe` — Electron 前端
-- `resources/backend/backend.exe` — Flask 后端（PyInstaller 打包）
-- `启动系统.bat` — 一键启动脚本
+输出到 `releases/视觉检测系统_Tauri_CPU_免安装版/`，包含 CPU-only Tauri 便携目录：
+- `视觉检测系统.exe` — Tauri CPU-only 主程序
+- 目录内包含完整 CPU-only Flask 后端资源（PyInstaller 打包）
+- `视觉检测系统.exe` — 直接双击即可自动启动前端和后端
 
-### CPU-only 免安装版
+### Tauri CPU-only 免安装版
 
 ```powershell
-.\build_portable_cpu.ps1 [-Proxy http://127.0.0.1:10808]
+.\build_portable_tauri.ps1 [-Proxy http://127.0.0.1:10808]
 ```
 
-CPU 版使用独立的 CPU PyTorch 环境构建，打包脚本会检查产物中不包含 CUDA/cuDNN DLL，输出到 `releases/视觉检测系统_CPU_免安装版/`。生产电脑仍需要安装海康 MVS SDK，并准备可访问的 LECPServer 服务。
+输出到 `releases/视觉检测系统_Tauri_CPU_免安装版/`，目录内包含主程序、CPU-only Python 后端和 `data` 数据目录，直接双击 exe 即可自动启动前端和后端，可以整体复制到其他电脑运行，不需要安装 NSIS 安装包。
+
+### CPU-only Tauri NSIS 安装包
+
+```powershell
+.\build_installer_cpu.ps1 [-Proxy http://127.0.0.1:10808]
+```
+
+CPU 版使用独立的 CPU PyTorch 环境构建，打包脚本会检查产物中不包含 CUDA/cuDNN DLL，输出到 `releases/视觉检测系统_CPU_Tauri_安装包/`。生产电脑仍需要安装海康 MVS SDK，并准备可访问的 LECPServer 服务。
 ## 本轮功能更新
 
 - **多类别训练与推理**：训练目录不再限定为两类，类别根目录下每个包含图片的子目录都会成为一个类别；模型旁保存同名 JSON 元数据，推理、测试和统计使用真实类别名称。
@@ -103,7 +110,7 @@ CPU 版使用独立的 CPU PyTorch 环境构建，打包脚本会检查产物中
 - **内置说明书**：顶部问号按钮打开“说明书”页面，包含启动、训练、模型设置、PLC、测试、权限和历史照片操作说明；输入字段旁的问号会提示填写方法。
 - **用户自定义名称**：产品型号和线体名称均可在前端编辑，显示名称与后端模型/配置标识分离保存。
 - **线路独立开关**：运行页每条线体卡片都有独立的“线体 开/关”按钮，可在系统运行时单独启停线路，也可在总启动前选择需要运行的线路。
-- **打包后网页访问**：免安装版启动后，浏览器可访问 `http://127.0.0.1:5173`；局域网设备可使用后端电脑 IP 访问。
+- **打包后网页访问**：Tauri 应用启动后，浏览器可访问 `http://127.0.0.1:5173`；局域网设备可使用后端电脑 IP 访问。
 
 ### 多类别训练目录示例
 
@@ -143,9 +150,9 @@ PLC 配置默认保存在 `data/plc_config.json`，不再要求把服务地址�
 │   ├── camera_config_manager.py  # 相机参数持久化
 │   ├── env_check.py         # 启动环境检测
 │   └── logger.py            # 日志系统
-├── view/                    # Electron + React 前端
-│   ├── main.cjs             # Electron 主进程
-│   ├── js/preload.js        # 安全桥接
+├── view/                    # Tauri + React 前端
+│   ├── src-tauri/           # Tauri Rust 原生层与 sidecar 配置
+│   ├── scripts/             # sidecar 准备脚本
 │   └── src/                 # React 源码
 │       ├── components/      # UI 组件
 │       ├── services/        # API 客户端 & 存储
@@ -160,8 +167,9 @@ PLC 配置默认保存在 `data/plc_config.json`，不再要求把服务地址�
 ├── test/                    # 测试图片
 │   ├── <类别1>/                # 用户自定义类别样本
 │   └── <类别2>/                # 可继续增加更多类别
-├── build_portable.ps1       # 一键打包脚本
-├── backend.spec             # PyInstaller 配置
+├── build_portable_tauri.ps1 # CPU-only Tauri 免安装版
+├── build_portable_cpu.ps1   # CPU-only Tauri 安装包
+├── backend_cpu.spec         # CPU-only PyInstaller 配置
 └── requirements.txt         # Python 依赖
 ```
 
@@ -174,7 +182,7 @@ PLC 配置默认保存在 `data/plc_config.json`，不再要求把服务地址�
 - **运行页布局**：提供自适应网格、单列大图、双列标准、三列紧凑、四列总览、主视图 + 缩略图和自定义布局；CAM 卡片可拖拽交换，自定义布局支持独立缩放，布局持久化保存。
 - **启动异常提示**：环境检测、后端连接和相机连接异常会弹出报警，并以闪红提示提醒处理。
 - **模型性能**：服务启动时预加载并预热已训练模型；高分辨率图片先用 BOX 方式快速下采样，再用 LANCZOS 完成模型输入缩放。
-- **Web 与目录访问**：支持局域网浏览器访问；训练/测试可选择后端电脑上的图片目录，同时保留 Electron 本地目录选择。
+- **Web 与目录访问**：支持局域网浏览器访问；训练/测试可选择后端电脑上的图片目录，同时保留 Tauri 本地目录选择。
 - **测试计时口径**：测试复用真实异步推理和异步写盘链路；展示单张完整处理、流水线总耗时及分层步骤，已移除测试启动准备和读取图片本身的耗时。
 
 - **1–16 路相机实时检测** — 默认 4 路，硬件触发拍照，实时显示画面和检测结果
@@ -184,7 +192,7 @@ PLC 配置默认保存在 `data/plc_config.json`，不再要求把服务地址�
 - **PLC 自动剔除** — 在模型设置中选择剔除类别，在 PLC 页面维护连接地址和现场节点后写入寄存器
 - **历史照片管理** — 按相机和任意类别/未分类目录保存，支持预览、下载和保存开关
 - **模型测试** — 分类测试与批量推理，展示真实异步链路的分层延迟，不统计读取图片本身的耗时
-- **Web 与桌面双模式** — 支持局域网浏览器访问；Web 使用后端目录选择，Electron 可选择本地目录
+- **Web 与桌面双模式** — 支持局域网浏览器访问；Web 使用后端目录选择，Tauri 可选择本地目录
 - **三级权限** — 管理员（全部权限）/ 技术员（配置权限）/ 操作员（启停权限）
 - **环境检测与报警** — 启动时检测 MVS、Python、网络和相机状态，异常弹窗并闪红提示
 
@@ -201,7 +209,7 @@ PLC 配置默认保存在 `data/plc_config.json`，不再要求把服务地址�
 
 ## 网页版访问地址
 
-启动桌面程序或启动脚本后，系统会自动开启网页访问服务：
+启动桌面程序后，系统会自动开启网页访问服务：
 
 - 本机访问：`http://127.0.0.1:5173`
 - 局域网访问：`http://本机IP:5173`（将“本机IP”替换为运行程序电脑的实际 IP）
@@ -233,3 +241,32 @@ PLC 页面底部的相机节点映射数量会从后端当前保存的线体/相
 ## 无图像时的帧请求说明
 
 只有点击运行页的启动按钮后，前端才会开始轮询状态和最新画面。启动后某个相机尚未连接、尚未启动，或还没有收到第一张图片时，画面接口会返回“暂时无内容”（HTTP 204），不会被当成系统故障，也不会持续产生 404 错误。停止后会清理轮询。
+
+
+
+
+
+
+
+
+
+
+
+### GPU+CPU 完整版
+
+免安装版：
+
+```powershell
+.\build_portable_tauri_full.ps1 [-Proxy http://127.0.0.1:10808]
+```
+
+输出到 `releases/视觉检测系统_完整_免安装版/`，包含 CUDA/GPU 与 CPU 运行库。
+
+安装包版：
+
+```powershell
+.\build_installer_tauri_full.ps1 [-Proxy http://127.0.0.1:10808]
+```
+
+该版本体积较大。如果 NSIS 因体积或资源下载失败，使用上面的 GPU+CPU 完整免安装版即可。
+

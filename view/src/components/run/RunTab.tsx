@@ -5,6 +5,7 @@ import { api } from '../../services/api';
 import { storage } from '../../services/storage';
 import { Button, Badge } from '../common/Modal';
 import type { RunLayout, RunLayoutId } from '../../types';
+import { openCameraPopout, subscribeCameraPopoutClosed } from '../../services/native';
 
 
 
@@ -45,20 +46,31 @@ export const RunTab: React.FC = () => {
   const poppedOutCams = useAppStore(s => s.poppedOutCams);
   const togglePopoutCam = useAppStore(s => s.togglePopoutCam);
 
-  // Listen for camera popout close events (from main process)
+  // Listen for camera popout close events from Tauri child windows.
   useEffect(() => {
-    if (window.electronAPI?.onCameraPopoutClosed) {
-      window.electronAPI.onCameraPopoutClosed((camId: number) => {
-        togglePopoutCam(camId);
-      });
-    }
-  }, [togglePopoutCam, canEditRun]);
-
-  const handlePopout = useCallback((camId: number) => {
-    if (!canEditRun) return;
-    window.electronAPI?.openCameraPopout(camId);
-    togglePopoutCam(camId);
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    subscribeCameraPopoutClosed((camId: number) => {
+      togglePopoutCam(camId);
+    }).then(cleanup => {
+      if (active) unlisten = cleanup;
+      else cleanup();
+    });
+    return () => {
+      active = false;
+      unlisten?.();
+    };
   }, [togglePopoutCam]);
+
+  const handlePopout = useCallback(async (camId: number) => {
+    if (!canEditRun) return;
+    try {
+      await openCameraPopout(camId);
+      togglePopoutCam(camId);
+    } catch (error) {
+      showMessage(`打开相机窗口失败: ${(error as Error).message}`);
+    }
+  }, [canEditRun, showMessage, togglePopoutCam]);
 
   const status = useSystemPolling(isRunning);
   const frames = useFrameUpdater(isRunning);
@@ -476,3 +488,4 @@ export const RunTab: React.FC = () => {
     </div>
   );
 };
+

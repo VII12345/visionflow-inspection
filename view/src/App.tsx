@@ -8,6 +8,7 @@ import { SettingsTab } from './components/settings/SettingsTab';
 import { UserTab } from './components/user/UserTab';
 import { TestTab } from './components/test/TestTab';
 import { CameraDetailTab } from './components/camera/CameraDetailTab';
+import { CameraPopoutPage } from './components/camera/CameraPopoutPage';
 import { PlcTab } from './components/settings/PlcTab';
 import { ModelSettingsTab } from './components/settings/ModelSettingsTab';
 import { HelpTab } from './components/help/HelpTab';
@@ -21,7 +22,9 @@ import { storage } from './services/storage';
 import type { TabId } from './types';
 import { canAccessTab } from './services/permissions';
 
-const App: React.FC = () => {
+const STARTUP_CHECK_DELAY_MS = 7000;
+
+const MainApp: React.FC = () => {
   const activeTab = useAppStore(s => s.activeTab);
   const user = useAppStore(s => s.user);
   const loginModal = useAppStore(s => s.loginModal);
@@ -91,8 +94,11 @@ const App: React.FC = () => {
         }
       }
     };
-    checkEnvironment();
-    return () => { cancelled = true; };
+    const startupTimer = window.setTimeout(checkEnvironment, STARTUP_CHECK_DELAY_MS);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(startupTimer);
+    };
   }, [raiseAlarm, setEnvResult, showMessage]);
 
   useEffect(() => {
@@ -115,9 +121,16 @@ const App: React.FC = () => {
         });
       }
     };
-    checkHealth();
-    const interval = window.setInterval(checkHealth, 5000);
-    return () => { cancelled = true; window.clearInterval(interval); };
+    let interval: number | undefined;
+    const startupTimer = window.setTimeout(() => {
+      checkHealth();
+      interval = window.setInterval(checkHealth, 5000);
+    }, STARTUP_CHECK_DELAY_MS);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(startupTimer);
+      if (interval !== undefined) window.clearInterval(interval);
+    };
   }, [raiseAlarm]);
 
   // Storage info
@@ -204,4 +217,10 @@ const App: React.FC = () => {
   );
 };
 
+const App: React.FC = () => {
+  const match = window.location.hash.match(/^#\/camera-popout\/(\d+)$/);
+  return match ? <CameraPopoutPage camId={Number(match[1])} /> : <MainApp />;
+};
+
 export default App;
+

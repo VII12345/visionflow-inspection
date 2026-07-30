@@ -1,6 +1,6 @@
 """
 Flask HTTP 服务器
-提供 REST API 给 Electron 前端
+提供 REST API 给 React/Tauri 前端
 """
 
 import io
@@ -2571,3 +2571,4 @@ def run_server():
 
 if __name__ == "__main__":
     run_server()
+

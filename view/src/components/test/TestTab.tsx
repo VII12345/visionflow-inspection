@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { storage } from '../../services/storage';
+import { isTauri, selectLocalFolder } from '../../services/native';
 import { Button } from '../common/Modal';
 import { FieldHint } from '../common/FieldHint';
 import { useAppStore } from '../../store/useAppStore';
@@ -302,12 +303,12 @@ export const TestTab: React.FC = () => {
   }, [catalogRevision]);
 
   const browseLocalFolder = async (setter: (value: string) => void) => {
-    if (!window.electronAPI?.selectFolder) {
+    if (!isTauri()) {
       showMessage('网页版暂不支持选择当前电脑的本地文件夹，请使用“选择后端目录”');
       return;
     }
     try {
-      const path = await window.electronAPI.selectFolder();
+      const path = await selectLocalFolder();
       if (path) setter(path);
     } catch (reason) {
       showMessage(`选择本地目录失败: ${(reason as Error).message}`);
