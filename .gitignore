@@ -61,3 +61,9 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# CPU-only build environment and temporary outputs
+.venv_cpu/
+build_cpu/
+dist_portable_cpu/
+view/release_cpu_*/
