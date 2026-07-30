@@ -26,13 +26,21 @@
 
 ## 环境要求
 
-- **Windows 10/11 64位**
-- Python 3.9+ (推荐 3.12)
-- Node.js 18+
-- 海康 MVS SDK（安装在 `C:\Program Files (x86)\MVS`）
-- 可选：NVIDIA GPU + CUDA（CPU 也能跑；训练和推理设备可分别选择）
+### 运行环境
+
+- **Windows 10/11 64 位**
+- 免安装版用户无需单独安装 Python、Node.js；开发运行和重新打包需要 Python 3.9+、Node.js 18+
+- 海康机器视觉 MVS 摄像头 SDK：请从[海康机器人机器视觉 SDK 下载页](https://www.hikrobotics.com/cn/machinevision/service/download/?module=0)下载并安装，与系统位数保持一致
+- PLC 服务：安装并运行[xeden3/LECPServer](https://github.com/xeden3/LECPServer)，并在系统“PLC”页面填写对应服务地址、节点前缀和超时
+- GigE 相机与后端电脑处于同一局域网；相机 IP、触发线和 PLC 网络可达
 - 局域网 Web 模式：后端电脑与访问端处于同一局域网，开放 TCP 5000/5173 端口
 
+### 开发与打包环境
+
+- Python 3.9+（推荐 3.12）
+- Node.js 18+
+- 可访问 PyPI；CPU-only 打包还需要访问 PyTorch CPU wheel 源
+- GPU 版可使用项目现有 `build_portable.ps1`；CPU-only 版使用 `build_portable_cpu.ps1`，脚本会在独立 `.venv_cpu` 中安装 CPU PyTorch，不复用 GPU 虚拟环境
 ## 快速开始（开发模式）
 
 ```powershell
@@ -81,12 +89,20 @@ Web 模式下，训练和测试图片必须位于后端电脑；在页面中使�
 - `resources/backend/backend.exe` — Flask 后端（PyInstaller 打包）
 - `启动系统.bat` — 一键启动脚本
 
+### CPU-only 免安装版
+
+```powershell
+.\build_portable_cpu.ps1 [-Proxy http://127.0.0.1:10808]
+```
+
+CPU 版使用独立的 CPU PyTorch 环境构建，打包脚本会检查产物中不包含 CUDA/cuDNN DLL，输出到 `releases/视觉检测系统_CPU_免安装版/`。生产电脑仍需要安装海康 MVS SDK，并准备可访问的 LECPServer 服务。
 ## 本轮功能更新
 
 - **多类别训练与推理**：训练目录不再限定为两类，类别根目录下每个包含图片的子目录都会成为一个类别；模型旁保存同名 JSON 元数据，推理、测试和统计使用真实类别名称。
 - **独立 PLC 配置**：顶部新增“PLC”页面，可编辑启用开关、服务地址、节点名称前缀、超时、剔除类别和每个相机的时间/信号节点，并可直接发送测试写入。
 - **内置说明书**：顶部问号按钮打开“说明书”页面，包含启动、训练、模型设置、PLC、测试、权限和历史照片操作说明；输入字段旁的问号会提示填写方法。
 - **用户自定义名称**：产品型号和线体名称均可在前端编辑，显示名称与后端模型/配置标识分离保存。
+- **线路独立开关**：运行页每条线体卡片都有独立的“线体 开/关”按钮，可在系统运行时单独启停线路，也可在总启动前选择需要运行的线路。
 - **打包后网页访问**：免安装版启动后，浏览器可访问 `http://127.0.0.1:5173`；局域网设备可使用后端电脑 IP 访问。
 
 ### 多类别训练目录示例
