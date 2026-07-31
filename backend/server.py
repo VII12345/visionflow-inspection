@@ -29,6 +29,13 @@ from . import inference_worker
 from .env_check import run_environment_check
 from .plc_service import get_plc_config, save_plc_config, PlcWriteError, PlcService, plc_service
 from .runtime_state import runtime
+from .settings_repository import (
+    load_device_config as _load_device_config,
+    load_line_count as _load_line_count,
+    normalize_line_count as _normalize_line_count,
+    save_device_config as _save_device_config,
+    save_line_count as _save_line_count,
+)
 
 
 # 初始化 Flask
@@ -611,31 +618,6 @@ def hardware_info():
     return jsonify({"success": True, "hardware": info})
 
 
-# 设备配置持久化
-import json as _json
-
-_device_config_path = Config.DATA_DIR / "device_config.json"
-_line_count_path = Config.LINE_COUNT_FILE
-
-
-def _normalize_line_count(value):
-    try:
-        value = int(value)
-    except (TypeError, ValueError):
-        value = 4
-    return max(Config.MIN_CAMERA_COUNT, min(Config.MAX_CAMERA_COUNT, value))
-
-
-def _load_line_count():
-    if _line_count_path.exists():
-        try:
-            with open(_line_count_path, "r", encoding="utf-8") as f:
-                return _normalize_line_count(json.load(f).get("line_count"))
-        except Exception:
-            pass
-    return Config.CAMERA_COUNT
-
-
 def _apply_line_count(count):
     """更新运行时线体/相机槽位数量，并补齐相机配置。"""
     count = _normalize_line_count(count)
@@ -661,26 +643,7 @@ def _apply_line_count(count):
     for cam_id in list(runtime.camera_states):
         if cam_id > count and cam_id not in runtime.cameras:
             runtime.camera_states.pop(cam_id, None)
-    _line_count_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(_line_count_path, "w", encoding="utf-8") as f:
-        json.dump({"line_count": count}, f, indent=2)
-    return count
-
-
-def _load_device_config():
-    if _device_config_path.exists():
-        try:
-            with open(_device_config_path, "r", encoding="utf-8") as f:
-                return _json.load(f)
-        except Exception:
-            pass
-    return {"training_device": Config.DEVICE, "inference_device": Config.DEVICE}
-
-
-def _save_device_config(cfg):
-    _device_config_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(_device_config_path, "w", encoding="utf-8") as f:
-        _json.dump(cfg, f, indent=2)
+    return _save_line_count(count)
 
 
 @app.route("/api/settings/line-count", methods=["GET"])
