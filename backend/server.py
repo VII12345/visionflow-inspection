@@ -29,7 +29,7 @@ from . import inference_worker
 from .env_check import run_environment_check
 from .plc_service import get_plc_config, save_plc_config, PlcWriteError, PlcService, plc_service
 from .runtime_state import runtime
-from .hardware_service import collect_hardware_info
+from .system_routes import apply_line_count as _apply_line_count, system_bp
 from .settings_repository import (
     load_device_config as _load_device_config,
     load_line_count as _load_line_count,
@@ -50,6 +50,7 @@ from .photo_service import (
 # 初始化 Flask
 app = Flask(__name__)
 CORS(app)  # 允许跨域
+app.register_blueprint(system_bp)
 
 
 def initialize_camera_manager():
@@ -77,158 +78,6 @@ def initialize_camera_manager():
 
 
 # ========== API 端点 ==========
-
-
-@app.route("/api/health", methods=["GET"])
-def health():
-    """健康检查"""
-    cam_status = {}
-    for i in range(1, Config.CAMERA_COUNT + 1):
-        camera_state = runtime.get_camera_state(i)
-        if camera_state is not None:
-            cam_status[i] = camera_state["state"] != "disconnected"
-        else:
-            cam_status[i] = False
-    return jsonify(
-        {
-            "status": "ok",
-            "version": "2.0.0",
-            "cameras": cam_status,
-            "modelLoaded": inference_worker.model_loaded,
-            "running": runtime.system_running,
-            "dataDir": str(Config.DATA_DIR),
-        }
-    )
-
-
-@app.route("/api/env-check", methods=["GET"])
-def env_check():
-    """环境检测 — 返回所有检测项结果"""
-    if runtime.env_check_result is None:
-        runtime.env_check_result = run_environment_check()
-    return jsonify(runtime.env_check_result)
-
-
-@app.route("/api/hardware", methods=["GET"])
-def hardware_info():
-    """返回详细的 CPU/GPU/内存/硬盘 硬件信息，供前端展示和选择"""
-    return jsonify({"success": True, "hardware": collect_hardware_info()})
-
-def _apply_line_count(count):
-    """更新运行时线体/相机槽位数量，并补齐相机配置。"""
-    count = _normalize_line_count(count)
-    Config.CAMERA_COUNT = count
-    runtime.line_enabled = {i: runtime.line_enabled.get(i, True) for i in range(1, count + 1)}
-    camera_config_manager.ensure_camera_slots(count)
-    runtime.stats = {
-        i: runtime.stats.get(i, {"detected": 0, "defective": 0})
-        for i in range(1, count + 1)
-    }
-    for cam_id in range(1, count + 1):
-        runtime.camera_states.setdefault(cam_id, {
-            "state": "disconnected",
-            "serial": None,
-            "model": None,
-            "ip": None,
-            "triggerMode": "hardware",
-            "fps": 0,
-            "totalTriggers": 0,
-            "lastFrameTime": None,
-            "error": None,
-        })
-    for cam_id in list(runtime.camera_states):
-        if cam_id > count and cam_id not in runtime.cameras:
-            runtime.camera_states.pop(cam_id, None)
-    return _save_line_count(count)
-
-
-@app.route("/api/settings/line-count", methods=["GET"])
-def get_line_count():
-    """获取当前线体数量"""
-    return jsonify({"success": True, "line_count": Config.CAMERA_COUNT})
-
-
-@app.route("/api/settings/line-count", methods=["POST"])
-def update_line_count():
-    """保存并应用线体数量（1-16），运行中禁止修改。"""
-    if runtime.system_running:
-        return jsonify({"success": False, "message": "系统运行中不能修改线体数量"}), 409
-    data = request.get_json(silent=True) or {}
-    raw_count = data.get("line_count")
-    try:
-        count = int(raw_count)
-    except (TypeError, ValueError):
-        return jsonify({"success": False, "message": "线体数量必须是整数"}), 400
-    if not Config.MIN_CAMERA_COUNT <= count <= Config.MAX_CAMERA_COUNT:
-        return jsonify({"success": False, "message": f"线体数量应为 {Config.MIN_CAMERA_COUNT}-{Config.MAX_CAMERA_COUNT}"}), 400
-    try:
-        count = _apply_line_count(count)
-        return jsonify({"success": True, "message": "线体数量已保存", "line_count": count})
-    except Exception as e:
-        logger.error(f"保存线体数量失败: {e}")
-        return jsonify({"success": False, "message": str(e)}), 500
-
-@app.route("/api/settings/device", methods=["GET"])
-def get_device_config():
-    """获取设备选择配置"""
-    cfg = _load_device_config()
-    return jsonify({"success": True, "config": cfg})
-
-
-@app.route("/api/settings/device", methods=["POST"])
-def update_device_config():
-    """更新设备选择配置"""
-    import torch
-
-    data = request.get_json()
-    training_device = data.get("training_device", "").strip()
-    inference_device = data.get("inference_device", "").strip()
-
-    valid_devices = ["cpu"]
-    if torch.cuda.is_available():
-        valid_devices.append("cuda")
-
-    if training_device not in valid_devices:
-        return jsonify(
-            {"success": False, "message": f"无效的训练设备: {training_device}"}
-        ), 400
-    if inference_device not in valid_devices:
-        return jsonify(
-            {"success": False, "message": f"无效的推理设备: {inference_device}"}
-        ), 400
-
-    cfg = {"training_device": training_device, "inference_device": inference_device}
-    _save_device_config(cfg)
-
-    # 更新运行时配置
-    Config.DEVICE = inference_device
-    if hasattr(Config, "TRAINING_DEVICE"):
-        Config.TRAINING_DEVICE = training_device
-    else:
-        setattr(Config, "TRAINING_DEVICE", training_device)
-
-    # ── 即时生效：同步训练模块的全局设备 ──
-    try:
-        from .training import set_training_device
-
-        set_training_device(training_device)
-    except Exception as e:
-        logger.warning(f"同步训练设备失败: {e}")
-
-    # ── 即时生效：重载推理模型到新设备 ──
-    try:
-        from .inference_worker import reload_all_models
-
-        reload_all_models(inference_device)
-    except Exception as e:
-        logger.warning(f"重载推理模型失败: {e}")
-
-    logger.info(
-        f"设备配置已更新并生效: 训练={training_device}, 推理={inference_device}"
-    )
-    return jsonify(
-        {"success": True, "message": "设备配置已保存并即时生效", "config": cfg}
-    )
 
 
 @app.route("/api/cameras", methods=["GET"])
