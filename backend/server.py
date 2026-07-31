@@ -30,6 +30,8 @@ from .env_check import run_environment_check
 from .plc_service import get_plc_config, save_plc_config, PlcWriteError, PlcService, plc_service
 from .runtime_state import runtime
 from .camera_routes import camera_bp
+from .model_repository import get_model_reject_labels as _get_model_reject_labels
+from .model_routes import model_bp
 from .system_routes import apply_line_count as _apply_line_count, system_bp
 from .settings_repository import (
     load_device_config as _load_device_config,
@@ -53,6 +55,7 @@ app = Flask(__name__)
 CORS(app)  # 允许跨域
 app.register_blueprint(system_bp)
 app.register_blueprint(camera_bp)
+app.register_blueprint(model_bp)
 
 
 def initialize_camera_manager():
@@ -834,105 +837,6 @@ def camera_worker(cam_id):
             time.sleep(1)
 
     logger.info(f"Camera {cam_id} worker 停止（共处理 {frame_count} 张图片）")
-
-
-# ========== 模型设置辅助 ==========
-
-
-def _read_model_metadata(model_path, fallback_categories=None):
-    categories = list(fallback_categories or ["类别1", "类别2"])
-    metadata = {}
-    metadata_path = model_path.with_suffix(".json") if model_path else None
-    try:
-        if metadata_path and metadata_path.exists():
-            raw = json.loads(metadata_path.read_text(encoding="utf-8"))
-            if isinstance(raw, dict):
-                metadata = raw
-                if isinstance(raw.get("categories"), list) and raw["categories"]:
-                    categories = [str(item) for item in raw["categories"] if str(item).strip()]
-    except Exception as exc:
-        logger.warning(f"读取模型元数据失败: {exc}")
-    return metadata, categories, metadata_path
-
-
-def _get_model_reject_labels(model_name=None):
-    model_path = Config.get_active_model_path(model_name)
-    if model_path is None:
-        return list(get_plc_config().get("reject_labels", []))
-    metadata, categories, _ = _read_model_metadata(model_path)
-    stored = metadata.get("reject_labels")
-    if isinstance(stored, list):
-        return [str(item) for item in stored if str(item) in categories]
-    # 兼容旧模型：只有全局配置中的名称恰好属于该模型类别时才沿用。
-    return [str(item) for item in get_plc_config().get("reject_labels", []) if str(item) in categories]
-
-
-# ========== 模型管理 API ==========
-
-
-@app.route("/api/models", methods=["GET"])
-def list_models():
-    """扫描 data/ 目录，返回已训练模型及其剔除类别设置。"""
-    models = []
-    try:
-        for f in Config.DATA_DIR.glob("*_classifier_*.pth"):
-            name = f.stem.rsplit("_classifier_", 1)[-1]
-            stat = f.stat()
-            metadata, categories, _ = _read_model_metadata(f)
-            models.append({
-                "name": name,
-                "size": stat.st_size,
-                "mtime": stat.st_mtime,
-                "categories": categories,
-                "num_classes": len(categories),
-                "reject_labels": [str(item) for item in metadata.get("reject_labels", []) if str(item) in categories]
-                if isinstance(metadata.get("reject_labels"), list)
-                else _get_model_reject_labels(name),
-                "category_descriptions": {
-                    str(key): str(value)
-                    for key, value in (metadata.get("category_descriptions", {}) or {}).items()
-                    if str(key) in categories and str(value).strip()
-                },
-            })
-    except Exception as e:
-        logger.error(f"扫描模型文件失败: {e}")
-    return jsonify({"success": True, "models": models})
-
-
-@app.route("/api/models/<model_name>/settings", methods=["POST"])
-def save_model_settings(model_name):
-    """保存指定模型的剔除类别。"""
-    model_path = Config.get_active_model_path(model_name)
-    if model_path is None:
-        return jsonify({"success": False, "error": "模型不存在"}), 404
-    data = request.get_json(silent=True) or {}
-    metadata, categories, metadata_path = _read_model_metadata(model_path)
-    raw_labels = data.get("reject_labels", [])
-    if not isinstance(raw_labels, list):
-        return jsonify({"success": False, "error": "剔除类别格式无效"}), 400
-    reject_labels = []
-    for item in raw_labels:
-        label = str(item).strip()
-        if label and label in categories and label not in reject_labels:
-            reject_labels.append(label)
-    raw_descriptions = data.get("category_descriptions", {})
-    descriptions = {}
-    if isinstance(raw_descriptions, dict):
-        descriptions = {
-            category: str(raw_descriptions.get(category, "")).strip()
-            for category in categories
-            if str(raw_descriptions.get(category, "")).strip()
-        }
-    metadata["categories"] = categories
-    metadata["num_classes"] = len(categories)
-    metadata["reject_labels"] = reject_labels
-    metadata["category_descriptions"] = descriptions
-    try:
-        metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
-    except OSError as exc:
-        logger.error(f"保存模型设置失败: {exc}", exc_info=True)
-        return jsonify({"success": False, "error": f"保存模型设置失败: {exc}"}), 500
-    return jsonify({"success": True, "model": model_name, "categories": categories, "reject_labels": reject_labels, "category_descriptions": descriptions})
 
 
 # ========== 模型测试 API ==========
