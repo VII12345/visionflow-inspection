@@ -11,6 +11,20 @@ interface TrainingResult {
   valCount: number;
 }
 
+type ModalName = 'login' | 'changePwd' | 'addProduct' | 'learnConfirm' | 'envCheck' | 'cameraConfig' | 'trainingComplete' | 'all';
+
+type ModalStateKey = keyof Pick<AppState, 'loginModal' | 'changePwdModal' | 'addProductModal' | 'learnConfirmModal' | 'envCheckModal' | 'cameraConfigModal' | 'trainingCompleteModal'>;
+
+const MODAL_STATE_KEYS: Record<Exclude<ModalName, 'all'>, ModalStateKey> = {
+  login: 'loginModal',
+  changePwd: 'changePwdModal',
+  addProduct: 'addProductModal',
+  learnConfirm: 'learnConfirmModal',
+  envCheck: 'envCheckModal',
+  cameraConfig: 'cameraConfigModal',
+  trainingComplete: 'trainingCompleteModal',
+};
+
 interface AppState {
   // Auth
   user: User | null;
@@ -42,7 +56,7 @@ interface AppState {
   trainingCompleteModal: boolean;
   cameraConfigCamId: number | null;
   setCameraConfigCamId: (camId: number | null) => void;
-  setModal: (modal: string, open: boolean) => void;
+  setModal: (modal: ModalName, open: boolean) => void;
 
   // Training result
   trainingResult: TrainingResult;
@@ -166,8 +180,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setModal: (modal, open) => {
-    const key = `${modal}Modal` as keyof AppState;
-    set({ [key]: open } as unknown as Partial<AppState>);
+    if (modal === 'all') {
+      set({
+        loginModal: open,
+        changePwdModal: open,
+        addProductModal: open,
+        learnConfirmModal: open,
+        envCheckModal: open,
+        cameraConfigModal: open,
+        trainingCompleteModal: open,
+      });
+      return;
+    }
+    const key = MODAL_STATE_KEYS[modal];
+    set({ [key]: open } as Pick<AppState, ModalStateKey>);
   },
 
   showMessage: (msg) => {
