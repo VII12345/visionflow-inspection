@@ -30,8 +30,10 @@ from .env_check import run_environment_check
 from .plc_service import get_plc_config, save_plc_config, PlcWriteError, PlcService, plc_service
 from .runtime_state import runtime
 from .camera_routes import camera_bp
+from .capture_service import cleanup_photos, start_save_worker, submit_save
 from .model_repository import get_model_reject_labels as _get_model_reject_labels
 from .model_routes import model_bp
+from .photo_routes import photo_bp
 from .system_routes import apply_line_count as _apply_line_count, system_bp
 from .settings_repository import (
     load_device_config as _load_device_config,
@@ -41,14 +43,6 @@ from .settings_repository import (
     save_line_count as _save_line_count,
 )
 
-from .photo_service import (
-    cleanup_captures,
-    delete_photo as delete_photo_file,
-    find_photo,
-    list_camera_photos,
-    photo_mime,
-)
-
 
 # 初始化 Flask
 app = Flask(__name__)
@@ -56,6 +50,7 @@ CORS(app)  # 允许跨域
 app.register_blueprint(system_bp)
 app.register_blueprint(camera_bp)
 app.register_blueprint(model_bp)
+app.register_blueprint(photo_bp)
 
 
 def initialize_camera_manager():
@@ -406,56 +401,6 @@ def reset_stats(cam_id):
     return jsonify({"success": True, "stats": stats})
 
 
-# ========== 保存设置 API ==========
-
-_save_settings_path = Config.DATA_DIR / "save_settings.json"
-
-
-def _default_save_settings():
-    return {
-        i: {"saveGood": True, "saveBad": True}
-        for i in range(1, Config.CAMERA_COUNT + 1)
-    }
-
-
-def _load_save_settings():
-    settings = _default_save_settings()
-    if not _save_settings_path.exists():
-        return settings
-    try:
-        with open(_save_settings_path, "r", encoding="utf-8") as f:
-            raw = json.load(f)
-        if isinstance(raw, dict):
-            # 线体数量可能在本次启动时才从 line_count.json 恢复，
-            # 因此不能只按默认的 Config.CAMERA_COUNT 读取设置。
-            for raw_cam_id, item in raw.items():
-                try:
-                    cam_id = int(raw_cam_id)
-                except (TypeError, ValueError):
-                    continue
-                if not 1 <= cam_id <= Config.MAX_CAMERA_COUNT or not isinstance(item, dict):
-                    continue
-                settings[cam_id] = {
-                    "saveGood": item.get("saveGood", True) is True,
-                    "saveBad": item.get("saveBad", True) is True,
-                }
-    except (OSError, ValueError, TypeError) as exc:
-        logger.warning(f"加载照片保存设置失败，使用默认值: {exc}")
-    return settings
-
-
-def _persist_save_settings():
-    try:
-        _save_settings_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(_save_settings_path, "w", encoding="utf-8") as f:
-            json.dump(runtime.save_settings, f, indent=2)
-    except OSError as exc:
-        logger.error(f"保存照片保存设置失败: {exc}")
-
-
-runtime.save_settings = _load_save_settings()
-
-
 # ========== 训练状态 ==========
 
 runtime.training_state = {
@@ -477,251 +422,6 @@ runtime.training_state = {
 }
 runtime._training_thread = None
 runtime._training_stop_flag = False
-
-
-@app.route("/api/save-settings", methods=["GET"])
-def get_save_settings():
-    """获取所有保存设置"""
-    return jsonify({"success": True, "settings": runtime.save_settings})
-
-
-@app.route("/api/save-settings/<int:cam_id>", methods=["POST"])
-def update_save_settings(cam_id):
-    """更新保存设置，并立即影响后续抓拍存盘。"""
-    if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
-        return jsonify({"success": False, "error": "Invalid camera ID"}), 400
-    data = request.get_json(silent=True) or {}
-    values = {"saveGood": data.get("saveGood", True), "saveBad": data.get("saveBad", True)}
-    if any(not isinstance(value, bool) for value in values.values()):
-        return jsonify({"success": False, "error": "saveGood/saveBad 必须是布尔值"}), 400
-    runtime.save_settings[cam_id] = values
-    _persist_save_settings()
-    logger.info(f"更新保存设置 Cam{cam_id}: {runtime.save_settings[cam_id]}")
-    return jsonify({"success": True, "settings": runtime.save_settings[cam_id]})
-
-
-# ========== 后端图片目录选择 API ==========
-
-_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
-
-
-def _image_directory_roots():
-    """返回允许通过网页选择的后端图片根目录。"""
-    roots = [Config.DATA_DIR, Path(__file__).resolve().parent.parent / "test"]
-    configured = os.getenv("VISION_IMAGE_ROOTS", "")
-    if configured:
-        roots.extend(Path(item) for item in configured.split(os.pathsep) if item.strip())
-
-    unique = []
-    seen = set()
-    for root in roots:
-        try:
-            resolved = root.expanduser().resolve()
-        except OSError:
-            continue
-        key = str(resolved).lower() if os.name == "nt" else str(resolved)
-        if key not in seen:
-            seen.add(key)
-            unique.append(resolved)
-    return unique
-
-
-@app.route("/api/image-directories", methods=["GET"])
-def list_image_directories():
-    """列出后端允许选择且包含图片的目录。"""
-    directories = []
-    for root in _image_directory_roots():
-        if not root.is_dir():
-            continue
-        try:
-            candidates = [root, *root.rglob("*")]
-            for directory in candidates:
-                if not directory.is_dir() or directory.is_symlink():
-                    continue
-                try:
-                    image_count = sum(
-                        1
-                        for item in directory.iterdir()
-                        if item.is_file() and item.suffix.lower() in _IMAGE_EXTENSIONS
-                    )
-                    if image_count == 0:
-                        continue
-                    relative = "." if directory == root else str(directory.relative_to(root))
-                    directories.append(
-                        {
-                            "path": str(directory),
-                            "name": directory.name or str(directory),
-                            "relativePath": relative,
-                            "root": str(root),
-                            "imageCount": image_count,
-                        }
-                    )
-                except (OSError, ValueError):
-                    continue
-        except OSError as exc:
-            logger.warning(f"扫描图片目录失败 {root}: {exc}")
-
-    directories.sort(key=lambda item: (item["root"].lower(), item["relativePath"].lower()))
-    return jsonify({"success": True, "directories": directories})
-
-
-# ========== 照片管理 API ==========
-
-
-@app.route("/api/photos/<int:cam_id>", methods=["GET"])
-def list_photos(cam_id):
-    """获取相机照片列表（按实际类别分类）"""
-    if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
-        return jsonify({"success": False, "error": "Invalid camera ID"}), 400
-
-    result = list_camera_photos(
-        Config.CAPTURE_DIR / f"cam{cam_id}",
-        _get_model_reject_labels(),
-    )
-    return jsonify({"success": True, **result})
-
-
-@app.route("/api/photos/<int:cam_id>/<filename>", methods=["GET"])
-def get_photo(cam_id, filename):
-    """获取单张照片文件"""
-    if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
-        return jsonify({"error": "Invalid camera ID"}), 400
-
-    file_path = find_photo(Config.CAPTURE_DIR / f"cam{cam_id}", filename)
-    if file_path is None:
-        return jsonify({"error": "Photo not found"}), 404
-    return send_file(str(file_path), mimetype=photo_mime(file_path))
-
-
-@app.route("/api/photos/<int:cam_id>/<filename>", methods=["DELETE"])
-def delete_photo(cam_id, filename):
-    """删除单张照片"""
-    if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
-        return jsonify({"success": False, "error": "Invalid camera ID"}), 400
-
-    file_path = find_photo(Config.CAPTURE_DIR / f"cam{cam_id}", filename)
-    if file_path is None:
-        return jsonify({"success": False, "error": "Photo not found"}), 404
-
-    try:
-        delete_photo_file(file_path)
-        logger.info(f"已删除照片: {file_path}")
-        return jsonify({"success": True, "message": f"已删除 {filename}"})
-    except OSError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 500
-
-
-def cleanup_photos():
-    """清理过期/超量照片"""
-    total_deleted = cleanup_captures(
-        Config.CAPTURE_DIR,
-        Config.CAMERA_COUNT,
-        Config.MAX_PHOTO_AGE_DAYS,
-        Config.PHOTO_RETENTION_COUNT,
-    )
-    if total_deleted > 0:
-        logger.info(f"照片清理完成: 删除了 {total_deleted} 张照片")
-    return total_deleted
-
-
-@app.route("/api/photos/cleanup", methods=["POST"])
-def trigger_cleanup():
-    """手动触发照片清理"""
-    deleted = cleanup_photos()
-    return jsonify(
-        {
-            "success": True,
-            "message": f"清理完成，删除了 {deleted} 张照片",
-            "deleted": deleted,
-        }
-    )
-
-
-# ========== 异步存盘队列 ==========
-# 存盘操作（BMP 写入磁盘）移到独立线程，不阻塞抓帧→推理→结果返回的快速路径
-
-runtime._save_queue = queue.Queue()
-runtime._save_queue_running = False
-
-
-def _unpack_save_item(item):
-    if len(item) >= 4:
-        return item[0], item[1], item[2], item[3]
-    return item[0], item[1], None, None
-
-
-def _write_save_item(item):
-    frame, save_path, done_event, completion = _unpack_save_item(item)
-    write_start = time.perf_counter()
-    error = None
-    try:
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-        frame.save(save_path, "BMP")
-        logger.debug(f"异步存盘完成: {save_path.name}")
-    except Exception as exc:
-        error = exc
-        logger.error(f"异步存盘失败: {exc}")
-    finally:
-        if completion is not None:
-            completion["write_ms"] = (time.perf_counter() - write_start) * 1000
-            completion["error"] = str(error) if error else None
-        if done_event is not None:
-            done_event.set()
-    return error
-
-
-def _save_worker():
-    """异步存盘 worker；支持测试等待同一保存任务完成并读取实际写盘耗时。"""
-    logger.info("异步存盘 worker 启动")
-    runtime._save_queue_running = True
-    while runtime._save_queue_running:
-        try:
-            item = runtime._save_queue.get(timeout=1)
-            if item is None:
-                break
-            _write_save_item(item)
-        except queue.Empty:
-            continue
-        except Exception as e:
-            logger.error(f"异步存盘 worker 错误: {e}")
-    while not runtime._save_queue.empty():
-        try:
-            item = runtime._save_queue.get_nowait()
-            if item is not None:
-                _write_save_item(item)
-        except Exception:
-            pass
-    logger.info("异步存盘 worker 停止")
-
-
-def _submit_save(frame, save_path, done_event=None, completion=None):
-    """提交存盘任务；默认非阻塞，测试可传 event 等待同一异步任务完成。"""
-    try:
-        if done_event is None and completion is None:
-            item = (frame, save_path)
-        else:
-            item = (frame, save_path, done_event, completion or {})
-        runtime._save_queue.put(item, timeout=0.05)
-        return True
-    except queue.Full:
-        logger.warning(f"存盘队列已满，丢弃: {save_path.name}")
-        if done_event is not None:
-            done_event.set()
-        return False
-
-def _start_save_worker():
-    """启动异步存盘线程"""
-    t = threading.Thread(target=_save_worker, daemon=True)
-    t.start()
-
-
-def _stop_save_worker():
-    """停止异步存盘线程"""
-    runtime._save_queue_running = False
-    try:
-        runtime._save_queue.put(None, timeout=0.1)
-    except queue.Full:
-        pass
 
 
 # ========== 相机工作线程 ==========
@@ -816,7 +516,7 @@ def camera_worker(cam_id):
                     filename = f"CAM{cam_id}_{timestamp}_{millis:03d}.bmp"
                     save_path = Config.CAPTURE_DIR / f"cam{cam_id}" / subdir / filename
                     # 异步提交存盘（非阻塞，存盘在后台线程慢慢写）
-                    _submit_save(frame.copy(), save_path)
+                    submit_save(frame.copy(), save_path)
             except Exception as e:
                 logger.error(f"Camera {cam_id}: 提交存盘失败: {e}")
 
@@ -1024,7 +724,7 @@ def test_model():
                         done_event = threading.Event()
                         completion = {}
                         t0 = time.perf_counter()
-                        save_submitted = _submit_save(save_copy, save_path, done_event, completion)
+                        save_submitted = submit_save(save_copy, save_path, done_event, completion)
                         step_values["save_submit_ms"].append((time.perf_counter() - t0) * 1000)
                         if not save_submitted:
                             save_copy.close()
@@ -1450,7 +1150,7 @@ def run_server():
     start_inference_worker()
 
     # 启动异步存盘 worker
-    _start_save_worker()
+    start_save_worker()
 
     # 启动时运行一次照片清理
     cleanup_photos()
