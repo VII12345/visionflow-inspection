@@ -11,6 +11,17 @@ from .plc_service import get_plc_config
 DEFAULT_CATEGORIES = ["类别1", "类别2"]
 
 
+def resolve_model_path(model_name=None):
+    """解析模型路径；显式指定名称时不回退到其他模型。"""
+    trained = sorted(Config.DATA_DIR.glob("*_classifier_*.pth"))
+    if model_name:
+        return next(
+            (path for path in trained if path.stem.rsplit("_classifier_", 1)[-1] == model_name),
+            None,
+        )
+    return trained[0] if trained else None
+
+
 def read_model_metadata(model_path: Path | None, fallback_categories=None):
     """读取模型旁的 JSON 元数据，并返回规范化后的类别列表。"""
     categories = list(fallback_categories or DEFAULT_CATEGORIES)
@@ -31,7 +42,7 @@ def read_model_metadata(model_path: Path | None, fallback_categories=None):
 
 def get_model_reject_labels(model_name=None):
     """返回指定模型的剔除类别，并兼容旧版全局 PLC 配置。"""
-    model_path = Config.get_active_model_path(model_name)
+    model_path = resolve_model_path(model_name)
     if model_path is None:
         return list(get_plc_config().get("reject_labels", []))
     metadata, categories, _ = read_model_metadata(model_path)
@@ -79,7 +90,7 @@ def list_model_records():
 
 def update_model_settings(model_name, raw_labels, raw_descriptions):
     """校验并保存指定模型的剔除类别和类别说明。"""
-    model_path = Config.get_active_model_path(model_name)
+    model_path = resolve_model_path(model_name)
     if model_path is None:
         raise FileNotFoundError("模型不存在")
     if not isinstance(raw_labels, list):
