@@ -167,7 +167,7 @@ def _unpack_inference_item(item):
 
 
 def inference_worker():
-    """推理 worker — 生产运行和真实模拟测试共用同一条队列/线程/模型路径。"""
+    """推理 worker — 生产运行和真实离线测试共用同一条队列/线程/模型路径。"""
     global model_loaded
 
     m = get_model_for_product()

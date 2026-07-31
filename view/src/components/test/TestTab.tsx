@@ -165,8 +165,8 @@ export const TestTab: React.FC = () => {
             </>
           ) : (
             <>
-              <div className="text-xs font-semibold text-ok mb-1">批量推理：真实环境模拟测试</div>
-              <p className="text-[11px] text-text-secondary leading-5">逐张模拟产线流程：提交真实推理队列 → Worker 异步推理 → 输出结果 → 提交异步保存队列 → 等待实际写盘完成，并统计处理阶段延迟；读取图片本身不计入耗时。</p>
+              <div className="text-xs font-semibold text-ok mb-1">批量推理：真实环境离线测试</div>
+              <p className="text-[11px] text-text-secondary leading-5">逐张复现产线流程：提交真实推理队列 → Worker 异步推理 → 输出结果 → 提交异步保存队列 → 等待实际写盘完成，并统计处理阶段延迟；读取图片本身不计入耗时。</p>
             </>
           )}
         </div>
