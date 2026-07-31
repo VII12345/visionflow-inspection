@@ -2,15 +2,6 @@ import { create } from 'zustand';
 import type { User, TabId, SystemAlarm } from '../types';
 import { storage } from '../services/storage';
 
-interface TrainingResult {
-  modelName: string;
-  modelPath: string | null;
-  evalResult: Record<string, unknown> | null;
-  errorMessage: string | null;
-  trainCount: number;
-  valCount: number;
-}
-
 type ModalName = 'login' | 'changePwd' | 'addProduct' | 'learnConfirm' | 'envCheck' | 'cameraConfig' | 'trainingComplete' | 'all';
 
 type ModalStateKey = keyof Pick<AppState, 'loginModal' | 'changePwdModal' | 'addProductModal' | 'learnConfirmModal' | 'envCheckModal' | 'cameraConfigModal' | 'trainingCompleteModal'>;
@@ -57,17 +48,6 @@ interface AppState {
   cameraConfigCamId: number | null;
   setCameraConfigCamId: (camId: number | null) => void;
   setModal: (modal: ModalName, open: boolean) => void;
-
-  // Training result
-  trainingResult: TrainingResult;
-  setTrainingResult: (result: TrainingResult) => void;
-
-  // Training progress (persists across tab switches)
-  trainingRunning: boolean;
-  trainingProgress: number;
-  trainingProgressLabel: string;
-  trainingMetrics: string;
-  setTrainingProgress: (data: { running?: boolean; progress?: number; label?: string; metrics?: string }) => void;
 
   // Messages
   statusMessage: string;
@@ -117,19 +97,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   learnCallback: null,
   setLearnCallback: (cb) => set({ learnCallback: cb }),
 
-  trainingResult: { modelName: '', modelPath: null, evalResult: null, errorMessage: null, trainCount: 0, valCount: 0 },
-  setTrainingResult: (result) => set({ trainingResult: result }),
-
-  trainingRunning: false,
-  trainingProgress: 0,
-  trainingProgressLabel: '准备中...',
-  trainingMetrics: '--',
-  setTrainingProgress: (data) => set((state) => ({
-    trainingRunning: data.running ?? state.trainingRunning,
-    trainingProgress: data.progress ?? state.trainingProgress,
-    trainingProgressLabel: data.label ?? state.trainingProgressLabel,
-    trainingMetrics: data.metrics ?? state.trainingMetrics,
-  })),
 
   login: (name, password) => {
     const users = storage.getUsers();

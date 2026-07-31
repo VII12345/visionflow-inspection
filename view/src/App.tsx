@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { useAppStore } from './store/useAppStore';
+import { useTrainingStore } from './store/useTrainingStore';
 import { TopBar } from './components/layout/TopBar';
 import { TabBar } from './components/layout/TabBar';
 import { RunTab } from './components/run/RunTab';
@@ -33,7 +34,7 @@ const MainApp: React.FC = () => {
   const learnConfirmModal = useAppStore(s => s.learnConfirmModal);
   const envCheckModal = useAppStore(s => s.envCheckModal);
   const trainingCompleteModal = useAppStore(s => s.trainingCompleteModal);
-  const trainingResult = useAppStore(s => s.trainingResult);
+  const trainingResult = useTrainingStore(s => s.result);
   const cameraConfigModal = useAppStore(s => s.cameraConfigModal);
   const cameraConfigCamId = useAppStore(s => s.cameraConfigCamId);
   const setCameraConfigCamId = useAppStore(s => s.setCameraConfigCamId);
@@ -223,4 +224,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-

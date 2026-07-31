@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { storage } from '../../services/storage';
 import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
+import { useTrainingStore } from '../../store/useTrainingStore';
 import { Button, Badge } from '../common/Modal';
 import type { Product } from '../../types';
 
@@ -17,18 +18,18 @@ export const SettingsTab: React.FC = () => {
   const setLineCount = useAppStore(s => s.setLineCount);
   const showMessage = useAppStore(s => s.showMessage);
   const setLearnCallback = useAppStore(s => s.setLearnCallback);
-  const setTrainingResult = useAppStore(s => s.setTrainingResult);
+  const setTrainingResult = useTrainingStore(s => s.setResult);
   const [products, setProducts] = useState<Product[]>(storage.getProducts());
   const [filter, setFilter] = useState('');
   const [selectedModel, setSelectedModel] = useState<{ model: string; id: number } | null>(null);
   const [lineCountDraft, setLineCountDraft] = useState(String(lineCount));
 
   // Training progress from store (persists across tab switches)
-  const trainingRunning = useAppStore(s => s.trainingRunning);
-  const trainingProgress = useAppStore(s => s.trainingProgress);
-  const trainingProgressLabel = useAppStore(s => s.trainingProgressLabel);
-  const trainingMetrics = useAppStore(s => s.trainingMetrics);
-  const setTrainingProgress = useAppStore(s => s.setTrainingProgress);
+  const trainingRunning = useTrainingStore(s => s.running);
+  const trainingProgress = useTrainingStore(s => s.progress);
+  const trainingProgressLabel = useTrainingStore(s => s.progressLabel);
+  const trainingMetrics = useTrainingStore(s => s.metrics);
+  const setTrainingProgress = useTrainingStore(s => s.setProgress);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [hwInfo, setHwInfo] = useState<{
@@ -591,4 +592,3 @@ export const SettingsTab: React.FC = () => {
     </div>
   );
 };
-
