@@ -19,7 +19,6 @@ const defaults = {
   users: [{ id: 1, name: 'admin', password: 'admin', level: 'admin' }] as User[],
   rememberLogin: true,
   products: [] as Product[],
-  lineCount: 4,
   runLayout: { id: 'two', columns: 2, order: [] } as RunLayout,
   lineConfig: [
     { line: 1, name: '线体 1', productId: null, model: '-' },
@@ -73,7 +72,7 @@ function normalizeLineConfig(raw: LineConfig[], count: number): LineConfig[] {
 export const storage = {
   initialize: async () => {
     if (!isTauri()) return;
-    const keys = ['users', 'rememberLogin', 'products', 'lineCount', 'lineConfig', 'runLayout', 'cameraConfig', 'cameraStats', 'photos', 'saveSettings', 'currentUser'];
+    const keys = ['users', 'rememberLogin', 'products', 'lineConfig', 'runLayout', 'cameraConfig', 'cameraStats', 'photos', 'saveSettings', 'currentUser'];
     await Promise.all(keys.map(async key => {
       try {
         const data = await loadData(key);
@@ -91,23 +90,14 @@ export const storage = {
   getProducts: () => normalizeProducts(get('products', defaults.products)),
   saveProducts: (products: Product[]) => set('products', normalizeProducts(products)),
 
-  getLineCount: () => {
-    const raw = Number(get('lineCount', defaults.lineCount));
-    return Number.isFinite(raw) ? Math.min(16, Math.max(1, Math.round(raw))) : defaults.lineCount;
-  },
-  saveLineCount: (count: number) => {
-    const nextCount = Math.min(16, Math.max(1, Math.round(Number(count) || defaults.lineCount)));
-    set('lineCount', nextCount);
-    const current = normalizeLineConfig(get('lineConfig', defaults.lineConfig), nextCount);
-    set('lineConfig', current);
-    return nextCount;
-  },
-  getLineConfig: () => {
-    const count = storage.getLineCount();
-    return normalizeLineConfig(get('lineConfig', defaults.lineConfig), count);
+  getLineConfig: (count?: number) => {
+    const raw = get('lineConfig', defaults.lineConfig);
+    const persistedCount = Array.isArray(raw) && raw.length > 0 ? raw.length : defaults.lineConfig.length;
+    const nextCount = Number.isFinite(count) ? Math.min(16, Math.max(1, Math.round(Number(count)))) : persistedCount;
+    return normalizeLineConfig(raw, nextCount);
   },
   saveLineConfig: (cfg: LineConfig[]) => {
-    const count = storage.getLineCount();
+    const count = Math.min(16, Math.max(1, cfg.length || defaults.lineConfig.length));
     set('lineConfig', normalizeLineConfig(cfg, count));
   },
   getRunLayout: () => get('runLayout', defaults.runLayout),
@@ -156,4 +146,3 @@ export const storage = {
 };
 
 export default storage;
-

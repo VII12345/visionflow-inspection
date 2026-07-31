@@ -13,10 +13,11 @@ export const FileTab: React.FC = () => {
   const setModal = useAppStore(s => s.setModal);
   const addProductModal = useAppStore(s => s.addProductModal);
   const isRunning = useAppStore(s => s.isRunning);
+  const lineCount = useAppStore(s => s.lineCount);
   const catalogRevision = useAppStore(s => s.catalogRevision);
   const refreshCatalog = useAppStore(s => s.refreshCatalog);
   const [products, setProducts] = useState<Product[]>(storage.getProducts());
-  const [lineConfig, setLineConfig] = useState<LineConfig[]>(storage.getLineConfig());
+  const [lineConfig, setLineConfig] = useState<LineConfig[]>(() => storage.getLineConfig(lineCount));
   const [checkedId, setCheckedId] = useState<number | null>(null);
   const [productNameDrafts, setProductNameDrafts] = useState<Record<number, string>>({});
   const [lineNameDrafts, setLineNameDrafts] = useState<Record<number, string>>({});
@@ -24,7 +25,7 @@ export const FileTab: React.FC = () => {
 
   const loadCatalog = () => {
     setProducts([...storage.getProducts()]);
-    setLineConfig([...storage.getLineConfig()]);
+    setLineConfig([...storage.getLineConfig(lineCount)]);
   };
 
   const refresh = async () => {
@@ -43,10 +44,10 @@ export const FileTab: React.FC = () => {
         setProducts([...prods]);
       }
     } catch { /* ignore */ }
-    setLineConfig([...storage.getLineConfig()]);
+    setLineConfig([...storage.getLineConfig(lineCount)]);
   };
 
-  useEffect(() => { loadCatalog(); refresh(); }, [catalogRevision]);
+  useEffect(() => { loadCatalog(); refresh(); }, [catalogRevision, lineCount]);
 
   // 新增产品弹窗使用本地加密存储，关闭后同步刷新当前列表。
   useEffect(() => {
@@ -86,7 +87,7 @@ export const FileTab: React.FC = () => {
     }
     const name = (lineNameDrafts[line.line] ?? line.name ?? `线体 ${line.line}`).trim();
     if (!name) { showMessage('线体名称不能为空'); return; }
-    const next = storage.getLineConfig().map(item => item.line === line.line ? { ...item, name } : item);
+    const next = storage.getLineConfig(lineCount).map(item => item.line === line.line ? { ...item, name } : item);
     storage.saveLineConfig(next);
     refreshCatalog();
     loadCatalog();
@@ -102,12 +103,12 @@ export const FileTab: React.FC = () => {
     const sel = document.getElementById(`prod-line-${productId}`) as HTMLSelectElement;
     if (!sel?.value) { showMessage('请先选择线体'); return; }
     const line = parseInt(sel.value);
-    const config = storage.getLineConfig();
+    const config = storage.getLineConfig(lineCount);
     const prod = products.find(p => p.id === productId);
     config[line - 1] = { ...config[line - 1], line, productId, model: prod?.model || '-' };
     storage.saveLineConfig(config);
     refreshCatalog();
-    setLineConfig([...storage.getLineConfig()]);
+    setLineConfig([...storage.getLineConfig(lineCount)]);
     showMessage(`已将 ${prod?.name || prod?.model} 分配到 ${config[line - 1].name}`);
   };
 

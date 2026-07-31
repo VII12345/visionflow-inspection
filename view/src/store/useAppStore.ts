@@ -78,7 +78,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     return u ? { ...u, password: '' } : null;
   })(),
   isRunning: false,
-  lineCount: storage.getLineCount(),
+  lineCount: 4,
   catalogRevision: 0,
   activeTab: 'run',
   dynamicTabs: new Set(),
@@ -123,7 +123,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setRunning: (running) => set({ isRunning: running }),
   setLineCount: (count) => {
-    const nextCount = storage.saveLineCount(count);
+    const nextCount = Math.min(16, Math.max(1, Math.round(Number(count) || 4)));
     set({ lineCount: nextCount });
   },
   refreshCatalog: () => set(state => ({ catalogRevision: state.catalogRevision + 1 })),

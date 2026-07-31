@@ -101,7 +101,7 @@ export const RunTab: React.FC = () => {
   }, []);
   useEffect(() => { syncModelStatus(); const iv = setInterval(syncModelStatus, 10000); return () => clearInterval(iv); }, [syncModelStatus]);
 
-  const lineConfig = storage.getLineConfig();
+  const lineConfig = storage.getLineConfig(lineCount);
   const effectiveColumns = useMemo(() => {
     if (layout.id === 'auto') return Math.min(4, Math.max(1, Math.ceil(Math.sqrt(lineCount))));
     if (layout.id === 'custom') return 12;
@@ -232,7 +232,7 @@ export const RunTab: React.FC = () => {
     if (!user) { setModal('login', true); return; }
     if (isRunning) { showMessage('系统已在运行中'); return; }
     try {
-      const cfg = storage.getLineConfig();
+      const cfg = storage.getLineConfig(lineCount);
       const prods = storage.getProducts();
       const camProducts: Record<number, string> = {};
       for (const item of cfg) {
@@ -488,4 +488,3 @@ export const RunTab: React.FC = () => {
     </div>
   );
 };
-
