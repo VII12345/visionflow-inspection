@@ -500,7 +500,7 @@ def start_system():
     """启动选中的相机；未传 camera_ids 时启动所有已启用相机。"""
 
     if runtime.system_running:
-        return jsonify({"success": False, "message": "系统已在运行中"})
+        return jsonify({"success": False, "message": "系统已在运行中"}), 409
 
     try:
         logger.info("启动系统...")
@@ -652,7 +652,7 @@ def stop_system():
     """停止所有相机。"""
 
     if not runtime.system_running:
-        return jsonify({"success": False, "message": "系统未运行"})
+        return jsonify({"success": False, "message": "系统未运行"}), 409
 
     try:
         logger.info("停止系统...")
