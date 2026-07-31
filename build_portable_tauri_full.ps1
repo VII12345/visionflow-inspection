@@ -8,6 +8,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = $PSScriptRoot
+. (Join-Path $ProjectRoot "scripts\build-common.ps1")
 $ViewRoot = Join-Path $ProjectRoot "view"
 $OutputRoot = Join-Path $ProjectRoot "releases"
 $PortableDir = Join-Path $OutputRoot "视界智检_Tauri_完整_免安装版"
@@ -19,10 +20,6 @@ $FullVenvPath = Join-Path $ProjectRoot ".venv"
 $PythonExe = Join-Path $FullVenvPath "Scripts\python.exe"
 $PyInstallerExe = Join-Path $FullVenvPath "Scripts\pyinstaller.exe"
 
-function Invoke-Checked([string]$File, [string[]]$Arguments) {
-    & $File @Arguments
-    if ($LASTEXITCODE -ne 0) { throw "命令执行失败 ($LASTEXITCODE): $File $($Arguments -join ' ')" }
-}
 
 Write-Host "╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
 Write-Host "║   视界智检 V2.0 — Tauri GPU+CPU 完整版     ║" -ForegroundColor Cyan
@@ -30,15 +27,7 @@ Write-Host "║   目标: 免安装便携目录，包含 GPU/CUDA 与 CPU     �
 Write-Host "╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
 
-if ($Proxy) {
-    $env:HTTP_PROXY = $Proxy
-    $env:HTTPS_PROXY = $Proxy
-    $env:ALL_PROXY = $Proxy
-    $env:http_proxy = $Proxy
-    $env:https_proxy = $Proxy
-    $env:all_proxy = $Proxy
-    Write-Host "[代理] $Proxy" -ForegroundColor Gray
-}
+Set-BuildProxy -Proxy $Proxy
 
 $env:CARGO_BUILD_JOBS = "1"
 

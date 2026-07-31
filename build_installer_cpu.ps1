@@ -6,6 +6,7 @@ param([string]$Proxy = "")
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = $PSScriptRoot
+. (Join-Path $ProjectRoot "scripts\build-common.ps1")
 $OutputDir = Join-Path $ProjectRoot "releases"
 $DistDir = Join-Path $ProjectRoot "dist_portable_cpu"
 $BuildDir = Join-Path $ProjectRoot "build_cpu"
@@ -13,18 +14,9 @@ $CpuVenvPath = Join-Path $ProjectRoot ".venv_cpu"
 $ResourcesBackendDir = Join-Path $ProjectRoot "view\resources\backend"
 $CpuTorchIndex = "https://download.pytorch.org/whl/cpu"
 
-function Get-DirectorySizeMiB([string]$Path) {
-    if (-not (Test-Path -LiteralPath $Path)) { return 0 }
-    $sum = (Get-ChildItem -LiteralPath $Path -Recurse -File | Measure-Object Length -Sum).Sum
-    return [math]::Round($sum / 1MB, 1)
-}
 
 Write-Host "[1/5] 准备独立的 CPU-only Python 环境..." -ForegroundColor Yellow
-if ($Proxy) {
-    $env:HTTP_PROXY = $Proxy; $env:HTTPS_PROXY = $Proxy
-    $env:http_proxy = $Proxy; $env:https_proxy = $Proxy
-    $env:npm_config_proxy = $Proxy; $env:npm_config_https_proxy = $Proxy
-}
+Set-BuildProxy -Proxy $Proxy
 if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw "未找到 Python 3.9+" }
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw "未找到 Node.js 18+" }
 if (-not (Test-Path -LiteralPath (Join-Path $CpuVenvPath "Scripts\python.exe"))) {

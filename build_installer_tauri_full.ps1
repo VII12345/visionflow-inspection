@@ -9,6 +9,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = $PSScriptRoot
+. (Join-Path $ProjectRoot "scripts\build-common.ps1")
 $ViewRoot = Join-Path $ProjectRoot "view"
 $OutputRoot = Join-Path $ProjectRoot "releases"
 $FinalDir = Join-Path $OutputRoot "视界智检_GPU_CPU_安装包"
@@ -19,20 +20,8 @@ $BackendDir = $DistDir
 $VenvPath = Join-Path $ProjectRoot ".venv"
 $PythonExe = Join-Path $VenvPath "Scripts\python.exe"
 
-function Invoke-Checked([string]$File, [string[]]$Arguments) {
-    & $File @Arguments
-    if ($LASTEXITCODE -ne 0) { throw "命令执行失败 ($LASTEXITCODE): $File $($Arguments -join ' ')" }
-}
 
-if ($Proxy) {
-    $env:HTTP_PROXY = $Proxy
-    $env:HTTPS_PROXY = $Proxy
-    $env:ALL_PROXY = $Proxy
-    $env:http_proxy = $Proxy
-    $env:https_proxy = $Proxy
-    $env:all_proxy = $Proxy
-    Write-Host "[代理] $Proxy" -ForegroundColor Gray
-}
+Set-BuildProxy -Proxy $Proxy
 
 $env:CARGO_BUILD_JOBS = "1"
 
@@ -42,7 +31,7 @@ if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw "未找到 
 if (-not (Test-Path -LiteralPath $PythonExe)) { Invoke-Checked "python" @('-m', 'venv', $VenvPath) }
 
 Write-Host "[1/5] 准备 GPU+CPU Python 环境..." -ForegroundColor Yellow
-Invoke-Checked $PythonExe @('-m', 'pip', 'install', '--disable-pip-version-check', '-q', '-r', (Join-Path $ProjectRoot 'requirements.txt'), 'pyinstaller')
+Invoke-Checked $PythonExe @('-m', 'pip', 'install', '--disable-pip-version-check', '-q', '-r', (Join-Path $ProjectRoot 'requirements-gpu.txt'), 'pyinstaller')
 
 Write-Host "[2/5] 构建 GPU+CPU 完整后端..." -ForegroundColor Yellow
 if (Test-Path -LiteralPath $DistDir) { Remove-Item -LiteralPath $DistDir -Recurse -Force }
