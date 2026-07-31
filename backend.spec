@@ -32,7 +32,6 @@ a = Analysis(
         'backend.logger',
         'backend.training',
         'backend.mvs_camera',
-        'backend.mock_camera',
         'backend.inference_worker',
         'backend.env_check',
         'backend.camera_config_manager',
