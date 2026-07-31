@@ -28,35 +28,24 @@ from .inference_worker import (
 from . import inference_worker
 from .env_check import run_environment_check
 from .plc_service import get_plc_config, save_plc_config, PlcWriteError, PlcService, plc_service
+from .runtime_state import runtime
 
 
 # 初始化 Flask
 app = Flask(__name__)
 CORS(app)  # 允许跨域
 
-# 全局状态
-camera_manager = None
-cameras = {}  # {cam_id: camera_instance}
-camera_states = {}  # {cam_id: state_dict}
-system_running = False
-line_enabled = {i: True for i in range(1, Config.CAMERA_COUNT + 1)}
-latest_frames = {}  # {cam_id: PIL.Image}
-latest_results = {}  # {cam_id: {label, confidence, timestamp}}
-stats = {i: {"detected": 0, "defective": 0} for i in range(1, Config.CAMERA_COUNT + 1)}
-env_check_result = None  # 环境检测结果缓存
-
 
 def initialize_camera_manager():
     """初始化相机管理器"""
-    global camera_manager
 
     logger.info("初始化相机管理器（使用真实 MVS 相机）")
-    camera_manager = MVSCameraManager()
-    camera_manager.initialize()
+    runtime.camera_manager = MVSCameraManager()
+    runtime.camera_manager.initialize()
 
     # 初始化相机状态
     for i in range(1, Config.CAMERA_COUNT + 1):
-        camera_states[i] = {
+        runtime.camera_states[i] = {
             "state": "disconnected",
             "serial": None,
             "model": None,
@@ -68,7 +57,7 @@ def initialize_camera_manager():
             "error": None,
         }
 
-    logger.info(f"相机状态已初始化: {len(camera_states)} 个相机槽位")
+    logger.info(f"相机状态已初始化: {len(runtime.camera_states)} 个相机槽位")
 
 
 # ========== API 端点 ==========
@@ -79,8 +68,8 @@ def health():
     """健康检查"""
     cam_status = {}
     for i in range(1, Config.CAMERA_COUNT + 1):
-        if i in camera_states:
-            cam_status[i] = camera_states[i]["state"] != "disconnected"
+        if i in runtime.camera_states:
+            cam_status[i] = runtime.camera_states[i]["state"] != "disconnected"
         else:
             cam_status[i] = False
     return jsonify(
@@ -89,7 +78,7 @@ def health():
             "version": "2.0.0",
             "cameras": cam_status,
             "modelLoaded": inference_worker.model_loaded,
-            "running": system_running,
+            "running": runtime.system_running,
             "dataDir": str(Config.DATA_DIR),
         }
     )
@@ -98,10 +87,9 @@ def health():
 @app.route("/api/env-check", methods=["GET"])
 def env_check():
     """环境检测 — 返回所有检测项结果"""
-    global env_check_result
-    if env_check_result is None:
-        env_check_result = run_environment_check()
-    return jsonify(env_check_result)
+    if runtime.env_check_result is None:
+        runtime.env_check_result = run_environment_check()
+    return jsonify(runtime.env_check_result)
 
 
 @app.route("/api/hardware", methods=["GET"])
@@ -650,17 +638,16 @@ def _load_line_count():
 
 def _apply_line_count(count):
     """更新运行时线体/相机槽位数量，并补齐相机配置。"""
-    global stats, line_enabled
     count = _normalize_line_count(count)
     Config.CAMERA_COUNT = count
-    line_enabled = {i: line_enabled.get(i, True) for i in range(1, count + 1)}
+    runtime.line_enabled = {i: runtime.line_enabled.get(i, True) for i in range(1, count + 1)}
     camera_config_manager.ensure_camera_slots(count)
-    stats = {
-        i: stats.get(i, {"detected": 0, "defective": 0})
+    runtime.stats = {
+        i: runtime.stats.get(i, {"detected": 0, "defective": 0})
         for i in range(1, count + 1)
     }
     for cam_id in range(1, count + 1):
-        camera_states.setdefault(cam_id, {
+        runtime.camera_states.setdefault(cam_id, {
             "state": "disconnected",
             "serial": None,
             "model": None,
@@ -671,9 +658,9 @@ def _apply_line_count(count):
             "lastFrameTime": None,
             "error": None,
         })
-    for cam_id in list(camera_states):
-        if cam_id > count and cam_id not in cameras:
-            camera_states.pop(cam_id, None)
+    for cam_id in list(runtime.camera_states):
+        if cam_id > count and cam_id not in runtime.cameras:
+            runtime.camera_states.pop(cam_id, None)
     _line_count_path.parent.mkdir(parents=True, exist_ok=True)
     with open(_line_count_path, "w", encoding="utf-8") as f:
         json.dump({"line_count": count}, f, indent=2)
@@ -705,7 +692,7 @@ def get_line_count():
 @app.route("/api/settings/line-count", methods=["POST"])
 def update_line_count():
     """保存并应用线体数量（1-16），运行中禁止修改。"""
-    if system_running:
+    if runtime.system_running:
         return jsonify({"success": False, "message": "系统运行中不能修改线体数量"}), 409
     data = request.get_json(silent=True) or {}
     raw_count = data.get("line_count")
@@ -789,7 +776,7 @@ def update_device_config():
 def get_cameras():
     """枚举所有相机"""
     try:
-        camera_list = camera_manager.enumerate_cameras()
+        camera_list = runtime.camera_manager.enumerate_cameras()
         return jsonify({"success": True, "cameras": camera_list})
     except Exception as e:
         logger.error(f"枚举相机失败: {e}")
@@ -801,8 +788,8 @@ def get_camera_mapping():
     """获取相机映射配置"""
     mapping = {}
     for i in range(1, Config.CAMERA_COUNT + 1):
-        if camera_states[i]["serial"]:
-            mapping[str(i)] = {"serial": camera_states[i]["serial"], "name": f"Cam{i}"}
+        if runtime.camera_states[i]["serial"]:
+            mapping[str(i)] = {"serial": runtime.camera_states[i]["serial"], "name": f"Cam{i}"}
         else:
             mapping[str(i)] = None
     return jsonify(mapping)
@@ -979,7 +966,7 @@ def test_reject_signal(cam_id):
 
 def _stop_camera(cam_id):
     """停止并清理单个相机实例。"""
-    cam = cameras.pop(cam_id, None)
+    cam = runtime.cameras.pop(cam_id, None)
     if cam is not None:
         try:
             cam.stop_grabbing()
@@ -989,10 +976,10 @@ def _stop_camera(cam_id):
             cam.disconnect()
         except Exception as e:
             logger.warning(f"Cam{cam_id} 断开失败: {e}")
-    if cam_id in camera_states:
-        camera_states[cam_id]["state"] = "ready"
-        camera_states[cam_id]["error"] = None
-        camera_states[cam_id]["fps"] = 0
+    if cam_id in runtime.camera_states:
+        runtime.camera_states[cam_id]["state"] = "ready"
+        runtime.camera_states[cam_id]["error"] = None
+        runtime.camera_states[cam_id]["fps"] = 0
 
 
 def _start_camera(cam_id, cam_config, available_cameras):
@@ -1004,15 +991,15 @@ def _start_camera(cam_id, cam_config, available_cameras):
     )
     if device_index is None:
         error_msg = f"Cam{cam_id} 未找到IP为 {target_ip} 的相机"
-        camera_states[cam_id]["state"] = "error"
-        camera_states[cam_id]["error"] = f"未找到IP: {target_ip}"
+        runtime.camera_states[cam_id]["state"] = "error"
+        runtime.camera_states[cam_id]["error"] = f"未找到IP: {target_ip}"
         logger.warning(error_msg)
         return False, error_msg
 
     _stop_camera(cam_id)
     try:
-        cam = camera_manager.create_camera(cam_id, device_index)
-        cameras[cam_id] = cam
+        cam = runtime.camera_manager.create_camera(cam_id, device_index)
+        runtime.cameras[cam_id] = cam
         cam.connect()
         cam.set_exposure_time(cam_config.get("exposureTime", 5000))
         cam.set_gain(cam_config.get("gain", 0))
@@ -1031,30 +1018,29 @@ def _start_camera(cam_id, cam_config, available_cameras):
         threading.Thread(target=camera_worker, args=(cam_id,), daemon=True).start()
 
         info = cam.get_info()
-        camera_states[cam_id]["state"] = "running"
-        camera_states[cam_id]["triggerMode"] = "hardware"
-        camera_states[cam_id]["totalTriggers"] = 0
-        camera_states[cam_id]["serial"] = info["serial"]
-        camera_states[cam_id]["model"] = info["model"]
-        camera_states[cam_id]["ip"] = info.get("ip")
-        camera_states[cam_id]["error"] = None
+        runtime.camera_states[cam_id]["state"] = "running"
+        runtime.camera_states[cam_id]["triggerMode"] = "hardware"
+        runtime.camera_states[cam_id]["totalTriggers"] = 0
+        runtime.camera_states[cam_id]["serial"] = info["serial"]
+        runtime.camera_states[cam_id]["model"] = info["model"]
+        runtime.camera_states[cam_id]["ip"] = info.get("ip")
+        runtime.camera_states[cam_id]["error"] = None
         logger.info(f"Cam{cam_id} 启动成功: {info['model']} ({target_ip})")
         return True, None
     except Exception as e:
         error_msg = f"Cam{cam_id} 启动失败: {str(e)}"
         logger.error(error_msg)
         _stop_camera(cam_id)
-        camera_states[cam_id]["state"] = "error"
-        camera_states[cam_id]["error"] = str(e)
+        runtime.camera_states[cam_id]["state"] = "error"
+        runtime.camera_states[cam_id]["error"] = str(e)
         return False, error_msg
 
 
 @app.route("/api/start", methods=["POST"])
 def start_system():
     """启动选中的相机；未传 camera_ids 时启动所有已启用相机。"""
-    global system_running, line_enabled
 
-    if system_running:
+    if runtime.system_running:
         return jsonify({"success": False, "message": "系统已在运行中"})
 
     try:
@@ -1072,7 +1058,7 @@ def start_system():
             set_camera_product(int(cam_id_str), model_name if model_name else None)
         logger.info(f"摄像头-产品映射: {cam_products}")
 
-        if camera_manager is None:
+        if runtime.camera_manager is None:
             return jsonify({
                 "success": False,
                 "message": "相机管理器未初始化，请检查 MVS SDK 安装或查看环境检测结果",
@@ -1088,14 +1074,14 @@ def start_system():
             invalid_ids = requested_ids - set(range(1, Config.CAMERA_COUNT + 1))
             if invalid_ids:
                 return jsonify({"success": False, "message": "线路选择超出范围"}), 400
-            line_enabled = {i: i in requested_ids for i in range(1, Config.CAMERA_COUNT + 1)}
+            runtime.line_enabled = {i: i in requested_ids for i in range(1, Config.CAMERA_COUNT + 1)}
             enabled_cameras = {
                 cam_id: cam_config
                 for cam_id, cam_config in enabled_cameras.items()
                 if cam_id in requested_ids
             }
         else:
-            requested_ids = {i for i in range(1, Config.CAMERA_COUNT + 1) if line_enabled.get(i, True)}
+            requested_ids = {i for i in range(1, Config.CAMERA_COUNT + 1) if runtime.line_enabled.get(i, True)}
             enabled_cameras = {
                 cam_id: cam_config
                 for cam_id, cam_config in enabled_cameras.items()
@@ -1109,8 +1095,8 @@ def start_system():
                 "message": "没有选中的相机，请先启用线路并配置相机IP地址",
             }), 400
 
-        system_running = True
-        available_cameras = camera_manager.enumerate_cameras()
+        runtime.system_running = True
+        available_cameras = runtime.camera_manager.enumerate_cameras()
         logger.info(f"检测到 {len(available_cameras)} 台物理相机")
         started_cameras = []
         errors = []
@@ -1123,7 +1109,7 @@ def start_system():
                 errors.append(error_msg)
 
         if not started_cameras:
-            system_running = False
+            runtime.system_running = False
             return jsonify({"success": False, "message": "所有选中的相机启动失败", "errors": errors}), 500
 
         message = f"系统启动成功，启动了 {len(started_cameras)}/{len(enabled_cameras)} 个相机"
@@ -1137,18 +1123,17 @@ def start_system():
             "started_cameras": started_cameras,
             "total": len(enabled_cameras),
             "errors": errors if errors else None,
-            "running": system_running,
+            "running": runtime.system_running,
         })
     except Exception as e:
         logger.error(f"启动失败: {e}")
-        system_running = False
+        runtime.system_running = False
         return jsonify({"success": False, "message": f"启动失败: {str(e)}"}), 500
 
 
 @app.route("/api/lines/<int:cam_id>", methods=["POST"])
 def set_line_enabled(cam_id):
     """运行中实时启停单条线路；系统停止时也会保存线路选择。"""
-    global system_running, line_enabled
 
     if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
         return jsonify({"success": False, "message": "线路编号无效"}), 400
@@ -1158,63 +1143,62 @@ def set_line_enabled(cam_id):
         return jsonify({"success": False, "message": "enabled 必须是布尔值"}), 400
 
     enabled = data["enabled"]
-    line_enabled[cam_id] = enabled
+    runtime.line_enabled[cam_id] = enabled
     if not enabled:
         _stop_camera(cam_id)
-        if not cameras:
-            system_running = False
+        if not runtime.cameras:
+            runtime.system_running = False
         return jsonify({
             "success": True,
             "enabled": False,
-            "running": system_running,
+            "running": runtime.system_running,
             "message": f"线路 {cam_id} 已关闭",
         })
 
-    if camera_manager is None:
-        line_enabled[cam_id] = False
+    if runtime.camera_manager is None:
+        runtime.line_enabled[cam_id] = False
         return jsonify({"success": False, "message": "相机管理器未初始化"}), 500
 
     cam_config = camera_config_manager.get_camera_config(cam_id)
     if not cam_config or not cam_config.get("enabled") or not cam_config.get("ip"):
-        line_enabled[cam_id] = False
+        runtime.line_enabled[cam_id] = False
         return jsonify({"success": False, "message": f"线路 {cam_id} 尚未配置可用相机"}), 400
 
     try:
-        if not system_running:
-            system_running = True
-        available_cameras = camera_manager.enumerate_cameras()
+        if not runtime.system_running:
+            runtime.system_running = True
+        available_cameras = runtime.camera_manager.enumerate_cameras()
         ok, error_msg = _start_camera(cam_id, cam_config, available_cameras)
         if not ok:
-            line_enabled[cam_id] = False
-            if not cameras:
-                system_running = False
-            return jsonify({"success": False, "message": error_msg or f"线路 {cam_id} 启动失败", "running": system_running}), 500
+            runtime.line_enabled[cam_id] = False
+            if not runtime.cameras:
+                runtime.system_running = False
+            return jsonify({"success": False, "message": error_msg or f"线路 {cam_id} 启动失败", "running": runtime.system_running}), 500
         return jsonify({
             "success": True,
             "enabled": True,
-            "running": system_running,
+            "running": runtime.system_running,
             "message": f"线路 {cam_id} 已启动",
         })
     except Exception as e:
-        line_enabled[cam_id] = False
-        if not cameras:
-            system_running = False
+        runtime.line_enabled[cam_id] = False
+        if not runtime.cameras:
+            runtime.system_running = False
         logger.error(f"线路 {cam_id} 启动失败: {e}")
-        return jsonify({"success": False, "message": str(e), "running": system_running}), 500
+        return jsonify({"success": False, "message": str(e), "running": runtime.system_running}), 500
 
 
 @app.route("/api/stop", methods=["POST"])
 def stop_system():
     """停止所有相机。"""
-    global system_running
 
-    if not system_running:
+    if not runtime.system_running:
         return jsonify({"success": False, "message": "系统未运行"})
 
     try:
         logger.info("停止系统...")
-        system_running = False
-        for cam_id in list(cameras.keys()):
+        runtime.system_running = False
+        for cam_id in list(runtime.cameras.keys()):
             _stop_camera(cam_id)
         logger.info("系统停止成功")
         return jsonify({"success": True, "message": "系统停止成功", "running": False})
@@ -1228,29 +1212,29 @@ def get_status():
     """获取系统状态（主要轮询端点）"""
     camera_status = {}
     for i in range(1, Config.CAMERA_COUNT + 1):
-        state = camera_states[i]
+        state = runtime.camera_states[i]
         camera_status[str(i)] = {
             "state": state["state"],
-            "lineEnabled": line_enabled.get(i, True),
+            "lineEnabled": runtime.line_enabled.get(i, True),
             "serial": state["serial"],
             "model": state["model"],
             "triggerMode": state["triggerMode"],
             "fps": state["fps"],
             "totalTriggers": state["totalTriggers"],
             "lastFrameTime": state["lastFrameTime"],
-            "stats": stats[i],
+            "stats": runtime.stats[i],
             "error": state["error"],
         }
 
         # 添加最新检测结果
-        if i in latest_results:
-            camera_status[str(i)]["result"] = latest_results[i]
+        if i in runtime.latest_results:
+            camera_status[str(i)]["result"] = runtime.latest_results[i]
 
     return jsonify(
         {
             "cameras": camera_status,
             "system": {
-                "running": system_running,
+                "running": runtime.system_running,
                 "modelLoaded": inference_worker.model_loaded,
             },
         }
@@ -1260,12 +1244,12 @@ def get_status():
 @app.route("/api/frame/<int:cam_id>", methods=["GET"])
 def get_frame(cam_id):
     """获取最新帧（JPEG）"""
-    if cam_id not in latest_frames:
+    if cam_id not in runtime.latest_frames:
         # 相机已配置但尚未产生第一帧时，不视为接口不存在；用 204 告知前端暂时无图像，避免轮询日志持续刷 404。
         return "", 204
 
     try:
-        img = latest_frames[cam_id]
+        img = runtime.latest_frames[cam_id]
         # 转为 JPEG bytes
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=85)
@@ -1279,16 +1263,16 @@ def get_frame(cam_id):
 @app.route("/api/result/<int:cam_id>", methods=["GET"])
 def get_result(cam_id):
     """获取最新检测结果"""
-    if cam_id not in latest_results:
+    if cam_id not in runtime.latest_results:
         return jsonify({"error": "No result available"}), 404
 
-    return jsonify(latest_results[cam_id])
+    return jsonify(runtime.latest_results[cam_id])
 
 
 @app.route("/api/stats", methods=["GET"])
 def get_stats():
     """获取统计数据"""
-    return jsonify(stats)
+    return jsonify(runtime.stats)
 
 
 @app.route("/api/stats/reset/<int:cam_id>", methods=["POST"])
@@ -1297,9 +1281,9 @@ def reset_stats(cam_id):
     if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
         return jsonify({"error": "Invalid camera ID"}), 400
 
-    stats[cam_id] = {"detected": 0, "defective": 0}
+    runtime.stats[cam_id] = {"detected": 0, "defective": 0}
     logger.info(f"重置 Camera {cam_id} 统计")
-    return jsonify({"success": True, "stats": stats[cam_id]})
+    return jsonify({"success": True, "stats": runtime.stats[cam_id]})
 
 
 # ========== 保存设置 API ==========
@@ -1344,17 +1328,17 @@ def _persist_save_settings():
     try:
         _save_settings_path.parent.mkdir(parents=True, exist_ok=True)
         with open(_save_settings_path, "w", encoding="utf-8") as f:
-            json.dump(save_settings, f, indent=2)
+            json.dump(runtime.save_settings, f, indent=2)
     except OSError as exc:
         logger.error(f"保存照片保存设置失败: {exc}")
 
 
-save_settings = _load_save_settings()
+runtime.save_settings = _load_save_settings()
 
 
 # ========== 训练状态 ==========
 
-training_state = {
+runtime.training_state = {
     "running": False,
     "progress": 0,
     "epoch": 0,
@@ -1371,14 +1355,14 @@ training_state = {
     "trainCount": 0,
     "valCount": 0,
 }
-_training_thread = None
-_training_stop_flag = False
+runtime._training_thread = None
+runtime._training_stop_flag = False
 
 
 @app.route("/api/save-settings", methods=["GET"])
 def get_save_settings():
     """获取所有保存设置"""
-    return jsonify({"success": True, "settings": save_settings})
+    return jsonify({"success": True, "settings": runtime.save_settings})
 
 
 @app.route("/api/save-settings/<int:cam_id>", methods=["POST"])
@@ -1390,10 +1374,10 @@ def update_save_settings(cam_id):
     values = {"saveGood": data.get("saveGood", True), "saveBad": data.get("saveBad", True)}
     if any(not isinstance(value, bool) for value in values.values()):
         return jsonify({"success": False, "error": "saveGood/saveBad 必须是布尔值"}), 400
-    save_settings[cam_id] = values
+    runtime.save_settings[cam_id] = values
     _persist_save_settings()
-    logger.info(f"更新保存设置 Cam{cam_id}: {save_settings[cam_id]}")
-    return jsonify({"success": True, "settings": save_settings[cam_id]})
+    logger.info(f"更新保存设置 Cam{cam_id}: {runtime.save_settings[cam_id]}")
+    return jsonify({"success": True, "settings": runtime.save_settings[cam_id]})
 
 
 # ========== 后端图片目录选择 API ==========
@@ -1631,8 +1615,8 @@ def trigger_cleanup():
 # ========== 异步存盘队列 ==========
 # 存盘操作（BMP 写入磁盘）移到独立线程，不阻塞抓帧→推理→结果返回的快速路径
 
-_save_queue = queue.Queue()
-_save_queue_running = False
+runtime._save_queue = queue.Queue()
+runtime._save_queue_running = False
 
 
 def _unpack_save_item(item):
@@ -1663,12 +1647,11 @@ def _write_save_item(item):
 
 def _save_worker():
     """异步存盘 worker；支持测试等待同一保存任务完成并读取实际写盘耗时。"""
-    global _save_queue_running
     logger.info("异步存盘 worker 启动")
-    _save_queue_running = True
-    while _save_queue_running:
+    runtime._save_queue_running = True
+    while runtime._save_queue_running:
         try:
-            item = _save_queue.get(timeout=1)
+            item = runtime._save_queue.get(timeout=1)
             if item is None:
                 break
             _write_save_item(item)
@@ -1676,9 +1659,9 @@ def _save_worker():
             continue
         except Exception as e:
             logger.error(f"异步存盘 worker 错误: {e}")
-    while not _save_queue.empty():
+    while not runtime._save_queue.empty():
         try:
-            item = _save_queue.get_nowait()
+            item = runtime._save_queue.get_nowait()
             if item is not None:
                 _write_save_item(item)
         except Exception:
@@ -1693,7 +1676,7 @@ def _submit_save(frame, save_path, done_event=None, completion=None):
             item = (frame, save_path)
         else:
             item = (frame, save_path, done_event, completion or {})
-        _save_queue.put(item, timeout=0.05)
+        runtime._save_queue.put(item, timeout=0.05)
         return True
     except queue.Full:
         logger.warning(f"存盘队列已满，丢弃: {save_path.name}")
@@ -1709,10 +1692,9 @@ def _start_save_worker():
 
 def _stop_save_worker():
     """停止异步存盘线程"""
-    global _save_queue_running
-    _save_queue_running = False
+    runtime._save_queue_running = False
     try:
-        _save_queue.put(None, timeout=0.1)
+        runtime._save_queue.put(None, timeout=0.1)
     except queue.Full:
         pass
 
@@ -1726,12 +1708,12 @@ def camera_worker(cam_id):
     阻塞等待传感器触发 → 抓帧 → 推理 → 更新结果 → 继续等待下一个触发
     """
     logger.info(f"Camera {cam_id} worker 启动（触发模式：等待传感器信号...）")
-    cam = cameras[cam_id]
+    cam = runtime.cameras[cam_id]
     frame_count = 0
     start_time = time.time()
     wait_count = 0
 
-    while system_running and cam.running:
+    while runtime.system_running and cam.running:
         try:
             # 阻塞等待传感器触发并抓帧
             timeout = getattr(cam, "trigger_timeout", Config.CAMERA_TRIGGER_TIMEOUT_MS)
@@ -1749,7 +1731,7 @@ def camera_worker(cam_id):
             # 收到触发，拿到了新照片！
             wait_count = 0
             frame_count += 1
-            latest_frames[cam_id] = frame
+            runtime.latest_frames[cam_id] = frame
 
             logger.info(f"Camera {cam_id}: 收到触发信号 #{frame_count}，开始推理...")
 
@@ -1764,14 +1746,14 @@ def camera_worker(cam_id):
                 # 阻塞等待推理完成
                 result = get_inference_result(cam_id, timeout=5.0)
                 if result:
-                    latest_results[cam_id] = result
-                    stats[cam_id]["detected"] += 1
+                    runtime.latest_results[cam_id] = result
+                    runtime.stats[cam_id]["detected"] += 1
                     plc_config = get_plc_config()
                     model_name = inference_worker.camera_product_map.get(cam_id)
                     reject_labels = _get_model_reject_labels(model_name)
                     should_reject = result["label"] in reject_labels
                     if should_reject:
-                        stats[cam_id]["defective"] += 1
+                        runtime.stats[cam_id]["defective"] += 1
                     if plc_config.get("enabled", True) and should_reject:
                         try:
                             plc_service.with_base_url(plc_config.get("base_url", plc_service.base_url)).write_reject_signal(cam_id)
@@ -1786,7 +1768,7 @@ def camera_worker(cam_id):
             else:
                 # 模型未就绪，记录但不推理
                 logger.warning(f"Camera {cam_id}: 模型未就绪，无法推理")
-                stats[cam_id]["detected"] += 1
+                runtime.stats[cam_id]["detected"] += 1
 
             # 照片存盘 — 异步写入，不阻塞抓帧循环。各类别照片的保存开关
             # 来自 /api/save-settings，并且在后端进程内直接生效。
@@ -1799,7 +1781,7 @@ def camera_worker(cam_id):
                     model_name = inference_worker.camera_product_map.get(cam_id)
                     reject_labels = _get_model_reject_labels(model_name)
                     setting_key = "saveBad" if tag in reject_labels else "saveGood"
-                    should_save = save_settings.get(cam_id, {}).get(setting_key, True)
+                    should_save = runtime.save_settings.get(cam_id, {}).get(setting_key, True)
                     subdir = tag
                 else:
                     tag = "未分类"
@@ -1814,18 +1796,18 @@ def camera_worker(cam_id):
                 logger.error(f"Camera {cam_id}: 提交存盘失败: {e}")
 
             # 更新状态
-            camera_states[cam_id]["lastFrameTime"] = time.strftime("%Y-%m-%dT%H:%M:%S")
-            camera_states[cam_id]["totalTriggers"] = frame_count
+            runtime.camera_states[cam_id]["lastFrameTime"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+            runtime.camera_states[cam_id]["totalTriggers"] = frame_count
 
             # 计算实际触发频率（触发/秒）
             elapsed = time.time() - start_time
             if elapsed > 0:
-                camera_states[cam_id]["fps"] = round(frame_count / elapsed, 2)
+                runtime.camera_states[cam_id]["fps"] = round(frame_count / elapsed, 2)
 
         except Exception as e:
             logger.error(f"Camera {cam_id} worker 错误: {e}")
-            camera_states[cam_id]["error"] = str(e)
-            camera_states[cam_id]["state"] = "error"
+            runtime.camera_states[cam_id]["error"] = str(e)
+            runtime.camera_states[cam_id]["state"] = "error"
             # 短暂等待后重试
             time.sleep(1)
 
@@ -1991,7 +1973,7 @@ def test_model():
                 pass
         if mode not in ("labeled", "unlabeled"):
             return jsonify({"success": False, "message": "无效的测试模式"}), 400
-        if system_running:
+        if runtime.system_running:
             return jsonify({"success": False, "message": "系统运行中不能执行模拟测试，请先停止实际检测"}), 409
 
         # 使用 Cam1 的真实 result_queue 作为测试通道；系统未运行时不会与真实相机竞争。
@@ -2203,21 +2185,20 @@ def _training_status_callback(
 ):
     """训练进度回调，更新全局状态供前端轮询"""
     if epoch > 0:
-        training_state["epoch"] = epoch
-    training_state["total_epochs"] = total_epochs
-    training_state["train_loss"] = round(train_loss, 4)
-    training_state["val_loss"] = round(val_loss, 4)
-    training_state["val_acc"] = round(val_acc, 4)
-    training_state["message"] = message
+        runtime.training_state["epoch"] = epoch
+    runtime.training_state["total_epochs"] = total_epochs
+    runtime.training_state["train_loss"] = round(train_loss, 4)
+    runtime.training_state["val_loss"] = round(val_loss, 4)
+    runtime.training_state["val_acc"] = round(val_acc, 4)
+    runtime.training_state["message"] = message
     if total_epochs > 0:
-        training_state["progress"] = round(
+        runtime.training_state["progress"] = round(
             min(epoch, total_epochs) / total_epochs * 100, 1
         )
 
 
 def _run_training(folder_path, model_name, class_a_path=None, class_b_path=None):
     """后台训练线程"""
-    global training_state
     try:
         from .training import (
             ProductDataset,
@@ -2234,7 +2215,7 @@ def _run_training(folder_path, model_name, class_a_path=None, class_b_path=None)
         logger.info(
             f"开始训练: model={model_name}, classA={class_a_path}, classB={class_b_path}, folder={folder_path}"
         )
-        training_state["message"] = "正在加载数据..."
+        runtime.training_state["message"] = "正在加载数据..."
 
         train_set = ProductDataset(
             Path(folder_path) if folder_path else Path.cwd(),
@@ -2255,8 +2236,8 @@ def _run_training(folder_path, model_name, class_a_path=None, class_b_path=None)
             f"数据集模式: {train_set.mode}, 训练集={len(train_set)}, 验证集={len(val_set)}"
         )
 
-        training_state["trainCount"] = len(train_set)
-        training_state["valCount"] = len(val_set)
+        runtime.training_state["trainCount"] = len(train_set)
+        runtime.training_state["valCount"] = len(val_set)
 
         from torch.utils.data import DataLoader
 
@@ -2292,7 +2273,7 @@ def _run_training(folder_path, model_name, class_a_path=None, class_b_path=None)
 
         # 传递停止标志检查函数
         def _check_stop():
-            return _training_stop_flag
+            return runtime._training_stop_flag
 
         model, history = train_model_v2(
             ProductClassifier(num_classes=train_set.num_classes),
@@ -2320,31 +2301,30 @@ def _run_training(folder_path, model_name, class_a_path=None, class_b_path=None)
         load_model(model_name)
         logger.info("推理模型已更新")
 
-        training_state["history"] = history
-        training_state["modelPath"] = str(model_path)
-        training_state["evalResult"] = history.get("eval", {})
-        training_state["message"] = (
+        runtime.training_state["history"] = history
+        runtime.training_state["modelPath"] = str(model_path)
+        runtime.training_state["evalResult"] = history.get("eval", {})
+        runtime.training_state["message"] = (
             f"训练完成！最佳轮次: {history['best_epoch']}, "
             f"验证准确率: {history['eval']['accuracy']:.2%}"
         )
-        training_state["progress"] = 100
-        logger.info(f"训练完成: {training_state['message']}")
+        runtime.training_state["progress"] = 100
+        logger.info(f"训练完成: {runtime.training_state['message']}")
 
     except Exception as e:
         logger.error(f"训练失败: {e}", exc_info=True)
-        training_state["message"] = f"训练失败: {str(e)}"
-        training_state["evalResult"] = None
-        training_state["modelPath"] = None
+        runtime.training_state["message"] = f"训练失败: {str(e)}"
+        runtime.training_state["evalResult"] = None
+        runtime.training_state["modelPath"] = None
     finally:
-        training_state["running"] = False
+        runtime.training_state["running"] = False
 
 
 @app.route("/api/training/start", methods=["POST"])
 def start_training():
     """启动训练"""
-    global training_state, _training_thread, _training_stop_flag
 
-    if training_state["running"]:
+    if runtime.training_state["running"]:
         return jsonify({"success": False, "message": "训练已在运行中"})
 
     try:
@@ -2406,7 +2386,7 @@ def start_training():
             return jsonify({"success": False, "message": "请选择图片文件夹"}), 400
 
         # 重置状态
-        training_state.update(
+        runtime.training_state.update(
             {
                 "running": True,
                 "progress": 0,
@@ -2428,14 +2408,14 @@ def start_training():
                 "valCount": 0,
             }
         )
-        _training_stop_flag = False
+        runtime._training_stop_flag = False
 
-        _training_thread = threading.Thread(
+        runtime._training_thread = threading.Thread(
             target=_run_training,
             args=(folder_path, model_name, class_a_path, class_b_path),
             daemon=True,
         )
-        _training_thread.start()
+        runtime._training_thread.start()
 
         logger.info(f"训练线程已启动: {folder_path}")
         return jsonify({"success": True, "message": "训练已启动"})
@@ -2444,23 +2424,22 @@ def start_training():
         return jsonify({"success": False, "message": str(e)}), 400
     except Exception as e:
         logger.error(f"启动训练失败: {e}")
-        training_state["running"] = False
+        runtime.training_state["running"] = False
         return jsonify({"success": False, "message": str(e)}), 500
 
 
 @app.route("/api/training/status", methods=["GET"])
 def get_training_status():
     """获取训练进度"""
-    return jsonify(training_state)
+    return jsonify(runtime.training_state)
 
 
 @app.route("/api/training/stop", methods=["POST"])
 def stop_training():
     """停止训练"""
-    global _training_stop_flag
-    _training_stop_flag = True
-    training_state["running"] = False
-    training_state["message"] = "训练已手动停止"
+    runtime._training_stop_flag = True
+    runtime.training_state["running"] = False
+    runtime.training_state["message"] = "训练已手动停止"
     logger.info("训练已手动停止")
     return jsonify({"success": True, "message": "训练已停止"})
 
@@ -2475,7 +2454,7 @@ def get_training_history():
                 return jsonify({"success": True, "history": json.load(f)})
         except Exception:
             pass
-    return jsonify({"success": True, "history": training_state.get("history")})
+    return jsonify({"success": True, "history": runtime.training_state.get("history")})
 
 
 # ========== 启动服务器 ==========
@@ -2483,7 +2462,6 @@ def get_training_history():
 
 def run_server():
     """启动 Flask 服务器"""
-    global env_check_result
 
     # 启动前加载线体数量，确保环境检测和相机槽位与前端设置一致
     try:
@@ -2519,14 +2497,14 @@ def run_server():
 
     # ========== 环境检测 ==========
     logger.info("正在运行环境检测...")
-    env_check_result = run_environment_check()
+    runtime.env_check_result = run_environment_check()
 
-    if env_check_result["passed"]:
+    if runtime.env_check_result["passed"]:
         logger.info("环境检测通过，继续初始化相机管理器")
     else:
         logger.warning(
-            f"环境检测未通过: {env_check_result['errorCount']} 个错误, "
-            f"{env_check_result['warningCount']} 个警告"
+            f"环境检测未通过: {runtime.env_check_result['errorCount']} 个错误, "
+            f"{runtime.env_check_result['warningCount']} 个警告"
         )
         logger.warning("环境检测存在问题，但仍尝试初始化相机管理器...")
 
@@ -2571,4 +2549,3 @@ def run_server():
 
 if __name__ == "__main__":
     run_server()
-
