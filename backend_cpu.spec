@@ -17,7 +17,7 @@ a = Analysis(
         'torchvision.models.mobilenetv3', 'torchvision.transforms',
         'torchvision.datasets', 'numpy',
         'backend.server', 'backend.config', 'backend.logger',
-        'backend.training', 'backend.mvs_camera',
+        'backend.training', 'backend.mvs_camera', 'backend.mvs_camera_manager',
         'backend.inference_worker', 'backend.env_check',
         'backend.camera_config_manager', 'backend.plc_service',
     ],

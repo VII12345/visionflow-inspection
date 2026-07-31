@@ -16,7 +16,7 @@ from flask_cors import CORS
 
 from .config import Config
 from .logger import logger
-from .mvs_camera import MVSCameraManager
+from .mvs_camera_manager import MVSCameraManager
 from .camera_config_manager import camera_config_manager
 from .inference_worker import (
     start_inference_worker,
