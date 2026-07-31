@@ -1,4 +1,4 @@
-# 视觉检测系统 V2.0 — Tauri GPU+CPU 完整版免安装脚本
+# 视界智检 V2.0 — Tauri GPU+CPU 完整版免安装脚本
 # 输出：包含 GPU/CUDA 与 CPU 运行库的完整便携目录，不生成 NSIS 安装器
 # 用法：.\build_portable_tauri_full.ps1 [-Proxy http://127.0.0.1:10808]
 
@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = $PSScriptRoot
 $ViewRoot = Join-Path $ProjectRoot "view"
 $OutputRoot = Join-Path $ProjectRoot "releases"
-$PortableDir = Join-Path $OutputRoot "视觉检测系统_Tauri_完整_免安装版"
+$PortableDir = Join-Path $OutputRoot "视界智检_Tauri_完整_免安装版"
 $DistDir = Join-Path $ProjectRoot "dist_portable_tauri_full"
 $BuildDir = Join-Path $ProjectRoot "build_tauri_full"
 $ResourcesBackendDir = Join-Path $ViewRoot "resources\backend"
@@ -25,7 +25,7 @@ function Invoke-Checked([string]$File, [string[]]$Arguments) {
 }
 
 Write-Host "╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║   视觉检测系统 V2.0 — Tauri GPU+CPU 完整版     ║" -ForegroundColor Cyan
+Write-Host "║   视界智检 V2.0 — Tauri GPU+CPU 完整版     ║" -ForegroundColor Cyan
 Write-Host "║   目标: 免安装便携目录，包含 GPU/CUDA 与 CPU     ║" -ForegroundColor Cyan
 Write-Host "╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
@@ -88,14 +88,14 @@ if (Test-Path -LiteralPath $PortableDir) { Remove-Item -LiteralPath $PortableDir
 New-Item -ItemType Directory -Path $PortableDir -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $PortableDir "resources\backend") -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $PortableDir "data") -Force | Out-Null
-Copy-Item -LiteralPath $BuiltExe -Destination (Join-Path $PortableDir "视觉检测系统.exe") -Force
+Copy-Item -LiteralPath $BuiltExe -Destination (Join-Path $PortableDir "视界智检.exe") -Force
 Copy-Item -Path (Join-Path $BackendDir '*') -Destination (Join-Path $PortableDir "resources\backend") -Recurse -Force
 Set-Content -LiteralPath (Join-Path $PortableDir "portable.flag") -Value "Tauri GPU+CPU portable" -Encoding utf8
 
 $readmeLines = @(
-    '视觉检测系统 V2.0 - Tauri GPU+CPU 完整版免安装版',
+    '视界智检 V2.0 - Tauri GPU+CPU 完整版免安装版',
     '',
-    '直接双击“视觉检测系统.exe”即可自动启动前端和后端。'
+    '直接双击“视界智检.exe”即可自动启动前端和后端。'
     '程序、后端资源和 data 数据目录均位于当前目录，可整体复制或压缩分发。',
     '首次运行前请确认已安装海康 MVS SDK，并且 PLC 服务可用。'
 )
@@ -109,9 +109,5 @@ if (Test-Path -LiteralPath $pyinstallerLog) { Remove-Item -LiteralPath $pyinstal
 Write-Host ""
 Write-Host "✓ Tauri GPU+CPU 完整版免安装版打包完成" -ForegroundColor Green
 Write-Host "目录: $PortableDir" -ForegroundColor White
-Write-Host "启动: $(Join-Path $PortableDir '视觉检测系统.exe')" -ForegroundColor White
+Write-Host "启动: $(Join-Path $PortableDir '视界智检.exe')" -ForegroundColor White
 Write-Host "大小: $size MB" -ForegroundColor White
-
-
-
-

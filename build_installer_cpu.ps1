@@ -1,4 +1,4 @@
-# 视觉检测系统 V2.0 — CPU-only Tauri 安装包一键打包脚本
+# 视界智检 V2.0 — CPU-only Tauri 安装包一键打包脚本
 # 输出：仅 CPU PyTorch 的 Tauri Windows 安装包；不携带 CUDA/cuDNN DLL。
 # 用法：.\build_portable_cpu.ps1 [-Proxy http://127.0.0.1:10808]
 
@@ -88,12 +88,12 @@ $installer = Get-ChildItem -LiteralPath $bundleDir -Filter *.exe -File | Sort-Ob
 if (-not $installer) { throw "Tauri CPU 构建完成但未找到 NSIS 安装包: $bundleDir" }
 
 Write-Host "[5/5] 整理 CPU-only 输出..." -ForegroundColor Yellow
-$finalDir = Join-Path $OutputDir "视觉检测系统_CPU_Tauri_安装包"
+$finalDir = Join-Path $OutputDir "视界智检_CPU_Tauri_安装包"
 if (Test-Path -LiteralPath $finalDir) { Remove-Item -LiteralPath $finalDir -Recurse -Force }
 New-Item -ItemType Directory -Path $finalDir -Force | Out-Null
-$finalInstaller = Join-Path $finalDir "视觉检测系统_CPU_Tauri_Setup.exe"
+$finalInstaller = Join-Path $finalDir "视界智检_CPU_Tauri_Setup.exe"
 Copy-Item -LiteralPath $installer.FullName -Destination $finalInstaller -Force
-$batLines = @('@echo off', 'chcp 65001 >nul', 'title 视觉检测系统 V2.0 CPU-only Tauri 版', 'echo 请先运行安装包完成安装，然后从开始菜单启动系统。')
+$batLines = @('@echo off', 'chcp 65001 >nul', 'title 视界智检 V2.0 CPU-only Tauri 版', 'echo 请先运行安装包完成安装，然后从开始菜单启动系统。')
 $batPath = Join-Path $finalDir "安装说明_CPU版.bat"
 [System.IO.File]::WriteAllLines($batPath, $batLines, [System.Text.UTF8Encoding]::new($true))
 $finalSize = Get-DirectorySizeMiB $finalDir
@@ -102,6 +102,3 @@ Write-Host "✓ CPU-only Tauri 发布完成：$finalDir ($finalSize MB)" -Foregr
 # 清理临时构建目录；保留 .venv_cpu 和 Tauri target 供增量构建复用。
 if (Test-Path -LiteralPath $DistDir) { Remove-Item -LiteralPath $DistDir -Recurse -Force }
 if (Test-Path -LiteralPath $BuildDir) { Remove-Item -LiteralPath $BuildDir -Recurse -Force }
-
-
-

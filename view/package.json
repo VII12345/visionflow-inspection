@@ -1,7 +1,7 @@
 {
-  "name": "vision-inspection-system",
+  "name": "visionflow-inspection",
   "version": "2.0.0",
-  "description": "视觉检测系统 V2.0 - 基于深度学习的产品类别识别系统 (React重构版)",
+  "description": "视界智检 V2.0 - 面向工业现场的 AI 视觉检测平台，连接工业相机与 PLC，提供多相机实时推理、模型训练测试、质量追溯和 Windows/Web 部署。",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,7 @@
     "tauri:prepare": "node scripts/prepare-tauri-sidecar.mjs"
   },
   "author": {
-    "name": "Vision System",
+    "name": "VisionFlow Inspection",
     "email": "dev@vision-system.local"
   },
   "license": "MIT",

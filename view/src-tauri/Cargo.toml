@@ -1,8 +1,8 @@
 [package]
 name = "vision-inspection"
 version = "2.0.0"
-description = "视觉检测系统 Tauri 桌面端"
-authors = ["Vision System"]
+description = "VisionFlow Inspection Tauri desktop application"
+authors = ["VisionFlow Inspection"]
 edition = "2021"
 rust-version = "1.77.2"
 
@@ -27,6 +27,3 @@ hex = "0.4"
 [features]
 custom-protocol = ["tauri/custom-protocol"]
 default = ["custom-protocol"]
-
-
-

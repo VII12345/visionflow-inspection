@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-# 视觉检测系统 — PyInstaller 打包配置
+# 视界智检 — PyInstaller 打包配置
 # 生成独立的 backend.exe（Flask 服务 + AI 推理）
 
 block_cipher = None

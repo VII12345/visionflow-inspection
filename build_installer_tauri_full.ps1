@@ -1,4 +1,4 @@
-# 视觉检测系统 V2.0 — Tauri GPU+CPU 完整版安装包脚本
+# 视界智检 V2.0 — Tauri GPU+CPU 完整版安装包脚本
 # 使用 backend.spec，包含 GPU/CUDA 与 CPU 运行库，生成 NSIS 安装包。
 # 如果 GPU 版体积过大导致 NSIS 无法生成，可只使用 build_portable_tauri_full.ps1。
 # 用法：.\build_installer_tauri_full.ps1 [-Proxy http://127.0.0.1:10808]
@@ -11,7 +11,7 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = $PSScriptRoot
 $ViewRoot = Join-Path $ProjectRoot "view"
 $OutputRoot = Join-Path $ProjectRoot "releases"
-$FinalDir = Join-Path $OutputRoot "视觉检测系统_GPU_CPU_安装包"
+$FinalDir = Join-Path $OutputRoot "视界智检_GPU_CPU_安装包"
 $DistDir = Join-Path $ProjectRoot "dist_tauri_full_installer"
 $BuildDir = Join-Path $ProjectRoot "build_tauri_full_installer"
 $ResourcesBackendDir = Join-Path $ViewRoot "resources\backend"
@@ -73,7 +73,7 @@ if (-not $installer) { throw "未找到 Tauri NSIS 安装包: $bundleDir" }
 Write-Host "[5/5] 整理发布结果..." -ForegroundColor Yellow
 if (Test-Path -LiteralPath $FinalDir) { Remove-Item -LiteralPath $FinalDir -Recurse -Force }
 New-Item -ItemType Directory -Path $FinalDir -Force | Out-Null
-$finalInstaller = Join-Path $FinalDir '视觉检测系统_GPU_CPU_Setup.exe'
+$finalInstaller = Join-Path $FinalDir '视界智检_GPU_CPU_Setup.exe'
 Copy-Item -LiteralPath $installer.FullName -Destination $finalInstaller -Force
 $size = [math]::Round(((Get-ChildItem -LiteralPath $FinalDir -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB, 1)
 
@@ -83,4 +83,3 @@ if (Test-Path -LiteralPath $BuildDir) { Remove-Item -LiteralPath $BuildDir -Recu
 Write-Host "✓ GPU+CPU 完整版安装包生成成功" -ForegroundColor Green
 Write-Host "安装包: $finalInstaller" -ForegroundColor White
 Write-Host "大小: $size MB" -ForegroundColor White
-

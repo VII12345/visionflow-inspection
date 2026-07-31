@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "视觉检测系统默认桌面权限",
+  "description": "视界智检默认桌面权限",
   "windows": ["*"],
   "permissions": [
     "core:default",
