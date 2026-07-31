@@ -84,8 +84,9 @@ def health():
     """健康检查"""
     cam_status = {}
     for i in range(1, Config.CAMERA_COUNT + 1):
-        if i in runtime.camera_states:
-            cam_status[i] = runtime.camera_states[i]["state"] != "disconnected"
+        camera_state = runtime.get_camera_state(i)
+        if camera_state is not None:
+            cam_status[i] = camera_state["state"] != "disconnected"
         else:
             cam_status[i] = False
     return jsonify(
@@ -246,8 +247,9 @@ def get_camera_mapping():
     """获取相机映射配置"""
     mapping = {}
     for i in range(1, Config.CAMERA_COUNT + 1):
-        if runtime.camera_states[i]["serial"]:
-            mapping[str(i)] = {"serial": runtime.camera_states[i]["serial"], "name": f"Cam{i}"}
+        camera_state = runtime.get_camera_state(i)
+        if camera_state and camera_state["serial"]:
+            mapping[str(i)] = {"serial": camera_state["serial"], "name": f"Cam{i}"}
         else:
             mapping[str(i)] = None
     return jsonify(mapping)
@@ -435,9 +437,7 @@ def _stop_camera(cam_id):
         except Exception as e:
             logger.warning(f"Cam{cam_id} 断开失败: {e}")
     if cam_id in runtime.camera_states:
-        runtime.camera_states[cam_id]["state"] = "ready"
-        runtime.camera_states[cam_id]["error"] = None
-        runtime.camera_states[cam_id]["fps"] = 0
+        runtime.update_camera_state(cam_id, state="ready", error=None, fps=0)
 
 
 def _start_camera(cam_id, cam_config, available_cameras):
@@ -449,8 +449,7 @@ def _start_camera(cam_id, cam_config, available_cameras):
     )
     if device_index is None:
         error_msg = f"Cam{cam_id} 未找到IP为 {target_ip} 的相机"
-        runtime.camera_states[cam_id]["state"] = "error"
-        runtime.camera_states[cam_id]["error"] = f"未找到IP: {target_ip}"
+        runtime.update_camera_state(cam_id, state="error", error=f"未找到IP: {target_ip}")
         logger.warning(error_msg)
         return False, error_msg
 
@@ -476,21 +475,23 @@ def _start_camera(cam_id, cam_config, available_cameras):
         threading.Thread(target=camera_worker, args=(cam_id,), daemon=True).start()
 
         info = cam.get_info()
-        runtime.camera_states[cam_id]["state"] = "running"
-        runtime.camera_states[cam_id]["triggerMode"] = "hardware"
-        runtime.camera_states[cam_id]["totalTriggers"] = 0
-        runtime.camera_states[cam_id]["serial"] = info["serial"]
-        runtime.camera_states[cam_id]["model"] = info["model"]
-        runtime.camera_states[cam_id]["ip"] = info.get("ip")
-        runtime.camera_states[cam_id]["error"] = None
+        runtime.update_camera_state(
+            cam_id,
+            state="running",
+            triggerMode="hardware",
+            totalTriggers=0,
+            serial=info["serial"],
+            model=info["model"],
+            ip=info.get("ip"),
+            error=None,
+        )
         logger.info(f"Cam{cam_id} 启动成功: {info['model']} ({target_ip})")
         return True, None
     except Exception as e:
         error_msg = f"Cam{cam_id} 启动失败: {str(e)}"
         logger.error(error_msg)
         _stop_camera(cam_id)
-        runtime.camera_states[cam_id]["state"] = "error"
-        runtime.camera_states[cam_id]["error"] = str(e)
+        runtime.update_camera_state(cam_id, state="error", error=str(e))
         return False, error_msg
 
 
@@ -670,7 +671,7 @@ def get_status():
     """获取系统状态（主要轮询端点）"""
     camera_status = {}
     for i in range(1, Config.CAMERA_COUNT + 1):
-        state = runtime.camera_states[i]
+        state, camera_stats, result = runtime.get_camera_snapshot(i)
         camera_status[str(i)] = {
             "state": state["state"],
             "lineEnabled": runtime.line_enabled.get(i, True),
@@ -680,13 +681,12 @@ def get_status():
             "fps": state["fps"],
             "totalTriggers": state["totalTriggers"],
             "lastFrameTime": state["lastFrameTime"],
-            "stats": runtime.stats[i],
+            "stats": camera_stats,
             "error": state["error"],
         }
 
-        # 添加最新检测结果
-        if i in runtime.latest_results:
-            camera_status[str(i)]["result"] = runtime.latest_results[i]
+        if result is not None:
+            camera_status[str(i)]["result"] = result
 
     return jsonify(
         {
@@ -702,12 +702,12 @@ def get_status():
 @app.route("/api/frame/<int:cam_id>", methods=["GET"])
 def get_frame(cam_id):
     """获取最新帧（JPEG）"""
-    if cam_id not in runtime.latest_frames:
+    img = runtime.get_latest_frame(cam_id)
+    if img is None:
         # 相机已配置但尚未产生第一帧时，不视为接口不存在；用 204 告知前端暂时无图像，避免轮询日志持续刷 404。
         return "", 204
 
     try:
-        img = runtime.latest_frames[cam_id]
         # 转为 JPEG bytes
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=85)
@@ -721,16 +721,17 @@ def get_frame(cam_id):
 @app.route("/api/result/<int:cam_id>", methods=["GET"])
 def get_result(cam_id):
     """获取最新检测结果"""
-    if cam_id not in runtime.latest_results:
+    result = runtime.get_latest_result(cam_id)
+    if result is None:
         return jsonify({"error": "No result available"}), 404
 
-    return jsonify(runtime.latest_results[cam_id])
+    return jsonify(result)
 
 
 @app.route("/api/stats", methods=["GET"])
 def get_stats():
     """获取统计数据"""
-    return jsonify(runtime.stats)
+    return jsonify(runtime.get_stats_snapshot())
 
 
 @app.route("/api/stats/reset/<int:cam_id>", methods=["POST"])
@@ -739,9 +740,9 @@ def reset_stats(cam_id):
     if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
         return jsonify({"error": "Invalid camera ID"}), 400
 
-    runtime.stats[cam_id] = {"detected": 0, "defective": 0}
+    stats = runtime.reset_camera_stats(cam_id)
     logger.info(f"重置 Camera {cam_id} 统计")
-    return jsonify({"success": True, "stats": runtime.stats[cam_id]})
+    return jsonify({"success": True, "stats": stats})
 
 
 # ========== 保存设置 API ==========
@@ -1094,7 +1095,7 @@ def camera_worker(cam_id):
             # 收到触发，拿到了新照片！
             wait_count = 0
             frame_count += 1
-            runtime.latest_frames[cam_id] = frame
+            runtime.set_latest_frame(cam_id, frame)
 
             logger.info(f"Camera {cam_id}: 收到触发信号 #{frame_count}，开始推理...")
 
@@ -1109,14 +1110,14 @@ def camera_worker(cam_id):
                 # 阻塞等待推理完成
                 result = get_inference_result(cam_id, timeout=5.0)
                 if result:
-                    runtime.latest_results[cam_id] = result
-                    runtime.stats[cam_id]["detected"] += 1
+                    runtime.set_latest_result(cam_id, result)
+                    runtime.increment_stat(cam_id, "detected")
                     plc_config = get_plc_config()
                     model_name = inference_worker.camera_product_map.get(cam_id)
                     reject_labels = _get_model_reject_labels(model_name)
                     should_reject = result["label"] in reject_labels
                     if should_reject:
-                        runtime.stats[cam_id]["defective"] += 1
+                        runtime.increment_stat(cam_id, "defective")
                     if plc_config.get("enabled", True) and should_reject:
                         try:
                             plc_service.with_base_url(plc_config.get("base_url", plc_service.base_url)).write_reject_signal(cam_id)
@@ -1131,7 +1132,7 @@ def camera_worker(cam_id):
             else:
                 # 模型未就绪，记录但不推理
                 logger.warning(f"Camera {cam_id}: 模型未就绪，无法推理")
-                runtime.stats[cam_id]["detected"] += 1
+                runtime.increment_stat(cam_id, "detected")
 
             # 照片存盘 — 异步写入，不阻塞抓帧循环。各类别照片的保存开关
             # 来自 /api/save-settings，并且在后端进程内直接生效。
@@ -1159,18 +1160,18 @@ def camera_worker(cam_id):
                 logger.error(f"Camera {cam_id}: 提交存盘失败: {e}")
 
             # 更新状态
-            runtime.camera_states[cam_id]["lastFrameTime"] = time.strftime("%Y-%m-%dT%H:%M:%S")
-            runtime.camera_states[cam_id]["totalTriggers"] = frame_count
-
-            # 计算实际触发频率（触发/秒）
             elapsed = time.time() - start_time
-            if elapsed > 0:
-                runtime.camera_states[cam_id]["fps"] = round(frame_count / elapsed, 2)
+            fps = round(frame_count / elapsed, 2) if elapsed > 0 else 0
+            runtime.update_camera_state(
+                cam_id,
+                lastFrameTime=time.strftime("%Y-%m-%dT%H:%M:%S"),
+                totalTriggers=frame_count,
+                fps=fps,
+            )
 
         except Exception as e:
             logger.error(f"Camera {cam_id} worker 错误: {e}")
-            runtime.camera_states[cam_id]["error"] = str(e)
-            runtime.camera_states[cam_id]["state"] = "error"
+            runtime.update_camera_state(cam_id, error=str(e), state="error")
             # 短暂等待后重试
             time.sleep(1)
 
