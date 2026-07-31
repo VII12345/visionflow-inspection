@@ -39,10 +39,10 @@
 ```powershell
 py -3.9 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-cpu.txt
 ```
 
-根据目标设备单独安装 CPU 或 CUDA 版本的 PyTorch/torchvision。
+CPU 开发环境使用 `requirements-cpu.txt`；GPU 开发环境使用 `requirements-gpu.txt`，并确保 PyTorch/torchvision 与本机 CUDA 环境匹配。
 
 ### 3. 启动后端
 
@@ -111,7 +111,9 @@ view/src-tauri/           Tauri 桌面端和本地数据命令
 docs/                     用户手册和技术文档
 data/                     运行时数据，默认不提交
 build_*.ps1               Windows 构建脚本
-requirements.txt          基础 Python 依赖
+requirements.txt          通用 Python 运行依赖
+requirements-cpu.txt      CPU + AI 依赖
+requirements-gpu.txt      GPU + AI 依赖
 ```
 
 ## 训练数据格式

@@ -1,3 +1,6 @@
+# Common runtime dependencies
 flask>=3.0.0
 flask-cors>=4.0.0
 pillow>=12.2.0
+numpy>=2.0.0
+psutil>=5.9.0

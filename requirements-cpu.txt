@@ -1,0 +1,7 @@
+# CPU development/runtime environment
+-r requirements.txt
+
+# The CPU wheel index is intentionally explicit so a GPU build is not pulled in.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision

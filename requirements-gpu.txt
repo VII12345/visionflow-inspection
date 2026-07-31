@@ -1,0 +1,8 @@
+# GPU development/runtime environment
+-r requirements.txt
+
+# Install the torch/torchvision build matching the local CUDA runtime.
+# For a specific CUDA wheel index, follow the PyTorch installation command
+# for the target machine before running the application.
+torch
+torchvision
