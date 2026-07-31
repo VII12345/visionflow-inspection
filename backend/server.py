@@ -37,6 +37,14 @@ from .settings_repository import (
     save_line_count as _save_line_count,
 )
 
+from .photo_service import (
+    cleanup_captures,
+    delete_photo as delete_photo_file,
+    find_photo,
+    list_camera_photos,
+    photo_mime,
+)
+
 
 # 初始化 Flask
 app = Flask(__name__)
@@ -1408,12 +1416,6 @@ def list_image_directories():
     return jsonify({"success": True, "directories": directories})
 
 
-def _photo_subdirs(capture_dir):
-    if not capture_dir.exists():
-        return []
-    return sorted([item for item in capture_dir.iterdir() if item.is_dir()], key=lambda item: item.name)
-
-
 # ========== 照片管理 API ==========
 
 
@@ -1423,43 +1425,11 @@ def list_photos(cam_id):
     if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
         return jsonify({"success": False, "error": "Invalid camera ID"}), 400
 
-    capture_dir = Config.CAPTURE_DIR / f"cam{cam_id}"
-    if not capture_dir.exists():
-        return jsonify({"success": True, "photos": [], "okCount": 0, "ngCount": 0})
-
-    photos = []
-    ok_count = 0
-    ng_count = 0
-    # 扫描所有类别子目录
-    for subdir in _photo_subdirs(capture_dir):
-        sub = subdir.name
-        for f in sorted(
-            subdir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True
-        ):
-            if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
-                stat = f.stat()
-                # 根据子目录确定分类
-                result_tag = "NG" if sub in reject_labels else ("--" if sub == "未分类" else "OK")
-                if result_tag == "OK":
-                    ok_count += 1
-                elif result_tag == "NG":
-                    ng_count += 1
-                photos.append(
-                    {
-                        "filename": f.name,
-                        "subdir": sub,
-                        "size": stat.st_size,
-                        "mtime": datetime.fromtimestamp(stat.st_mtime).strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        ),
-                        "timestamp": stat.st_mtime,
-                        "result": result_tag,
-                    }
-                )
-
-    return jsonify(
-        {"success": True, "photos": photos, "okCount": ok_count, "ngCount": ng_count}
+    result = list_camera_photos(
+        Config.CAPTURE_DIR / f"cam{cam_id}",
+        _get_model_reject_labels(),
     )
+    return jsonify({"success": True, **result})
 
 
 @app.route("/api/photos/<int:cam_id>/<filename>", methods=["GET"])
@@ -1468,25 +1438,10 @@ def get_photo(cam_id, filename):
     if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
         return jsonify({"error": "Invalid camera ID"}), 400
 
-    safe_name = Path(filename).name
-    # 在所有类别子目录中查找
-    for subdir in _photo_subdirs(Config.CAPTURE_DIR / f"cam{cam_id}"):
-        file_path = subdir / safe_name
-        if file_path.exists():
-            break
-    else:
+    file_path = find_photo(Config.CAPTURE_DIR / f"cam{cam_id}", filename)
+    if file_path is None:
         return jsonify({"error": "Photo not found"}), 404
-
-    # 根据扩展名自动选择 MIME 类型
-    ext = file_path.suffix.lower()
-    mime_map = {
-        ".png": "image/png",
-        ".bmp": "image/bmp",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-    }
-    mime = mime_map.get(ext, "image/jpeg")
-    return send_file(str(file_path), mimetype=mime)
+    return send_file(str(file_path), mimetype=photo_mime(file_path))
 
 
 @app.route("/api/photos/<int:cam_id>/<filename>", methods=["DELETE"])
@@ -1495,68 +1450,26 @@ def delete_photo(cam_id, filename):
     if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
         return jsonify({"success": False, "error": "Invalid camera ID"}), 400
 
-    safe_name = Path(filename).name
-    file_path = None
-    for subdir in _photo_subdirs(Config.CAPTURE_DIR / f"cam{cam_id}"):
-        candidate = subdir / safe_name
-        if candidate.exists() and candidate.is_file():
-            file_path = candidate
-            break
-
+    file_path = find_photo(Config.CAPTURE_DIR / f"cam{cam_id}", filename)
     if file_path is None:
         return jsonify({"success": False, "error": "Photo not found"}), 404
 
     try:
-        file_path.unlink()
+        delete_photo_file(file_path)
         logger.info(f"已删除照片: {file_path}")
         return jsonify({"success": True, "message": f"已删除 {filename}"})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+    except OSError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
 
 
 def cleanup_photos():
     """清理过期/超量照片"""
-    now = time.time()
-    max_age_seconds = Config.MAX_PHOTO_AGE_DAYS * 86400
-    total_deleted = 0
-
-    for cam_id in range(1, Config.CAMERA_COUNT + 1):
-        capture_dir = Config.CAPTURE_DIR / f"cam{cam_id}"
-        if not capture_dir.exists():
-            continue
-
-        # 收集所有类别目录中的照片，按修改时间排序
-        files = []
-        for subdir in _photo_subdirs(capture_dir):
-            for f in subdir.iterdir():
-                if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp"):
-                    files.append((f, f.stat().st_mtime))
-
-        if not files:
-            continue
-
-        # 按时间从旧到新排序
-        files.sort(key=lambda x: x[1])
-
-        # 1) 删除过期照片
-        for f_path, mtime in files[:]:
-            if now - mtime > max_age_seconds:
-                try:
-                    f_path.unlink()
-                    total_deleted += 1
-                except Exception:
-                    pass
-                files.remove((f_path, mtime))
-
-        # 2) 超出数量限制，删除最旧的
-        while len(files) > Config.PHOTO_RETENTION_COUNT:
-            f_path, _ = files.pop(0)
-            try:
-                f_path.unlink()
-                total_deleted += 1
-            except Exception:
-                pass
-
+    total_deleted = cleanup_captures(
+        Config.CAPTURE_DIR,
+        Config.CAMERA_COUNT,
+        Config.MAX_PHOTO_AGE_DAYS,
+        Config.PHOTO_RETENTION_COUNT,
+    )
     if total_deleted > 0:
         logger.info(f"照片清理完成: 删除了 {total_deleted} 张照片")
     return total_deleted
