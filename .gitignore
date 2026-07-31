@@ -88,3 +88,4 @@ build_tauri_full_installer/
 pyinstaller-build-tauri-full.log
 pyinstaller-build-tauri-cpu.log
 
+test-report/
