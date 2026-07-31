@@ -1,115 +1,49 @@
-import type { ModelInfo, PlcConfig } from '../types';
+import type { PlcConfig } from '../types';
 import { API_BASE, backendFetch } from './apiClient';
+import type {
+  AllCameraConfigsResponse, CameraConfigResponse, CameraStatusResponse, DeviceConfigResponse,
+  EnvironmentCheckResponse, HardwareInfoResponse, HealthResponse, ImageDirectoriesResponse,
+  LineCountResponse, ModelListResponse, PhotosResponse, PlcConfigResponse, PlcWritePayload,
+  PlcWriteResponse, ResetStatsResponse, SaveCameraConfigResponse, SaveCameraSettingsResponse,
+  SaveDeviceConfigResponse, SaveLineCountResponse, SaveModelSettingsResponse, SavePlcConfigResponse,
+  SaveSettingsResponse, SetLineEnabledResponse, StartResponse, StartTrainingParams,
+  StartTrainingResponse, StatsResponse, StopResponse, TestModelParams, TestModelResponse,
+  TestRejectSignalResponse, TrainingStatusResponse,
+} from '../types/api';
 
 export const api = {
-  // Health
-  health: () => backendFetch<{ status: string }>('/api/health'),
-
-  // System control
-  start: (camProducts?: Record<number, string>, lineCount?: number, cameraIds?: number[]) => backendFetch<{ success: boolean; message?: string; errors?: string[]; started_cameras?: number[]; running?: boolean }>('/api/start', { method: 'POST', body: { camProducts, line_count: lineCount, camera_ids: cameraIds } }),
-  stop: () => backendFetch<{ success: boolean; message?: string; running?: boolean }>('/api/stop', { method: 'POST' }),
-  setLineEnabled: (camId: number, enabled: boolean) => backendFetch<{ success: boolean; enabled?: boolean; running?: boolean; message?: string }>(`/api/lines/${camId}`, { method: 'POST', body: { enabled } }),
-  status: () => backendFetch<{ cameras: Record<number, { state: string; lineEnabled?: boolean; result?: { label: string; confidence: number }; lastFrameTime?: string; totalTriggers?: number; stats?: { detected: number; defective: number }; error?: string }> }>('/api/status'),
-
-  // Frames
+  health: () => backendFetch<HealthResponse>('/api/health'),
+  start: (camProducts?: Record<number, string>, lineCount?: number, cameraIds?: number[]) => backendFetch<StartResponse>('/api/start', { method: 'POST', body: { camProducts, line_count: lineCount, camera_ids: cameraIds } }),
+  stop: () => backendFetch<StopResponse>('/api/stop', { method: 'POST' }),
+  setLineEnabled: (camId: number, enabled: boolean) => backendFetch<SetLineEnabledResponse>(`/api/lines/${camId}`, { method: 'POST', body: { enabled } }),
+  status: () => backendFetch<CameraStatusResponse>('/api/status'),
   getFrame: (camId: number) => backendFetch<ArrayBuffer>(`/api/frame/${camId}`, { responseType: 'blob' }),
-
-  // Camera config
-  getCameraConfig: (camId: number) => backendFetch<{ success: boolean; config: Record<string, unknown> }>(`/api/cameras/config/${camId}`),
-  getAllCameraConfigs: () => backendFetch<{ success: boolean; config: { cameras: Record<string, Record<string, unknown>> } }>('/api/cameras/config'),
-  saveCameraConfig: (camId: number, config: Record<string, unknown>) =>
-    backendFetch<{ success: boolean; message?: string; plcSuccess?: boolean; plcError?: string }>(`/api/cameras/config/${camId}`, { method: 'POST', body: config }),
-  testRejectSignal: (camId: number) =>
-    backendFetch<{ success: boolean; camera?: number; address?: string; value?: number; error?: string }>(`/api/cameras/${camId}/plc/test-reject`, { method: 'POST' }),
-
-  // Training
-  startTraining: (params: { categoryRootPath?: string; classAPath?: string; classBPath?: string; folderPath?: string; modelName: string }) =>
-    backendFetch<{ success: boolean; message?: string; error?: string }>('/api/training/start', { method: 'POST', body: params }),
+  getCameraConfig: (camId: number) => backendFetch<CameraConfigResponse>(`/api/cameras/config/${camId}`),
+  getAllCameraConfigs: () => backendFetch<AllCameraConfigsResponse>('/api/cameras/config'),
+  saveCameraConfig: (camId: number, config: Record<string, unknown>) => backendFetch<SaveCameraConfigResponse>(`/api/cameras/config/${camId}`, { method: 'POST', body: config }),
+  testRejectSignal: (camId: number) => backendFetch<TestRejectSignalResponse>(`/api/cameras/${camId}/plc/test-reject`, { method: 'POST' }),
+  startTraining: (params: StartTrainingParams) => backendFetch<StartTrainingResponse>('/api/training/start', { method: 'POST', body: params }),
   stopTraining: () => backendFetch('/api/training/stop', { method: 'POST' }),
-  trainingStatus: () => backendFetch<{ running: boolean; progress: number; message: string; epoch: number; total_epochs: number; train_loss: number; val_loss: number; val_acc: number; modelPath?: string | null; evalResult?: Record<string, unknown> | null }>('/api/training/status'),
-
-  // Models
-  getModels: () => backendFetch<{ success: boolean; models: ModelInfo[] }>('/api/models'),
-  saveModelSettings: (modelName: string, rejectLabels: string[], categoryDescriptions: Record<string, string> = {}) =>
-    backendFetch<{ success: boolean; model?: string; categories?: string[]; reject_labels?: string[]; category_descriptions?: Record<string, string>; error?: string }>(`/api/models/${encodeURIComponent(modelName)}/settings`, { method: 'POST', body: { reject_labels: rejectLabels, category_descriptions: categoryDescriptions } }),
-
-  // Model testing
-  testModel: (params: { model_name: string; mode: 'labeled' | 'unlabeled'; category_root_path?: string; class_a_path?: string; class_b_path?: string; folder_path?: string }) =>
-    backendFetch<{
-      success: boolean;
-      message?: string;
-      mode: string;
-      model_name: string;
-      total: number;
-      correct?: number;
-      accuracy?: number;
-      categories?: string[];
-      category_counts?: Record<string, { total: number; correct: number; accuracy: number | null }>;
-      class_a_total?: number;
-      class_a_correct?: number;
-      class_a_accuracy?: number | null;
-      class_b_total?: number;
-      class_b_correct?: number;
-      class_b_accuracy?: number | null;
-      timing?: {
-        avg_ms: number;
-        min_ms: number;
-        max_ms: number;
-        total_ms: number;
-        pipeline_total_ms?: number;
-        steps?: Record<string, { avg_ms: number; min_ms: number; max_ms: number; total_ms: number }>;
-        step_labels?: Record<string, string>;
-      };
-      results: { filename: string; expected?: string; predicted: string; confidence: number; correct?: boolean; time_ms?: number; timing?: Record<string, number> }[];
-    }>('/api/test', { method: 'POST', body: params }),
-
-  // Statistics
-  getStats: () => backendFetch<Record<number, { detected: number; defective: number }>>('/api/stats'),
-  resetStats: (camId: number) => backendFetch<{ success: boolean; stats?: { detected: number; defective: number } }>(`/api/stats/reset/${camId}`, { method: 'POST' }),
-
-  // Backend image directories
-  getImageDirectories: () => backendFetch<{
-    success: boolean;
-    directories: { path: string; name: string; relativePath: string; root: string; imageCount: number }[];
-  }>('/api/image-directories'),
-
-  // Photo save settings and photos
-  getSaveSettings: () => backendFetch<{ success: boolean; settings: Record<number, { saveGood: boolean; saveBad: boolean }> }>('/api/save-settings'),
-  saveSaveSettings: (camId: number, settings: { saveGood: boolean; saveBad: boolean }) =>
-    backendFetch<{ success: boolean; settings?: { saveGood: boolean; saveBad: boolean }; error?: string }>(`/api/save-settings/${camId}`, { method: 'POST', body: settings }),
-  getPhotos: (camId: number) => backendFetch<{ success: boolean; photos: { filename: string; mtime: string; size: number; result: string; timestamp: number }[]; okCount: number; ngCount: number }>(`/api/photos/${camId}`),
+  trainingStatus: () => backendFetch<TrainingStatusResponse>('/api/training/status'),
+  getModels: () => backendFetch<ModelListResponse>('/api/models'),
+  saveModelSettings: (modelName: string, rejectLabels: string[], categoryDescriptions: Record<string, string> = {}) => backendFetch<SaveModelSettingsResponse>(`/api/models/${encodeURIComponent(modelName)}/settings`, { method: 'POST', body: { reject_labels: rejectLabels, category_descriptions: categoryDescriptions } }),
+  testModel: (params: TestModelParams) => backendFetch<TestModelResponse>('/api/test', { method: 'POST', body: params }),
+  getStats: () => backendFetch<StatsResponse>('/api/stats'),
+  resetStats: (camId: number) => backendFetch<ResetStatsResponse>(`/api/stats/reset/${camId}`, { method: 'POST' }),
+  getImageDirectories: () => backendFetch<ImageDirectoriesResponse>('/api/image-directories'),
+  getSaveSettings: () => backendFetch<SaveSettingsResponse>('/api/save-settings'),
+  saveSaveSettings: (camId: number, settings: { saveGood: boolean; saveBad: boolean }) => backendFetch<SaveCameraSettingsResponse>(`/api/save-settings/${camId}`, { method: 'POST', body: settings }),
+  getPhotos: (camId: number) => backendFetch<PhotosResponse>(`/api/photos/${camId}`),
   getPhotoUrl: (camId: number, filename: string) => `${API_BASE}/api/photos/${camId}/${encodeURIComponent(filename)}`,
-
-  // PLC
-  getPlcConfig: () => backendFetch<{ success: boolean; config: PlcConfig }>('/api/plc/config'),
-  savePlcConfig: (config: PlcConfig) => backendFetch<{ success: boolean; config?: PlcConfig; message?: string; error?: string }>('/api/plc/config', { method: 'POST', body: config }),
-  testPlcWrite: (payload: { camera_id: number; type: 'reject_time' | 'reject_delay' | 'reject_signal'; value: number }) => backendFetch<{ success: boolean; address?: string; value?: number; error?: string }>('/api/plc/test', { method: 'POST', body: payload }),
-
-  // Hardware & Device
-  getHardware: () => backendFetch<{
-    success: boolean;
-    hardware: {
-      system: { os: string | null; os_version: string | null; os_release: string | null; hostname: string | null; python_version: string | null };
-      cpu: { model: string | null; physical_cores: number | null; logical_cores: number | null; max_freq_mhz: number | null; current_freq_mhz: number | null; arch: string | null; usage_percent: number | null };
-      memory: { total_gb: number | null; available_gb: number | null; used_gb: number | null; percent: number | null; speed_mhz: number | null };
-      gpu: { name: string | null; memory_total_mb: number | null; memory_free_mb: number | null; memory_used_mb: number | null; cuda_available: boolean; cuda_version: string | null; count: number; compute_capability: string | null };
-      disk: { project_drive: string | null; total_gb: number | null; used_gb: number | null; free_gb: number | null; percent: number | null; filesystem: string | null };
-      network: { name: string; type: string; up: boolean; speed_mbps: number | null; speed_rx_mbps?: number | null; speed_tx_mbps?: number | null; ipv4: string[] }[];
-      pytorch_version: string;
-      training_device: string;
-      inference_device: string;
-      checks: Record<string, { label: string; pass: boolean; detail: string }>;
-    }
-  }>('/api/hardware'),
-  getDeviceConfig: () => backendFetch<{ success: boolean; config: { training_device: string; inference_device: string } }>('/api/settings/device'),
-  saveDeviceConfig: (config: { training_device: string; inference_device: string }) =>
-    backendFetch<{ success: boolean; message?: string; config?: { training_device: string; inference_device: string } }>('/api/settings/device', { method: 'POST', body: config }),
-
-  getLineCount: () => backendFetch<{ success: boolean; line_count: number }>('/api/settings/line-count'),
-  saveLineCount: (line_count: number) =>
-    backendFetch<{ success: boolean; message?: string; line_count?: number }>('/api/settings/line-count', { method: 'POST', body: { line_count } }),
-  // Environment
-  envCheck: () => backendFetch<{ passed: boolean; summary: string; results: { name: string; message: string; passed: boolean; level: string; detail?: string }[] }>('/api/env-check'),
+  getPlcConfig: () => backendFetch<PlcConfigResponse>('/api/plc/config'),
+  savePlcConfig: (config: PlcConfig) => backendFetch<SavePlcConfigResponse>('/api/plc/config', { method: 'POST', body: config }),
+  testPlcWrite: (payload: PlcWritePayload) => backendFetch<PlcWriteResponse>('/api/plc/test', { method: 'POST', body: payload }),
+  getHardware: () => backendFetch<HardwareInfoResponse>('/api/hardware'),
+  getDeviceConfig: () => backendFetch<DeviceConfigResponse>('/api/settings/device'),
+  saveDeviceConfig: (config: { training_device: string; inference_device: string }) => backendFetch<SaveDeviceConfigResponse>('/api/settings/device', { method: 'POST', body: config }),
+  getLineCount: () => backendFetch<LineCountResponse>('/api/settings/line-count'),
+  saveLineCount: (line_count: number) => backendFetch<SaveLineCountResponse>('/api/settings/line-count', { method: 'POST', body: { line_count } }),
+  envCheck: () => backendFetch<EnvironmentCheckResponse>('/api/env-check'),
 };
 
 export default api;

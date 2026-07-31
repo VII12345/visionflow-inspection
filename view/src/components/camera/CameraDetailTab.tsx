@@ -32,7 +32,7 @@ export const CameraDetailTab: React.FC<Props> = ({ camId }) => {
 
     try {
       const statusData = await api.status();
-      const cams = (statusData as Record<string, unknown>).cameras as Record<string, { stats?: { detected: number; defective: number } }>;
+      const cams = statusData.cameras;
       if (cams && cams[camId]?.stats) {
         const s = storage.getCameraStats();
         s[camId] = cams[camId].stats!;

@@ -174,11 +174,11 @@ export const SettingsTab: React.FC = () => {
           const isFailed = status.message && status.message.includes('失败');
           setTrainingResult({
             modelName: selectedModel?.model || '',
-            modelPath: (status as Record<string, unknown>).modelPath as string | null || null,
-            evalResult: (status as Record<string, unknown>).evalResult as Record<string, unknown> | null || null,
+            modelPath: status.modelPath || null,
+            evalResult: status.evalResult || null,
             errorMessage: isFailed ? status.message : null,
-            trainCount: (status as Record<string, unknown>).trainCount as number || 0,
-            valCount: (status as Record<string, unknown>).valCount as number || 0,
+            trainCount: status.trainCount || 0,
+            valCount: status.valCount || 0,
           });
           setModal('trainingComplete', true);
           refresh();
