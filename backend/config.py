@@ -34,6 +34,11 @@ class Config:
     FLASK_PORT = 5000
     FLASK_DEBUG = False
 
+    # ========== 登录鉴权 ==========
+    # 默认关闭以兼容现有局域网无鉴权部署；启用后除 /api/auth/login、/api/health、静态资源外
+    # 均需校验 Authorization: Bearer <token>。可通过 VISION_AUTH_ENABLED 环境变量开启。
+    AUTH_ENABLED = os.environ.get("VISION_AUTH_ENABLED", "0") in ("1", "true", "True", "yes", "on")
+
     # ========== 相机配置 ==========
     CAMERA_COUNT = 4
     MIN_CAMERA_COUNT = 1

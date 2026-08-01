@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../../store/useAppStore';
-import { storage } from '../../../services/storage';
+import { api } from '../../../services/api';
 import { Button, Modal } from '../Modal';
 import { ModalTextField } from './modalFields';
 
@@ -13,20 +13,20 @@ export const ChangePwdModal: React.FC = () => {
   const setModal = useAppStore(s => s.setModal);
   const showMessage = useAppStore(s => s.showMessage);
 
-  const handleChange = () => {
+  const handleChange = async () => {
     if (user?.level !== 'admin') { setError('只有管理员可以修改密码'); return; }
     setError('');
     if (!oldPwd || !newPwd || !confirmPwd) { setError('请填写所有密码字段'); return; }
-    const users = storage.getUsers();
-    const u = users.find((x: { id: number }) => x.id === user?.id);
-    if (!u) { setError('用户数据异常'); return; }
-    if (u.password !== oldPwd) { setError('旧密码错误'); return; }
     if (newPwd.length < 3) { setError('新密码至少3位'); return; }
     if (newPwd !== confirmPwd) { setError('两次新密码不一致'); return; }
-    u.password = newPwd;
-    storage.saveUsers(users);
-    setModal('changePwd', false);
-    showMessage('密码修改成功');
+    try {
+      const result = await api.changePassword(oldPwd, newPwd);
+      if (!result.success) { setError(result.message || '密码修改失败'); return; }
+      setModal('changePwd', false);
+      showMessage('密码修改成功');
+    } catch (e) {
+      setError('密码修改失败: ' + ((e as Error).message || '无法连接后端'));
+    }
   };
 
   return (

@@ -15,6 +15,7 @@ from .camera_run_service import start_camera, stop_camera
 from .model_loader import set_camera_product
 from . import model_loader
 from .runtime_state import runtime
+from .auth_routes import auth_bp, require_auth_middleware
 from .camera_routes import camera_bp
 from .model_routes import model_bp
 from .model_test_routes import model_test_bp
@@ -26,12 +27,17 @@ from .training_routes import training_bp
 # 初始化 Flask
 app = Flask(__name__)
 CORS(app)  # 允许跨域
+app.register_blueprint(auth_bp)
 app.register_blueprint(system_bp)
 app.register_blueprint(camera_bp)
 app.register_blueprint(model_bp)
 app.register_blueprint(model_test_bp)
 app.register_blueprint(photo_bp)
 app.register_blueprint(training_bp)
+
+# 登录鉴权：默认关闭（AUTH_ENABLED=False），兼容现有局域网无鉴权部署。
+if Config.AUTH_ENABLED:
+    app.before_request(require_auth_middleware)
 
 
 # ========== API 端点 ==========

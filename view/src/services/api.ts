@@ -1,5 +1,6 @@
-import type { PlcConfig } from '../types';
+import type { PlcConfig, UserLevel } from '../types';
 import { API_BASE, backendFetch } from './apiClient';
+import { useAppStore } from '../store/useAppStore';
 import type {
   AllCameraConfigsResponse, CameraConfigResponse, CameraStatusResponse, DeviceConfigResponse,
   EnvironmentCheckResponse, HardwareInfoResponse, HealthResponse, ImageDirectoriesResponse,
@@ -13,6 +14,8 @@ import type {
 
 export const api = {
   health: () => backendFetch<HealthResponse>('/api/health'),
+  login: (name: string, password: string) => backendFetch<{ success: boolean; message?: string; token?: string; user?: { id: number; name: string; level: UserLevel } }>('/api/auth/login', { method: 'POST', body: { name, password } }),
+  changePassword: (old_password: string, new_password: string) => backendFetch<{ success: boolean; message?: string }>('/api/auth/change-password', { method: 'POST', body: { old_password, new_password } }),
   start: (camProducts?: Record<number, string>, lineCount?: number, cameraIds?: number[]) => backendFetch<StartResponse>('/api/start', { method: 'POST', body: { camProducts, line_count: lineCount, camera_ids: cameraIds } }),
   stop: () => backendFetch<StopResponse>('/api/stop', { method: 'POST' }),
   setLineEnabled: (camId: number, enabled: boolean) => backendFetch<SetLineEnabledResponse>(`/api/lines/${camId}`, { method: 'POST', body: { enabled } }),
@@ -34,7 +37,12 @@ export const api = {
   getSaveSettings: () => backendFetch<SaveSettingsResponse>('/api/save-settings'),
   saveSaveSettings: (camId: number, settings: { saveGood: boolean; saveBad: boolean }) => backendFetch<SaveCameraSettingsResponse>(`/api/save-settings/${camId}`, { method: 'POST', body: settings }),
   getPhotos: (camId: number) => backendFetch<PhotosResponse>(`/api/photos/${camId}`),
-  getPhotoUrl: (camId: number, filename: string) => `${API_BASE}/api/photos/${camId}/${encodeURIComponent(filename)}`,
+  getPhotoUrl: (camId: number, filename: string) => {
+    // <img> 标签无法附带请求头，登录开启时通过查询参数携带 token。
+    const base = `${API_BASE}/api/photos/${camId}/${encodeURIComponent(filename)}`;
+    const token = useAppStore.getState().authToken;
+    return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+  },
   getPlcConfig: () => backendFetch<PlcConfigResponse>('/api/plc/config'),
   savePlcConfig: (config: PlcConfig) => backendFetch<SavePlcConfigResponse>('/api/plc/config', { method: 'POST', body: config }),
   testPlcWrite: (payload: PlcWritePayload) => backendFetch<PlcWriteResponse>('/api/plc/test', { method: 'POST', body: payload }),

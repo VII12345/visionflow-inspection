@@ -19,8 +19,10 @@ const MODAL_STATE_KEYS: Record<Exclude<ModalName, 'all'>, ModalStateKey> = {
 interface AppState {
   // Auth
   user: User | null;
-  login: (name: string, password: string) => boolean;
+  authToken: string | null;
   logout: () => void;
+  setAuthUser: (user: Pick<User, 'id' | 'name' | 'level'> | null, token?: string | null) => void;
+  handleUnauthorized: () => void;
 
   // System
   isRunning: boolean;
@@ -73,9 +75,13 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set, get) => ({
   user: (() => {
-    if (!storage.getRememberLogin()) { storage.setCurrentUser(null); return null; }
+    if (!storage.getRememberLogin()) { storage.setCurrentUser(null); storage.setAuthToken(null); return null; }
     const u = storage.getCurrentUser();
     return u ? { ...u, password: '' } : null;
+  })(),
+  authToken: (() => {
+    if (!storage.getRememberLogin()) { storage.setAuthToken(null); return null; }
+    return storage.getAuthToken();
   })(),
   isRunning: false,
   lineCount: 4,
@@ -98,25 +104,32 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLearnCallback: (cb) => set({ learnCallback: cb }),
 
 
-  login: (name, password) => {
-    const users = storage.getUsers();
-    const found = users.find(u => u.name === name && u.password === password);
-    if (found) {
-      set({ user: { id: found.id, name: found.name, level: found.level, password: '' } });
-      if (storage.getRememberLogin()) {
-        storage.setCurrentUser({ id: found.id, name: found.name, level: found.level, password: '' });
-      } else {
-        storage.setCurrentUser(null);
-      }
-      get().showMessage(`登录成功，欢迎 ${found.name}`);
-      return true;
+  setAuthUser: (user, token) => {
+    const normalized = user ? { id: user.id, name: user.name, level: user.level, password: '' } : null;    set({ user: normalized, authToken: token || null });
+    if (normalized && storage.getRememberLogin()) {
+      storage.setCurrentUser(normalized);
+      storage.setAuthToken(token || null);
+    } else {
+      storage.setCurrentUser(null);
+      storage.setAuthToken(null);
     }
-    return false;
+  },
+
+  handleUnauthorized: () => {
+    const wasLoggedIn = Boolean(get().user);
+    set({ user: null, authToken: null });
+    storage.setCurrentUser(null);
+    storage.setAuthToken(null);
+    if (wasLoggedIn && !get().loginModal) {
+      set({ loginModal: true });
+      get().showMessage('登录已过期，请重新登录');
+    }
   },
 
   logout: () => {
-    set({ user: null });
+    set({ user: null, authToken: null });
     storage.setCurrentUser(null);
+    storage.setAuthToken(null);
     set({ activeTab: 'run' });
     get().showMessage('已登出');
   },

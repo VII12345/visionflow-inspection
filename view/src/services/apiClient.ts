@@ -1,4 +1,5 @@
 import { isTauri } from './native';
+import { useAppStore } from '../store/useAppStore';
 
 const isWebPage = typeof window !== 'undefined' && window.location.protocol !== 'file:' && !isTauri();
 const configuredBackend = typeof window !== 'undefined'
@@ -18,14 +19,23 @@ export async function backendFetch<T = unknown>(url: string, options?: {
   body?: unknown;
   responseType?: 'blob' | string;
 }): Promise<T> {
+  const token = useAppStore.getState().authToken;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
   const res = await fetch(`${API_BASE}${url}`, {
     method: options?.method || 'GET',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: options?.body ? JSON.stringify(options.body) : undefined,
   });
 
   if (options?.responseType === 'blob') {
-    if (!res.ok) throw new Error(`后端请求失败 (${res.status})`);
+    if (!res.ok) {
+      if (res.status === 401 && !url.startsWith('/api/auth/login')) {
+        useAppStore.getState().handleUnauthorized();
+      }
+      throw new Error(`后端请求失败 (${res.status})`);
+    }
     return res.blob() as Promise<T>;
   }
 
@@ -38,6 +48,9 @@ export async function backendFetch<T = unknown>(url: string, options?: {
   }
   if (!res.ok) {
     const errorData = data as { message?: string; error?: string };
+    if (res.status === 401 && !url.startsWith('/api/auth/login')) {
+      useAppStore.getState().handleUnauthorized();
+    }
     throw new Error(errorData.message || errorData.error || `后端请求失败 (${res.status})`);
   }
   return data as T;

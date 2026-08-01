@@ -12,6 +12,7 @@ from .model_loader import preload_all_models
 from .env_check import run_environment_check
 from .capture_service import cleanup_photos, start_save_worker
 from .runtime_state import runtime
+from .user_repository import ensure_users_file
 from .system_routes import apply_line_count as _apply_line_count
 from .settings_repository import (
     load_device_config as _load_device_config,
@@ -29,6 +30,9 @@ def run_server():
         logger.warning(f"加载线体数量失败，使用默认值: {e}")
 
     Config.ensure_directories()
+
+    # 初始化用户文件（首次启动创建默认管理员并提示初始密码）
+    ensure_users_file()
 
     # ========== 加载已保存的设备配置 ==========
     try:

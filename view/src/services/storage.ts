@@ -143,6 +143,15 @@ export const storage = {
   setRememberLogin: (remember: boolean) => set('rememberLogin', remember),
   getCurrentUser: (): User | null => get('currentUser', null),
   setCurrentUser: (user: User | null) => set('currentUser', user),
+  getAuthToken: (): string | null => {
+    try { return localStorage.getItem('vision_authToken'); } catch { return null; }
+  },
+  setAuthToken: (token: string | null) => {
+    try {
+      if (token) localStorage.setItem('vision_authToken', token);
+      else localStorage.removeItem('vision_authToken');
+    } catch { /* ignore */ }
+  },
 };
 
 export default storage;
