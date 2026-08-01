@@ -110,8 +110,10 @@ export const storage = {
   syncCatalogFromServer: async () => {
     try {
       const { api } = await import('./api');
-      const result = await api.getCatalog();
-      if (!result.success) return;
+      // 后端不可达时最多等 3 秒，避免阻塞应用启动（fetch 默认可能长时间挂起）
+      const timeout = new Promise<null>(resolve => setTimeout(() => resolve(null), 3000));
+      const result = await Promise.race([api.getCatalog(), timeout]);
+      if (!result || !result.success) return;
       if (!result.initialized) {
         // 后端首次使用：把本地已有数据作为初始目录上传，避免升级丢数据
         const localProducts = normalizeProducts(get('products', defaults.products));
