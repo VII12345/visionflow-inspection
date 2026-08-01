@@ -1,6 +1,7 @@
 import type { CameraStats, CameraStatus, EnvCheckResult, ModelInfo, PlcConfig, SystemStatus, TrainingStatus } from './index';
 
 export interface HealthResponse { status: string; version?: string; cameras?: Record<number, boolean>; modelLoaded?: boolean; running?: boolean; dataDir?: string; }
+export interface InitialPasswordResponse { success: boolean; username?: string | null; password?: string | null; }
 export interface StartResponse { success: boolean; message?: string; errors?: string[]; started?: number; started_cameras?: number[]; total?: number; running?: boolean; }
 export interface StopResponse { success: boolean; message?: string; running?: boolean; }
 export interface SetLineEnabledResponse { success: boolean; enabled?: boolean; running?: boolean; message?: string; }

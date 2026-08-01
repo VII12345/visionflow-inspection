@@ -30,9 +30,40 @@ def user_file_path():
     return Config.DATA_DIR / "users.json"
 
 
+def _initial_password_path():
+    """初始密码暂存文件：首次启动生成，管理员登录或改密后删除。"""
+    return Config.DATA_DIR / "initial_admin_password.txt"
+
+
 def _default_admin_password():
     """首次启动的随机管理员密码（12 位十六进制）。"""
     return secrets.token_hex(6)
+
+
+def _save_initial_password(password):
+    """暂存初始密码明文，供前端弹窗展示；失败只记日志不中断初始化。"""
+    try:
+        _initial_password_path().write_text(password + "\n", encoding="utf-8")
+    except OSError as exc:
+        logger.error(f"保存初始密码文件失败: {exc}")
+
+
+def get_initial_password():
+    """返回尚未被消费的初始密码明文；不存在时返回 None。"""
+    try:
+        text = _initial_password_path().read_text(encoding="utf-8").strip()
+        return text or None
+    except OSError:
+        return None
+
+
+def consume_initial_password():
+    """管理员登录/改密后删除初始密码暂存文件。"""
+    try:
+        _initial_password_path().unlink()
+        return True
+    except OSError:
+        return False
 
 
 def ensure_users_file():
@@ -57,6 +88,7 @@ def ensure_users_file():
         path.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
         )
+        _save_initial_password(password)
         logger.warning(
             f"已初始化默认管理员账号，初始密码: {password}（请登录后尽快修改）"
         )

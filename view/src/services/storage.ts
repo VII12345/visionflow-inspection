@@ -16,7 +16,7 @@ function set<T>(key: string, data: T): void {
   if (isTauri()) void saveData(key, data).catch(() => { /* keep local cache available */ });
 }
 const defaults = {
-  rememberLogin: true,
+  rememberLogin: false,
   products: [] as Product[],
   runLayout: { id: 'auto', columns: 0, order: [] } as RunLayout,
   lineConfig: [

@@ -7,11 +7,13 @@ import { TabRouter } from './components/layout/TabRouter';
 import { CameraPopoutPage } from './components/camera/CameraPopoutPage';
 import { CameraConfigModal } from './components/camera/CameraConfigModal';
 import { ModalRouter } from './components/common/Modals';
+import { InitialPasswordModal } from './components/common/modals/InitialPasswordModal';
 import { EnvCheckModal } from './components/common/EnvCheckModal';
 import { SystemAlarm } from './components/common/SystemAlarm';
 import { TrainingCompleteModal } from './components/settings/TrainingCompleteModal';
 import { storage } from './services/storage';
 import { useHealthChecks } from './hooks/useHealthChecks';
+import { useInitialPassword } from './hooks/useInitialPassword';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useModelRefSync } from './hooks/useModelRefSync';
 
@@ -30,6 +32,7 @@ const MainApp: React.FC = () => {
   useHealthChecks();
   useKeyboardShortcuts();
   useModelRefSync();
+  const initialPassword = useInitialPassword();
 
   // Storage info
   useEffect(() => {
@@ -81,6 +84,13 @@ const MainApp: React.FC = () => {
           camId={cameraConfigCamId}
           open={cameraConfigModal}
           onClose={() => setCameraConfigCamId(null)}
+        />
+      )}
+      {initialPassword.password && (
+        <InitialPasswordModal
+          username={initialPassword.username || 'admin'}
+          password={initialPassword.password}
+          onClose={initialPassword.dismiss}
         />
       )}
     </div>

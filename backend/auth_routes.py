@@ -14,10 +14,13 @@ from flask import Blueprint, jsonify, request
 
 from .logger import logger
 from .user_repository import (
+    DEFAULT_ADMIN_USERNAME,
+    consume_initial_password,
     create_user,
     delete_user,
     find_user,
     get_auth_secret,
+    get_initial_password,
     load_users,
     update_user_password,
     verify_password,
@@ -102,19 +105,32 @@ def _extract_token():
 def require_auth_middleware():
     """Flask before_request 鉴权：放行返回 None，否则返回 401 响应。
 
-    白名单：/api/auth/login、/api/health 及非 /api/ 前缀路径（静态资源）。
+    白名单：/api/auth/login、/api/auth/initial-password、/api/health 及非 /api/ 前缀路径（静态资源）。
     """
     if request.method == "OPTIONS":
         return None
     path = request.path
     if not path.startswith("/api/"):
         return None  # 非 API 路径（静态资源等）放行
-    if path in ("/api/auth/login", "/api/health"):
+    if path in ("/api/auth/login", "/api/auth/initial-password", "/api/health"):
         return None
     token = _extract_token()
     if not token or verify_token(token) is None:
         return jsonify({"success": False, "message": "未登录或登录已过期"}), 401
     return None
+
+
+@auth_bp.route("/api/auth/initial-password", methods=["GET"])
+def initial_password():
+    """返回尚未被消费的初始管理员密码（免登录），供前端首次启动弹窗展示。"""
+    password = get_initial_password()
+    return jsonify(
+        {
+            "success": True,
+            "username": DEFAULT_ADMIN_USERNAME if password else None,
+            "password": password,
+        }
+    )
 
 
 @auth_bp.route("/api/auth/login", methods=["POST"])
@@ -129,7 +145,9 @@ def login():
         logger.warning(f"登录失败: 用户名或密码错误 ({name})")
         return jsonify({"success": False, "message": "用户名或密码错误"}), 401
     token = create_token(user)
-    logger.info(f"用户 {name} 登录成功")
+    if user.name == DEFAULT_ADMIN_USERNAME:
+        consume_initial_password()
+    logger.info(f"用户 {user.name} 登录成功")
     return jsonify(
         {
             "success": True,
@@ -153,6 +171,8 @@ def change_password():
     if record is None or not verify_password(record, old_password):
         return jsonify({"success": False, "message": "旧密码错误"}), 400
     if update_user_password(user["name"], new_password):
+        if user["name"] == DEFAULT_ADMIN_USERNAME:
+            consume_initial_password()
         logger.info(f"用户 {user['name']} 修改密码成功")
         return jsonify({"success": True, "message": "密码修改成功"})
     return jsonify({"success": False, "message": "保存失败"}), 500

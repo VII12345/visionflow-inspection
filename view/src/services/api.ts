@@ -4,7 +4,7 @@ import { useAppStore } from '../store/useAppStore';
 import type {
   AllCameraConfigsResponse, CameraConfigResponse, CameraStatusResponse, CatalogResponse, DeviceConfigResponse,
   EnvironmentCheckResponse, HardwareInfoResponse, HealthResponse, ImageDirectoriesResponse,
-  LineCountResponse, ModelListResponse, PhotosResponse, PlcConfigResponse, PlcWritePayload,
+  InitialPasswordResponse, LineCountResponse, ModelListResponse, PhotosResponse, PlcConfigResponse, PlcWritePayload,
   PlcWriteResponse, ResetStatsResponse, SaveCameraConfigResponse, SaveCameraSettingsResponse,
   SaveDeviceConfigResponse, SaveLineCountResponse, SaveModelSettingsResponse, SavePlcConfigResponse,
   SaveSettingsResponse, SetLineEnabledResponse, StartResponse, StartTrainingParams,
@@ -25,6 +25,7 @@ function buildQuery(params: Record<string, string | number | undefined | null>):
 export const api = {
   health: () => backendFetch<HealthResponse>('/api/health'),
   login: (name: string, password: string) => backendFetch<{ success: boolean; message?: string; token?: string; user?: { id: number; name: string; level: UserLevel } }>('/api/auth/login', { method: 'POST', body: { name, password } }),
+  getInitialPassword: () => backendFetch<InitialPasswordResponse>('/api/auth/initial-password'),
   changePassword: (old_password: string, new_password: string) => backendFetch<{ success: boolean; message?: string }>('/api/auth/change-password', { method: 'POST', body: { old_password, new_password } }),
   getUsers: () => backendFetch<{ success: boolean; users?: { id: number; name: string; level: UserLevel }[]; message?: string }>('/api/auth/users'),
   createUser: (name: string, password: string, level: UserLevel) => backendFetch<{ success: boolean; user?: { id: number; name: string; level: UserLevel }; message?: string }>('/api/auth/users', { method: 'POST', body: { name, password, level } }),
