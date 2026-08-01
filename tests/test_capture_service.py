@@ -59,8 +59,9 @@ class CaptureServiceTests(unittest.TestCase):
 
         directories = list_image_directories_data()
 
-        self.assertTrue(any(item["path"] == str(image_dir) and item["imageCount"] == 1 for item in directories))
-        self.assertFalse(any(item["path"] == str(self.root / "batch") for item in directories))
+        # 扫描返回的路径基于 resolve 后的根目录，比较时同样用规范化路径
+        self.assertTrue(any(item["path"] == str(image_dir.resolve()) and item["imageCount"] == 1 for item in directories))
+        self.assertFalse(any(item["path"] == str((self.root / "batch").resolve()) for item in directories))
 
     def test_async_save_writes_frame_and_reports_completion(self):
         target = self.root / "captures" / "cam1" / "OK" / "frame.bmp"
