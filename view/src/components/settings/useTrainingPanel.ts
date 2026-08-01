@@ -25,6 +25,13 @@ export const useTrainingPanel = ({ products, selectedModel, onTrainingComplete }
   const setTrainingProgress = useTrainingStore(s => s.setProgress);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // 轮询回调运行在定时器里，需始终读到最新的 selectedModel/onTrainingComplete，
+  // 避免挂载恢复轮询时闭包捕获到旧值（如切换 Tab 后 selectedModel 为空）。
+  const selectedModelRef = useRef(selectedModel);
+  const onTrainingCompleteRef = useRef(onTrainingComplete);
+  useEffect(() => { selectedModelRef.current = selectedModel; }, [selectedModel]);
+  useEffect(() => { onTrainingCompleteRef.current = onTrainingComplete; }, [onTrainingComplete]);
+
   const pollTraining = () => {
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
@@ -45,7 +52,7 @@ export const useTrainingPanel = ({ products, selectedModel, onTrainingComplete }
           setTrainingProgress({ running: false });
           const isFailed = status.message && status.message.includes('失败');
           setTrainingResult({
-            modelName: selectedModel?.model || '',
+            modelName: selectedModelRef.current?.model || '',
             modelPath: status.modelPath || null,
             evalResult: status.evalResult || null,
             errorMessage: isFailed ? status.message : null,
@@ -53,7 +60,7 @@ export const useTrainingPanel = ({ products, selectedModel, onTrainingComplete }
             valCount: status.valCount || 0,
           });
           setModal('trainingComplete', true);
-          onTrainingComplete();
+          onTrainingCompleteRef.current();
         }
       } catch { /* ignore */ }
     }, 500);
