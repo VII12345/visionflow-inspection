@@ -6,7 +6,7 @@ import { TabBar } from './components/layout/TabBar';
 import { TabRouter } from './components/layout/TabRouter';
 import { CameraPopoutPage } from './components/camera/CameraPopoutPage';
 import { CameraConfigModal } from './components/camera/CameraConfigModal';
-import { LoginModal, ChangePwdModal, AddProductModal, LearnConfirmModal } from './components/common/Modals';
+import { ModalRouter } from './components/common/Modals';
 import { EnvCheckModal } from './components/common/EnvCheckModal';
 import { SystemAlarm } from './components/common/SystemAlarm';
 import { TrainingCompleteModal } from './components/settings/TrainingCompleteModal';
@@ -15,10 +15,6 @@ import { useHealthChecks } from './hooks/useHealthChecks';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 const MainApp: React.FC = () => {
-  const loginModal = useAppStore(s => s.loginModal);
-  const changePwdModal = useAppStore(s => s.changePwdModal);
-  const addProductModal = useAppStore(s => s.addProductModal);
-  const learnConfirmModal = useAppStore(s => s.learnConfirmModal);
   const envCheckModal = useAppStore(s => s.envCheckModal);
   const trainingCompleteModal = useAppStore(s => s.trainingCompleteModal);
   const trainingResult = useTrainingStore(s => s.result);
@@ -64,10 +60,7 @@ const MainApp: React.FC = () => {
       <SystemAlarm />
 
       {/* Modals */}
-      {loginModal && <LoginModal />}
-      {changePwdModal && <ChangePwdModal />}
-      {addProductModal && <AddProductModal />}
-      {learnConfirmModal && <LearnConfirmModal onConfirm={handleLearnConfirm} />}
+      <ModalRouter onLearnConfirm={handleLearnConfirm} />
       {envCheckModal && <EnvCheckModal />}
       {trainingCompleteModal && (
         <TrainingCompleteModal
