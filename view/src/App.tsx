@@ -13,6 +13,7 @@ import { TrainingCompleteModal } from './components/settings/TrainingCompleteMod
 import { storage } from './services/storage';
 import { useHealthChecks } from './hooks/useHealthChecks';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useModelRefSync } from './hooks/useModelRefSync';
 
 const MainApp: React.FC = () => {
   const envCheckModal = useAppStore(s => s.envCheckModal);
@@ -28,6 +29,7 @@ const MainApp: React.FC = () => {
 
   useHealthChecks();
   useKeyboardShortcuts();
+  useModelRefSync();
 
   // Storage info
   useEffect(() => {

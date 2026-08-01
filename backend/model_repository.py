@@ -175,6 +175,36 @@ def _model_refs_path():
     return Config.DATA_DIR / "model_refs.json"
 
 
+def save_model_references(references):
+    """持久化模型引用登记（前端在产品/线体分配时上报）。
+
+    返回规范化后的引用列表；供删除保护 find_model_references 使用。
+    """
+    path = _model_refs_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    normalized = []
+    if isinstance(references, list):
+        for item in references:
+            if not isinstance(item, dict):
+                continue
+            model = str(item.get("model", "")).strip()
+            if not model:
+                continue
+            normalized.append(
+                {
+                    "model": model,
+                    "type": str(item.get("type", "product")),
+                    "label": str(item.get("label", model)),
+                    "detail": str(item.get("detail", "")),
+                }
+            )
+    path.write_text(
+        json.dumps(normalized, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    logger.info(f"模型引用登记已更新: {len(normalized)} 条")
+    return normalized
+
+
 def find_model_references(model_name):
     """返回引用该模型的配置列表（相机配置 + 后端引用登记）。"""
     references = []

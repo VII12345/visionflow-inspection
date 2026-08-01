@@ -8,11 +8,27 @@ from .model_repository import (
     delete_model,
     list_model_records,
     rename_model,
+    save_model_references,
     update_model_settings,
 )
 
 
 model_bp = Blueprint("models", __name__)
+
+
+@model_bp.route("/api/models/refs", methods=["POST"])
+def update_model_refs():
+    """登记模型被哪些产品/线体引用（前端分配时上报），供删除保护使用。"""
+    data = request.get_json(silent=True) or {}
+    references = data.get("references", [])
+    if not isinstance(references, list):
+        return jsonify({"success": False, "error": "references 必须是数组"}), 400
+    try:
+        normalized = save_model_references(references)
+        return jsonify({"success": True, "count": len(normalized)})
+    except OSError as exc:
+        logger.error(f"保存模型引用登记失败: {exc}", exc_info=True)
+        return jsonify({"success": False, "error": str(exc)}), 500
 
 
 @model_bp.route("/api/models", methods=["GET"])

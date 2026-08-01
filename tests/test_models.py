@@ -126,6 +126,46 @@ class ModelLifecycleTests(unittest.TestCase):
         self.assertIn("accuracy", version)
         self.assertIn("device", version)
 
+    def test_refs_registration_then_delete_returns_409(self):
+        # 前端登记产品/线体引用后，删除被引用的模型应被拒绝
+        response = self.client.post(
+            "/api/models/refs",
+            json={
+                "references": [
+                    {"model": "demo", "type": "product", "label": "成品一号"},
+                    {"model": "demo", "type": "line", "label": "线体 1"},
+                ]
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["count"], 2)
+
+        delete_response = self.client.delete("/api/models/demo")
+
+        self.assertEqual(delete_response.status_code, 409)
+        labels = [ref["label"] for ref in delete_response.get_json()["references"]]
+        self.assertIn("成品一号", labels)
+        self.assertIn("线体 1", labels)
+        self.assertTrue((self.data_dir / "model_classifier_demo.pth").exists())
+
+    def test_refs_registration_overwrites_previous(self):
+        self.client.post(
+            "/api/models/refs",
+            json={"references": [{"model": "demo", "label": "旧引用"}]},
+        )
+        self.client.post(
+            "/api/models/refs",
+            json={"references": [{"model": "demo", "label": "新引用"}]},
+        )
+
+        response = self.client.delete("/api/models/demo")
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.get_json()["references"][0]["label"], "新引用")
+
+    def test_refs_registration_rejects_non_list(self):
+        response = self.client.post("/api/models/refs", json={"references": "bad"})
+        self.assertEqual(response.status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()
