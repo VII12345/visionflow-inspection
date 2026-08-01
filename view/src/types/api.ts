@@ -36,6 +36,43 @@ export interface SaveSettingsResponse { success: boolean; settings: Record<numbe
 export interface SaveCameraSettingsResponse { success: boolean; settings?: { saveGood: boolean; saveBad: boolean }; error?: string; }
 export interface PhotosResponse { success: boolean; photos: { filename: string; mtime: string; size: number; result: string; timestamp: number }[]; okCount: number; ngCount: number; }
 
+export interface PhotoItem {
+  camId: number;
+  filename: string;
+  subdir: string;
+  result: string;
+  size: number;
+  mtime: string;
+  timestamp: number;
+}
+export interface PhotoListResponse {
+  success: boolean;
+  total: number;
+  page: number;
+  page_size: number;
+  items: PhotoItem[];
+}
+export interface PhotoFilterParams {
+  page?: number;
+  page_size?: number;
+  camera_id?: number;
+  start?: number;
+  end?: number;
+  category?: string;
+}
+export interface TrendPoint {
+  time: string;
+  total: number;
+  ok: number;
+  ng: number;
+  yield_rate: number | null;
+}
+export interface PhotoTrendResponse {
+  success: boolean;
+  interval: string;
+  points: TrendPoint[];
+}
+
 export interface PlcConfigResponse { success: boolean; config: PlcConfig; }
 export interface SavePlcConfigResponse { success: boolean; config?: PlcConfig; message?: string; error?: string; }
 export interface PlcWritePayload { camera_id: number; type: 'reject_time' | 'reject_delay' | 'reject_signal'; value: number; }

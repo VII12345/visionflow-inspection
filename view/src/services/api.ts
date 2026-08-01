@@ -9,8 +9,18 @@ import type {
   SaveDeviceConfigResponse, SaveLineCountResponse, SaveModelSettingsResponse, SavePlcConfigResponse,
   SaveSettingsResponse, SetLineEnabledResponse, StartResponse, StartTrainingParams,
   StartTrainingResponse, StatsResponse, StopResponse, TestModelParams, TestModelResponse,
-  TestRejectSignalResponse, TrainingStatusResponse,
+  TestRejectSignalResponse, TrainingStatusResponse, PhotoFilterParams, PhotoListResponse,
+  PhotoTrendResponse,
 } from '../types/api';
+
+function buildQuery(params: Record<string, string | number | undefined | null>): string {
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '') continue;
+    parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+  }
+  return parts.join('&');
+}
 
 export const api = {
   health: () => backendFetch<HealthResponse>('/api/health'),
@@ -39,6 +49,9 @@ export const api = {
   getSaveSettings: () => backendFetch<SaveSettingsResponse>('/api/save-settings'),
   saveSaveSettings: (camId: number, settings: { saveGood: boolean; saveBad: boolean }) => backendFetch<SaveCameraSettingsResponse>(`/api/save-settings/${camId}`, { method: 'POST', body: settings }),
   getPhotos: (camId: number) => backendFetch<PhotosResponse>(`/api/photos/${camId}`),
+  listPhotos: (params: PhotoFilterParams) => backendFetch<PhotoListResponse>(`/api/photos?${buildQuery({ ...params, page: params.page ?? 1, page_size: params.page_size ?? 50 })}`),
+  exportPhotos: (params: Omit<PhotoFilterParams, 'page' | 'page_size'>) => backendFetch<Blob>('/api/photos/export', { method: 'POST', body: params, responseType: 'blob' }),
+  photoTrend: (params: { camera_id?: number; interval?: 'day' | 'hour'; start?: number; end?: number }) => backendFetch<PhotoTrendResponse>(`/api/photos/trend?${buildQuery({ ...params, interval: params.interval ?? 'day' })}`),
   getPhotoUrl: (camId: number, filename: string) => {
     // <img> 标签无法附带请求头，登录开启时通过查询参数携带 token。
     const base = `${API_BASE}/api/photos/${camId}/${encodeURIComponent(filename)}`;
