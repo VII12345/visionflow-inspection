@@ -41,7 +41,8 @@ if (-not (Test-Path -LiteralPath $PythonExe)) {
 }
 
 Write-Host "[1/5] 准备 GPU+CPU 后端环境..." -ForegroundColor Yellow
-Invoke-Checked $PythonExe @('-m', 'pip', 'install', '--disable-pip-version-check', '-q', 'pyinstaller')
+# 安装运行依赖（含 psutil，硬件信息采集必需）+ PyInstaller，避免打包产物缺少依赖导致设置页设备信息异常。
+Invoke-Checked $PythonExe @('-m', 'pip', 'install', '--disable-pip-version-check', '-q', '-r', (Join-Path $ProjectRoot 'requirements-gpu.txt'), 'pyinstaller')
 if (-not (Test-Path -LiteralPath $PyInstallerExe)) { throw "未找到 GPU+CPU PyInstaller: $PyInstallerExe" }
 
 Write-Host "[2/5] 构建 GPU+CPU 完整 Python 后端..." -ForegroundColor Yellow

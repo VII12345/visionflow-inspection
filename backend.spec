@@ -27,6 +27,7 @@ a = Analysis(
         'torch.cuda',
         'torch.cuda.amp',
         'numpy',
+        'psutil',
         'backend.server',
         'backend.config',
         'backend.logger',
