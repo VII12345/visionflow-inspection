@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    # 与正式部署一致的 Windows 环境（测试涉及 MVS 路径/CUDA 判定）
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: 安装 Python 依赖
+        run: pip install -r requirements-cpu.txt
+
+      - name: 后端单测
+        run: python -m unittest discover -s tests
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: view/package-lock.json
+
+      - name: 安装前端依赖
+        working-directory: view
+        run: npm ci
+
+      - name: TypeScript 类型检查
+        working-directory: view
+        run: npx tsc --noEmit
+
+      - name: Vite 生产构建
+        working-directory: view
+        run: npm run build
