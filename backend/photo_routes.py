@@ -28,6 +28,9 @@ from .runtime_state import runtime
 
 photo_bp = Blueprint("photos", __name__)
 
+# 单次导出最大张数（防止一次性打包占用过多内存/IO）
+MAX_EXPORT_COUNT = 2000
+
 
 @photo_bp.route("/api/save-settings", methods=["GET"])
 def get_save_settings():
@@ -199,11 +202,17 @@ def list_photos_paginated():
     camera_id, start, end, category = _parse_filters(request.args)
     page = max(1, request.args.get("page", 1, type=int))
     page_size = min(200, max(1, request.args.get("page_size", 50, type=int)))
-    all_photos = list(
-        _apply_filters(_iter_all_photos(camera_id), camera_id, start, end, category)
-    )
-    total = len(all_photos)
-    items = all_photos[(page - 1) * page_size : page * page_size]
+    start_index = (page - 1) * page_size
+    total = 0
+    items = []
+    # 只物化当前页，避免把全部照片读进内存；total 仍需遍历计数
+    for photo in _apply_filters(_iter_all_photos(camera_id), camera_id, start, end, category):
+        if total < start_index:
+            total += 1
+            continue
+        if len(items) < page_size:
+            items.append(photo)
+        total += 1
     return jsonify(
         {
             "success": True,
@@ -221,17 +230,18 @@ def export_photos():
     data = request.get_json(silent=True) or {}
     camera_id, start, end, category = _parse_filters(data)
     file_names = data.get("file_names")
-    photos = list(
-        _apply_filters(_iter_all_photos(camera_id), camera_id, start, end, category)
-    )
-    if isinstance(file_names, list) and file_names:
-        allowed = {str(name) for name in file_names}
-        photos = [photo for photo in photos if photo["filename"] in allowed]
+    allowed = {str(name) for name in file_names} if isinstance(file_names, list) and file_names else None
 
     buffer = io.BytesIO()
     added = 0
+    truncated = False
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        for photo in photos[:2000]:
+        for photo in _apply_filters(_iter_all_photos(camera_id), camera_id, start, end, category):
+            if allowed is not None and photo["filename"] not in allowed:
+                continue
+            if added >= MAX_EXPORT_COUNT:
+                truncated = True
+                break
             source = (
                 Config.CAPTURE_DIR / f"cam{photo['camId']}" / photo["subdir"] / photo["filename"]
             )
@@ -241,6 +251,8 @@ def export_photos():
             archive.write(str(source), arcname=arc_name)
             added += 1
     buffer.seek(0)
+    if truncated:
+        logger.warning(f"照片导出达到上限 {MAX_EXPORT_COUNT} 张，结果已截断")
     logger.info(f"照片导出完成: {added} 张")
     return send_file(
         buffer,
@@ -254,11 +266,8 @@ def export_photos():
 def photo_report_csv():
     """按日期 + 类别统计照片数量，返回 CSV。"""
     camera_id, start, end, category = _parse_filters(request.args)
-    photos = list(
-        _apply_filters(_iter_all_photos(camera_id), camera_id, start, end, category)
-    )
     counts = {}
-    for photo in photos:
+    for photo in _apply_filters(_iter_all_photos(camera_id), camera_id, start, end, category):
         day = datetime.fromtimestamp(photo["timestamp"]).strftime("%Y-%m-%d")
         cat = photo["result"] if photo["result"] != "--" else "未分类"
         key = (day, cat)
@@ -284,11 +293,8 @@ def photo_trend():
     interval = request.args.get("interval", "day")
     if interval not in ("day", "hour"):
         interval = "day"
-    photos = list(
-        _apply_filters(_iter_all_photos(camera_id), camera_id, start, end, None)
-    )
     buckets = {}
-    for photo in photos:
+    for photo in _apply_filters(_iter_all_photos(camera_id), camera_id, start, end, None):
         dt = datetime.fromtimestamp(photo["timestamp"])
         if interval == "hour":
             key = dt.strftime("%Y-%m-%d %H:00")

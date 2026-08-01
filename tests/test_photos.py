@@ -103,6 +103,17 @@ class PhotoBrowseTests(unittest.TestCase):
         self.assertEqual(names, ["cam1/NG/b.bmp"])
         response.close()
 
+    def test_export_respects_cap(self):
+        self._seed()
+        with patch("backend.photo_routes.MAX_EXPORT_COUNT", 2):
+            response = self.client.post("/api/photos/export", json={})
+
+        self.assertEqual(response.status_code, 200)
+        with zipfile.ZipFile(io.BytesIO(response.data)) as archive:
+            names = archive.namelist()
+        self.assertEqual(len(names), 2)
+        response.close()
+
     def test_trend_by_day(self):
         self._seed()
         response = self.client.get("/api/photos/trend?interval=day&start=1700000000&end=1700009999")
