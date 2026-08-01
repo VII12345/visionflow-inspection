@@ -2,6 +2,7 @@
 
 import json
 import threading
+from datetime import datetime
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request
@@ -150,7 +151,21 @@ def _run_training(folder_path, model_name, class_a_path=None, class_b_path=None)
         )
 
         metadata_path = model_path.with_suffix(".json")
-        metadata_path.write_text(json.dumps({"categories": train_set.categories, "num_classes": train_set.num_classes}, ensure_ascii=False, indent=2), encoding="utf-8")
+        eval_result = history.get("eval", {}) or {}
+        try:
+            eval_accuracy = round(float(eval_result.get("accuracy", 0)), 4)
+        except (TypeError, ValueError):
+            eval_accuracy = None
+        metadata = {
+            "categories": train_set.categories,
+            "num_classes": train_set.num_classes,
+            "trained_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "device": training_device,
+            "eval_accuracy": eval_accuracy,
+        }
+        metadata_path.write_text(
+            json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         logger.info(f"模型已保存: {model_path}，类别: {train_set.categories}")
 
         # 清除模型缓存，下次推理自动加载新模型

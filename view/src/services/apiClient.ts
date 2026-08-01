@@ -51,7 +51,10 @@ export async function backendFetch<T = unknown>(url: string, options?: {
     if (res.status === 401 && !url.startsWith('/api/auth/login')) {
       useAppStore.getState().handleUnauthorized();
     }
-    throw new Error(errorData.message || errorData.error || `后端请求失败 (${res.status})`);
+    const error = new Error(errorData.message || errorData.error || `后端请求失败 (${res.status})`) as Error & { status?: number; data?: unknown };
+    error.status = res.status;
+    error.data = data;
+    throw error;
   }
   return data as T;
 }

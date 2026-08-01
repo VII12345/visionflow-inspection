@@ -3,7 +3,13 @@
 from flask import Blueprint, jsonify, request
 
 from .logger import logger
-from .model_repository import list_model_records, update_model_settings
+from .model_repository import (
+    ModelInUseError,
+    delete_model,
+    list_model_records,
+    rename_model,
+    update_model_settings,
+)
 
 
 model_bp = Blueprint("models", __name__)
@@ -35,3 +41,34 @@ def save_model_settings(model_name):
     except OSError as exc:
         logger.error(f"保存模型设置失败: {exc}", exc_info=True)
         return jsonify({"success": False, "error": f"保存模型设置失败: {exc}"}), 500
+
+
+@model_bp.route("/api/models/<model_name>", methods=["DELETE"])
+def remove_model(model_name):
+    try:
+        result = delete_model(model_name)
+        return jsonify({"success": True, **result})
+    except ModelInUseError as exc:
+        return (
+            jsonify({"success": False, "error": str(exc), "references": exc.references}),
+            409,
+        )
+    except FileNotFoundError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 404
+    except OSError as exc:
+        logger.error(f"删除模型失败: {exc}", exc_info=True)
+        return jsonify({"success": False, "error": f"删除模型失败: {exc}"}), 500
+
+
+@model_bp.route("/api/models/<model_name>", methods=["PATCH"])
+def rename_existing_model(model_name):
+    data = request.get_json(silent=True) or {}
+    new_name = str(data.get("name", "")).strip()
+    try:
+        result = rename_model(model_name, new_name)
+        return jsonify({"success": True, **result})
+    except (FileNotFoundError, ValueError) as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    except OSError as exc:
+        logger.error(f"重命名模型失败: {exc}", exc_info=True)
+        return jsonify({"success": False, "error": f"重命名模型失败: {exc}"}), 500

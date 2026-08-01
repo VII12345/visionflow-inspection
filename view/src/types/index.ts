@@ -118,6 +118,11 @@ export interface ModelInfo {
   num_classes: number;
   reject_labels: string[];
   category_descriptions: Record<string, string>;
+  version?: {
+    trained_at?: string | null;
+    accuracy?: number | null;
+    device?: string | null;
+  };
 }
 
 export interface PlcCameraMapping {

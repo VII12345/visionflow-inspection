@@ -29,6 +29,8 @@ export const api = {
   stopTraining: () => backendFetch('/api/training/stop', { method: 'POST' }),
   trainingStatus: () => backendFetch<TrainingStatusResponse>('/api/training/status'),
   getModels: () => backendFetch<ModelListResponse>('/api/models'),
+  deleteModel: (name: string) => backendFetch<{ success: boolean; model?: string; error?: string; references?: { type: string; label: string; detail: string }[] }>(`/api/models/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+  renameModel: (name: string, newName: string) => backendFetch<{ success: boolean; model?: string; error?: string }>(`/api/models/${encodeURIComponent(name)}`, { method: 'PATCH', body: { name: newName } }),
   saveModelSettings: (modelName: string, rejectLabels: string[], categoryDescriptions: Record<string, string> = {}) => backendFetch<SaveModelSettingsResponse>(`/api/models/${encodeURIComponent(modelName)}/settings`, { method: 'POST', body: { reject_labels: rejectLabels, category_descriptions: categoryDescriptions } }),
   testModel: (params: TestModelParams) => backendFetch<TestModelResponse>('/api/test', { method: 'POST', body: params }),
   getStats: () => backendFetch<StatsResponse>('/api/stats'),
