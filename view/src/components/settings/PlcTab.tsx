@@ -103,7 +103,7 @@ export const PlcTab: React.FC = () => {
   return (
     <div className="flex flex-col gap-5 h-full overflow-auto">
       <div className="bg-white rounded-lg shadow-card border border-gray-100 p-6">
-        <div className="flex items-start justify-between gap-4 mb-5">
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
           <div>
             <h3 className="text-[15px] font-semibold text-text-primary">PLC 写入配置</h3>
             <p className="text-[11px] text-text-tertiary mt-1">填写 PLC 服务地址和设备节点名称；这些内容应与现场 PLC 程序中的实际配置一致，保存后立即用于后续写入。</p>
@@ -114,11 +114,11 @@ export const PlcTab: React.FC = () => {
           </label>
         </div>
         {loading ? <p className="text-xs text-text-tertiary">正在加载 PLC 配置...</p> : (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <div><label className={labelClass}><FieldHint text="填写 PLC 程序提供的 HTTP 地址，例如 http://192.168.1.10:8088。请确认电脑能访问该地址。">PLC 服务地址</FieldHint></label><input value={config.base_url} onChange={e => setConfig(c => ({ ...c, base_url: e.target.value }))} className={inputClass} placeholder="例如：http://192.168.1.10:8088" /></div>
             <div><label className={labelClass}><FieldHint text="如果 PLC 程序会自动给节点名称加统一前缀，就填写前缀；如果程序直接使用输入的完整名称，可以留空。">节点名称前缀</FieldHint></label><input value={config.node_prefix} onChange={e => setConfig(c => ({ ...c, node_prefix: e.target.value }))} className={inputClass} placeholder="例如：NODES.MODBUS.；没有前缀可留空" /></div>
             <div><label className={labelClass}><FieldHint text="填写等待 PLC 返回结果的最长时间。网络较慢时可以适当增大，通常 3 秒即可。">请求超时（秒）</FieldHint></label><input type="number" min={0.1} max={120} step={0.1} value={config.timeout_seconds} onChange={e => setConfig(c => ({ ...c, timeout_seconds: Number(e.target.value) || 3 }))} className={inputClass} /></div>
-            <div className="col-span-2"><p className="text-[11px] text-text-secondary">剔除类别请在“模型设置”中按模型分别选择；PLC 页面只负责连接地址和节点名称。</p></div>
+            <div className="col-span-1 xl:col-span-2"><p className="text-[11px] text-text-secondary">剔除类别请在“模型设置”中按模型分别选择；PLC 页面只负责连接地址和节点名称。</p></div>
           </div>
         )}
         <div className="flex justify-end gap-3 mt-5"><Button variant="secondary" size="sm" onClick={load}>重新加载</Button><Button variant="primary" onClick={save} disabled={saving || loading}>{saving ? '保存中...' : '保存 PLC 配置'}</Button></div>

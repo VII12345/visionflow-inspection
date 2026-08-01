@@ -138,7 +138,7 @@ export const ModelSettingsTab: React.FC = () => {
   return (
     <div className="h-full overflow-auto">
       <div className="bg-white rounded-lg shadow-card border border-gray-100 p-6 mb-5">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-[15px] font-semibold text-text-primary">模型设置</h2>
             <p className="text-xs text-text-secondary mt-2 leading-5">
@@ -160,12 +160,12 @@ export const ModelSettingsTab: React.FC = () => {
         <div className="flex flex-col gap-4">
           {models.map(model => (
             <div key={model.name} className="bg-white rounded-lg shadow-card border border-gray-100 p-5">
-              <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
                 <div>
                   <h3 className="text-[14px] font-semibold text-text-primary">{model.name}</h3>
                   <p className="text-[11px] text-text-tertiary mt-1">{renderVersion(model)}</p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
                   <Button variant="secondary" size="sm" onClick={() => void renameModel(model)} disabled={!canEdit}>重命名</Button>
                   <Button variant="danger" size="sm" onClick={() => void deleteModel(model)} disabled={!canEdit}>删除</Button>
                   <Button variant="primary" size="sm" onClick={() => void save(model)} disabled={!canEdit || saving !== null}>

@@ -35,8 +35,8 @@ export const TestTab: React.FC = () => {
         <h3 className="text-[15px] font-semibold text-text-primary mb-4">模型测试</h3>
 
         {/* Model + Mode */}
-        <div className="flex items-end gap-4 mb-4">
-          <div className="flex-1">
+        <div className="flex flex-wrap items-end gap-4 mb-4">
+          <div className="flex-1 min-w-[220px]">
             <label className="text-xs text-text-secondary mb-1.5 block"><FieldHint text="选择要验证的已训练模型；测试结果会使用该模型保存的类别名称。">选择模型</FieldHint></label>
             <select
               value={selectedModel}
@@ -49,7 +49,7 @@ export const TestTab: React.FC = () => {
               ))}
             </select>
           </div>
-          <div className="w-48">
+          <div className="w-full sm:w-48">
             <label className="text-xs text-text-secondary mb-1.5 block"><FieldHint text="分类测试需要类别根目录并能计算准确率；批量推理只需要图片目录，不要求标签。">测试模式</FieldHint></label>
             <div className="flex rounded-md border border-gray-300 overflow-hidden">
               <button

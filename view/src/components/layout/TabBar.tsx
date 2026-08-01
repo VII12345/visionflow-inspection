@@ -72,7 +72,7 @@ export const TabBar: React.FC = () => {
   };
 
   return (
-    <nav className="tab-bar flex items-center border-b shrink-0 px-6 relative">
+    <nav className="tab-bar flex items-center border-b shrink-0 px-3 2xl:px-6 relative">
       <div className="tab-list flex gap-0 flex-1 overflow-x-auto">
         {TABS.filter(tab => canAccessTab(user?.level || null, tab.id)).map(tab => (
           <button

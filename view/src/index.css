@@ -190,6 +190,8 @@ input[type="number"] {
 .content-shell {
     background: transparent;
     animation: page-enter 320ms ease-out both;
+    /* 随窗口分辨率自适应：小窗口收窄、大窗口放宽，避免固定留白挤压内容 */
+    padding: clamp(16px, 2.2vw, 32px);
 }
 
 .status-bar {

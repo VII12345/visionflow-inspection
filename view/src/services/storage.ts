@@ -18,7 +18,7 @@ function set<T>(key: string, data: T): void {
 const defaults = {
   rememberLogin: true,
   products: [] as Product[],
-  runLayout: { id: 'two', columns: 2, order: [] } as RunLayout,
+  runLayout: { id: 'auto', columns: 0, order: [] } as RunLayout,
   lineConfig: [
     { line: 1, name: '线体 1', productId: null, model: '-' },
     { line: 2, name: '线体 2', productId: null, model: '-' },

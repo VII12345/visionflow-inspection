@@ -29,7 +29,7 @@ export const RunHeader: React.FC<Props> = ({
 }) => {
   return (
     <>
-      <div className="flex items-center gap-4 mb-4 shrink-0 flex-wrap">
+      <div className="flex items-center gap-3 mb-4 shrink-0 flex-wrap 2xl:gap-4">
         <Button variant="start" size="lg" onClick={onStart} disabled={isRunning}>启动</Button>
         <Button variant="stop" size="lg" onClick={onStop} disabled={!isRunning}>停止</Button>
         <span className={`text-sm font-medium ${isRunning ? 'text-ok' : 'text-text-tertiary'}`}>

@@ -18,9 +18,9 @@ export const CameraDetailTab: React.FC<Props> = ({ camId }) => {
   const currentSettings = saveSettings[camId] || { saveGood: true, saveBad: true };
 
   return (
-    <div className="flex gap-6 h-full overflow-auto">
-      <div className="flex-1 flex flex-col gap-4">
-        <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center relative min-h-[300px]">
+    <div className="flex flex-col xl:flex-row gap-5 xl:gap-6 h-full overflow-auto">
+      <div className="flex-1 flex flex-col gap-4 min-w-0">
+        <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center relative min-h-[280px]">
           {photos.selectedPhoto ? (
             <>
               <img src={api.getPhotoUrl(camId, photos.selectedPhoto)} alt={photos.selectedPhoto}
@@ -35,7 +35,7 @@ export const CameraDetailTab: React.FC<Props> = ({ camId }) => {
         <StatsCard camId={camId} stats={photos.stats} onResetStats={photos.resetStats} onRefresh={photos.loadPhotos} />
       </div>
 
-      <div className="w-[340px] shrink-0 flex flex-col gap-4">
+      <div className="w-full xl:w-[340px] xl:shrink-0 flex flex-col gap-4 min-w-0">
         <SaveSettingsCard
           saveGood={currentSettings.saveGood}
           saveBad={currentSettings.saveBad}

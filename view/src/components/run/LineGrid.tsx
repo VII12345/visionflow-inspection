@@ -55,10 +55,12 @@ export const LineGrid: React.FC<Props> = ({
 }) => {
   return (
     <div
-      className="grid gap-5 flex-1 min-h-0"
+      className="grid gap-4 2xl:gap-5 flex-1 min-h-0"
       style={layout.id === 'custom'
         ? { gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gridAutoRows: 'minmax(120px, 1fr)', alignItems: 'stretch' }
-        : { gridTemplateColumns: `repeat(${effectiveColumns}, minmax(0, 1fr))` }}
+        : layout.id === 'auto'
+          ? { gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))' }
+          : { gridTemplateColumns: `repeat(${effectiveColumns}, minmax(0, 1fr))` }}
     >
       {orderedCamIds.map(camId => {
         const cfg = lineConfig[camId - 1];

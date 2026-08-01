@@ -17,12 +17,12 @@ export const SettingsTab: React.FC = () => {
   const training = useTrainingPanel({ products, selectedModel, onTrainingComplete: refresh });
 
   return (
-    <div className="flex gap-6 h-full overflow-auto">
+    <div className="flex flex-col xl:flex-row gap-5 xl:gap-6 h-full overflow-auto">
       {/* Left: Model List */}
       <ProductSection products={products} selectedModel={selectedModel} onSelect={setSelectedModel} />
 
       {/* Right: AI Controls + Camera Config + Hardware */}
-      <div className="w-1/2 flex flex-col gap-5">
+      <div className="w-full xl:w-1/2 flex flex-col gap-5 min-w-0">
         {/* AI Learning */}
         <TrainingSection
           products={products}

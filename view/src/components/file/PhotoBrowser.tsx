@@ -144,40 +144,42 @@ export const PhotoBrowser: React.FC = () => {
 
       {/* 照片列表 */}
       <div className="bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden">
-        <table className="w-full text-[13px] border-collapse">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className={thClass}>相机</th>
-              <th className={thClass}>文件名</th>
-              <th className={thClass}>类别目录</th>
-              <th className={thClass}>结果</th>
-              <th className={thClass}>大小</th>
-              <th className={thClass}>时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map(item => (
-              <tr key={`${item.camId}-${item.filename}`} className="border-t border-gray-100">
-                <td className="px-4 py-2.5 text-text-tertiary">Cam {item.camId}</td>
-                <td className="px-4 py-2.5 font-mono text-xs text-text-secondary">{item.filename}</td>
-                <td className="px-4 py-2.5 text-text-secondary">{item.subdir}</td>
-                <td className="px-4 py-2.5">
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${item.result === 'OK' ? 'bg-emerald-50 text-ok' : item.result === 'NG' ? 'bg-red-50 text-ng' : 'bg-gray-100 text-text-tertiary'}`}>
-                    {item.result}
-                  </span>
-                </td>
-                <td className="px-4 py-2.5 text-text-tertiary">{item.size ? `${(item.size / 1024).toFixed(0)}K` : ''}</td>
-                <td className="px-4 py-2.5 text-text-tertiary">{item.mtime}</td>
-              </tr>
-            ))}
-            {items.length === 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[13px] border-collapse min-w-[760px]">
+            <thead className="bg-gray-50">
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-text-tertiary text-xs">暂无符合条件的照片</td>
+                <th className={thClass}>相机</th>
+                <th className={thClass}>文件名</th>
+                <th className={thClass}>类别目录</th>
+                <th className={thClass}>结果</th>
+                <th className={thClass}>大小</th>
+                <th className={thClass}>时间</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+            </thead>
+            <tbody>
+              {items.map(item => (
+                <tr key={`${item.camId}-${item.filename}`} className="border-t border-gray-100">
+                  <td className="px-4 py-2.5 text-text-tertiary">Cam {item.camId}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs text-text-secondary">{item.filename}</td>
+                  <td className="px-4 py-2.5 text-text-secondary">{item.subdir}</td>
+                  <td className="px-4 py-2.5">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${item.result === 'OK' ? 'bg-emerald-50 text-ok' : item.result === 'NG' ? 'bg-red-50 text-ng' : 'bg-gray-100 text-text-tertiary'}`}>
+                      {item.result}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-text-tertiary">{item.size ? `${(item.size / 1024).toFixed(0)}K` : ''}</td>
+                  <td className="px-4 py-2.5 text-text-tertiary">{item.mtime}</td>
+                </tr>
+              ))}
+              {items.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-text-tertiary text-xs">暂无符合条件的照片</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-gray-100">
           <div className="flex items-center gap-2 text-xs text-text-secondary">
             <span>共 {total} 张</span>
             <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); setRefreshKey(k => k + 1); }} className={`${inputClass} !py-1`}>

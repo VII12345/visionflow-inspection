@@ -15,7 +15,7 @@ export const ProductSection: React.FC<Props> = ({ products, selectedModel, onSel
   const filtered = products.filter(p => `${p.name || ''} ${p.model}`.toLowerCase().includes(filter.toLowerCase()));
 
   return (
-    <div className="w-1/2 flex flex-col">
+    <div className="w-full xl:w-1/2 flex flex-col min-w-0">
       <h3 className="text-[15px] font-semibold text-text-primary mb-4">已建立产品</h3>
       <input
         type="text"
@@ -25,7 +25,7 @@ export const ProductSection: React.FC<Props> = ({ products, selectedModel, onSel
         className={`${inputClass} mb-4`}
       />
       <div className="bg-white rounded-lg shadow-card border border-gray-100 overflow-auto flex-1">
-        <table className="w-full text-[13px] border-collapse">
+        <table className="w-full text-[13px] border-collapse min-w-[560px]">
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
               <th className={thClass}>产品名称</th>
@@ -43,7 +43,8 @@ export const ProductSection: React.FC<Props> = ({ products, selectedModel, onSel
                   selectedModel?.id === p.id ? 'bg-blue-50' : 'hover:bg-gray-50'
                 }`}
               >
-                <td className="px-4 py-3 font-medium text-text-primary">{p.model}</td>
+                <td className="px-4 py-3 font-medium text-text-primary">{p.name || p.model}</td>
+                <td className="px-4 py-3 text-text-secondary font-mono text-xs">{p.model}</td>
                 <td className="px-4 py-3 text-text-secondary">{p.size}</td>
                 <td className="px-4 py-3">
                   {p.learned ? <Badge variant="learned">已学习</Badge> : <Badge variant="unlearned">未学习</Badge>}

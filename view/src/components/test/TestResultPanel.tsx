@@ -8,7 +8,7 @@ export const TestResultPanel: React.FC<{ result: ModelTestResult }> = ({ result 
       <h3 className="text-[15px] font-semibold text-text-primary mb-4">测试结果</h3>
 
       {/* Summary */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 xl:gap-4 mb-6">
         <div className="bg-gray-50 rounded-md p-3 text-center">
           <div className="text-[10px] text-text-tertiary uppercase tracking-wide">图片总数</div>
           <div className="text-lg font-bold text-text-primary mt-1">{result.total}</div>
@@ -40,7 +40,7 @@ export const TestResultPanel: React.FC<{ result: ModelTestResult }> = ({ result 
             <div className="text-[11px] text-text-tertiary">推理链路 → 结果输出 → 保存图片</div>
           </div>
           <div className="text-[11px] text-text-tertiary mb-2">父级合计均为可展开子项相加；推理交接和写盘前等待已拆出，避免外层等待与内部步骤重复计算。</div>
-          <div className="grid grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 xl:gap-4 mb-4">
             <div className="bg-gray-50 rounded-md p-3 text-center" title={TIMING_SUMMARY_EXPLANATIONS.min}>
               <div className="text-[10px] text-text-tertiary">单张最短</div>
               <div className="text-sm font-bold text-text-primary mt-0.5">{result.timing.min_ms.toFixed(1)} ms</div>
@@ -73,8 +73,8 @@ export const TestResultPanel: React.FC<{ result: ModelTestResult }> = ({ result 
         <div className="text-[10px] text-text-tertiary uppercase tracking-wide mb-2">
           图片详情 ({result.results.length} 张)
         </div>
-        <div className="border border-gray-100 rounded-md max-h-[400px] overflow-y-auto">
-          <table className="w-full text-[12px] border-collapse">
+        <div className="border border-gray-100 rounded-md max-h-[400px] overflow-auto">
+          <table className="w-full text-[12px] border-collapse min-w-[640px]">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="px-3 py-2 text-left text-[10px] font-medium text-text-tertiary uppercase">文件名</th>

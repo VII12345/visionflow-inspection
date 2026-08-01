@@ -33,7 +33,7 @@ export const FileTab: React.FC = () => {
       </div>
 
       {view === 'catalog' ? (
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-6 2xl:gap-8">
           {/* Line Config */}
           <div>
             <h3 className="text-[15px] font-semibold text-text-primary mb-4">当前线体检测配置</h3>

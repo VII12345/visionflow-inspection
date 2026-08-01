@@ -13,7 +13,7 @@ export const TopBar: React.FC = () => {
   const setActiveTab = useAppStore(s => s.setActiveTab);
 
   return (
-    <header className="top-bar flex items-center justify-between h-16 px-8 shrink-0 relative">
+    <header className="top-bar flex items-center justify-between h-16 px-4 2xl:px-8 shrink-0 relative">
       <div className="flex items-center gap-2.5">
         <div className="flex flex-col gap-0.5">
           <h1 className="text-[15px] font-semibold text-text-primary tracking-tight">视界智检</h1>

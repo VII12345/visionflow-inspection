@@ -57,8 +57,8 @@ if (camStatus?.state === 'running' && camStatus.result) {
 return (
   <div ref={onRef} key={camId} draggable={canEditRun} onDragStart={event => canEditRun && onDragStart(event)} onDragOver={event => { if (canEditRun) { event.preventDefault(); onDragOver(); } }} onDrop={event => canEditRun && onDrop(event)} onDragEnd={onDragEnd} className={`relative bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden flex flex-col cursor-grab active:cursor-grabbing transition-shadow ${dropTarget && !dragging ? 'cam-card-drop-target' : ''} ${dragging ? 'cam-card-dragging' : ''}`} style={cardStyle}>
     {/* Header */}
-    <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-      <span className="text-[13px]">
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-4 py-2.5 2xl:px-5 2xl:py-3 border-b border-gray-100">
+      <span className="min-w-0 text-[13px]">
         <span className="text-text-primary font-semibold">Cam {camId}</span>
         <span className="text-text-tertiary mx-2">|</span>
         <span className="text-text-secondary">{lineName}</span>
@@ -129,9 +129,9 @@ return (
     </div>
 
     {/* Footer */}
-    <div className="flex items-center justify-between gap-2 min-h-0 px-5 py-2.5 border-t border-gray-100 text-xs">
+    <div className="flex items-center justify-between gap-2 min-h-0 px-4 py-2.5 2xl:px-5 border-t border-gray-100 text-xs">
       <span className={`${resultColor || 'text-text-tertiary'} min-w-0 break-words text-center`}>{resultText}</span>
-      <span className="text-text-tertiary">{camStatus?.lastFrameTime || ''}</span>
+      <span className="text-text-tertiary shrink-0">{camStatus?.lastFrameTime || ''}</span>
     </div>
     {canEditRun && isCustomLayout && (
       <div

@@ -23,7 +23,7 @@ export const Modal: React.FC<ModalProps> = ({ open, onClose, title, children, fo
         style={{ width, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}
       >
         {title && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100/80">
+          <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-gray-100/80">
             <h3 className="text-[15px] font-semibold text-text-primary">{title}</h3>
             <button
               onClick={onClose}
@@ -33,9 +33,9 @@ export const Modal: React.FC<ModalProps> = ({ open, onClose, title, children, fo
             </button>
           </div>
         )}
-        <div className="p-6">{children}</div>
+        <div className="p-5 sm:p-6">{children}</div>
         {footer && (
-          <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-surface/80 rounded-b-lg">
+          <div className="flex flex-wrap justify-end gap-3 px-5 sm:px-6 py-4 border-t border-gray-100 bg-surface/80 rounded-b-lg">
             {footer}
           </div>
         )}

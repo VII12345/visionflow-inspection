@@ -14,7 +14,7 @@ export const HelpTab: React.FC = () => {
   return (
     <div className="flex flex-col gap-5 overflow-auto h-full">
       <div className="bg-gradient-to-br from-blue-50 to-white rounded-lg border border-blue-100 p-6">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="text-[11px] uppercase tracking-[0.18em] text-accent font-semibold">USER GUIDE</div>
             <h2 className="text-xl font-semibold text-text-primary mt-2">系统说明书</h2>

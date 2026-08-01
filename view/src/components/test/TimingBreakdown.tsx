@@ -211,7 +211,7 @@ ${STEP_EXPLANATIONS[key] || '该项表示测试链路中的一个独立计时步
 
   return (
     <div className="border border-gray-100 rounded-md overflow-hidden">
-      <div className="bg-gray-50 px-3 py-2 text-[10px] font-medium text-text-tertiary uppercase tracking-wide flex items-center justify-between">
+      <div className="bg-gray-50 px-3 py-2 text-[10px] font-medium text-text-tertiary uppercase tracking-wide flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <span>分层操作耗时（毫秒）</span>
         {topLevelTiming && <span className="normal-case text-text-secondary">已展示子项平均合计 {topLevelTiming.avg_ms.toFixed(2)} ms · 累计 {topLevelTiming.total_ms.toFixed(2)} ms</span>}
       </div>
@@ -220,17 +220,21 @@ ${STEP_EXPLANATIONS[key] || '该项表示测试链路中的一个独立计时步
           端到端单张平均 {overallAvgMs!.toFixed(2)} ms；与已展示分项相差 {Math.abs(displayedGapMs).toFixed(2)} ms。差值主要来自不同计时点和线程调度产生的测量误差，不是子项重复相加。
         </div>
       )}
-      <div className="divide-y divide-gray-100">{TIMING_TREE.map(node => renderNode(node, 0))}</div>
-      {extraSteps.length > 0 && (
-        <div className="border-t border-gray-100">
-          <button type="button" onClick={() => toggle('extra')} aria-expanded={!collapsed.has('extra')} className="w-full flex items-center gap-2 px-3 py-2.5 bg-white hover:bg-blue-50/50 text-left">
-            <span className="w-4 text-center text-accent font-bold">{collapsed.has('extra') ? '›' : '⌄'}</span>
-            <span className="text-[13px] font-semibold text-text-primary">其他步骤</span>
-            <span className="text-[11px] text-text-tertiary flex-1">后端新增的计时项</span>
-          </button>
-          {!collapsed.has('extra') && <div className="bg-gray-50/40">{extraSteps.map(([key, step]) => renderStep(key, step, 0))}</div>}
+      <div className="overflow-x-auto">
+        <div className="min-w-[560px]">
+          <div className="divide-y divide-gray-100">{TIMING_TREE.map(node => renderNode(node, 0))}</div>
+          {extraSteps.length > 0 && (
+            <div className="border-t border-gray-100">
+              <button type="button" onClick={() => toggle('extra')} aria-expanded={!collapsed.has('extra')} className="w-full flex items-center gap-2 px-3 py-2.5 bg-white hover:bg-blue-50/50 text-left">
+                <span className="w-4 text-center text-accent font-bold">{collapsed.has('extra') ? '›' : '⌄'}</span>
+                <span className="text-[13px] font-semibold text-text-primary">其他步骤</span>
+                <span className="text-[11px] text-text-tertiary flex-1">后端新增的计时项</span>
+              </button>
+              {!collapsed.has('extra') && <div className="bg-gray-50/40">{extraSteps.map(([key, step]) => renderStep(key, step, 0))}</div>}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };

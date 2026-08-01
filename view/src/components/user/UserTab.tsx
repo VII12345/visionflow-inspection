@@ -99,9 +99,9 @@ export const UserTab: React.FC = () => {
   }
 
   return (
-    <div className="flex gap-6 h-full overflow-auto">
+    <div className="flex flex-col xl:flex-row gap-5 xl:gap-6 h-full overflow-auto">
       {/* Left: Create/Delete */}
-      <div className="w-[380px] shrink-0 flex flex-col gap-5">
+      <div className="w-full xl:w-[380px] xl:shrink-0 flex flex-col gap-5">
         <div className="bg-white rounded-lg shadow-card border border-gray-100 p-6">
           <h3 className="text-[15px] font-semibold text-text-primary mb-4">新建账户</h3>
           <div className="flex flex-col gap-4">
@@ -158,10 +158,10 @@ export const UserTab: React.FC = () => {
       </div>
 
       {/* Right: User List */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         <h3 className="text-[15px] font-semibold text-text-primary mb-4">现有账户列表</h3>
-        <div className="bg-white rounded-lg shadow-card border border-gray-100 overflow-auto flex-1">
-          <table className="w-full text-[13px] border-collapse">
+        <div className="bg-white rounded-lg shadow-card border border-gray-100 overflow-auto flex-1 min-w-0">
+          <table className="w-full text-[13px] border-collapse min-w-[480px]">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className={thClass}>ID</th>

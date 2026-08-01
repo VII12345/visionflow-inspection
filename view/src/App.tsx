@@ -48,15 +48,15 @@ const MainApp: React.FC = () => {
 
       {/* Content */}
       <main className="flex-1 overflow-hidden relative">
-        <div className="content-shell w-full h-full overflow-auto p-8">
+        <div className="content-shell w-full h-full overflow-auto">
           <TabRouter />
         </div>
       </main>
 
       {/* Status Bar */}
-      <footer className="status-bar flex items-center justify-between h-8 px-8 bg-surface border-t border-gray-200 shrink-0 text-[11px] text-text-tertiary relative">
-        <span>{statusMessage}</span>
-        <span>{storage.getStorageInfo().type === 'encrypted' ? `加密存储: ${storage.getStorageInfo().path}` : `明文存储: ${storage.getStorageInfo().path}`}</span>
+      <footer className="status-bar flex items-center justify-between gap-4 h-8 px-4 2xl:px-8 bg-surface border-t border-gray-200 shrink-0 text-[11px] text-text-tertiary relative">
+        <span className="flex-1 min-w-0 truncate">{statusMessage}</span>
+        <span className="shrink-0 max-w-[45%] truncate">{storage.getStorageInfo().type === 'encrypted' ? `加密存储: ${storage.getStorageInfo().path}` : `明文存储: ${storage.getStorageInfo().path}`}</span>
       </footer>
 
       <SystemAlarm />
