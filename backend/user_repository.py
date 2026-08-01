@@ -148,3 +148,59 @@ def update_user_password(name, new_password):
                 logger.error(f"保存用户密码失败: {exc}")
                 return False
     return False
+
+
+def create_user(name, password, level="operator"):
+    """新建用户；用户名已存在时返回 None，成功返回 UserRecord。"""
+    name = name.strip()
+    if level not in USER_LEVELS:
+        level = "operator"
+    raw = _read_file()
+    users = raw.setdefault("users", [])
+    for item in users:
+        if isinstance(item, dict) and str(item.get("name", "")).strip() == name:
+            return None
+    next_id = max(
+        [int(item.get("id", 0)) for item in users if isinstance(item, dict)] or [0]
+    ) + 1
+    users.append(
+        {
+            "id": next_id,
+            "name": name,
+            "level": level,
+            "password_hash": generate_password_hash(password),
+        }
+    )
+    try:
+        user_file_path().write_text(
+            json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        logger.info(f"已创建用户: {name} ({level})")
+        return UserRecord(next_id, name, level, "")
+    except OSError as exc:
+        logger.error(f"创建用户失败: {exc}")
+        return None
+
+
+def delete_user(user_id):
+    """按 id 删除用户；不存在返回 False。"""
+    raw = _read_file()
+    users = raw.get("users", [])
+    target = int(user_id)
+    remaining = [
+        item
+        for item in users
+        if not (isinstance(item, dict) and int(item.get("id", -1)) == target)
+    ]
+    if len(remaining) == len(users):
+        return False
+    raw["users"] = remaining
+    try:
+        user_file_path().write_text(
+            json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        logger.info(f"已删除用户 id={target}")
+        return True
+    except OSError as exc:
+        logger.error(f"删除用户失败: {exc}")
+        return False

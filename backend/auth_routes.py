@@ -13,7 +13,15 @@ import time
 from flask import Blueprint, jsonify, request
 
 from .logger import logger
-from .user_repository import find_user, get_auth_secret, update_user_password, verify_password
+from .user_repository import (
+    create_user,
+    delete_user,
+    find_user,
+    get_auth_secret,
+    load_users,
+    update_user_password,
+    verify_password,
+)
 
 
 auth_bp = Blueprint("auth", __name__)
@@ -156,3 +164,57 @@ def me():
     if user is None:
         return jsonify({"success": False, "message": "未登录或登录已过期"}), 401
     return jsonify({"success": True, "user": user})
+
+
+# ========== 用户管理（仅管理员） ==========
+
+
+def _admin_user():
+    """返回当前登录用户；非管理员返回 None。"""
+    user = current_user()
+    if user is None or user.get("level") != "admin":
+        return None
+    return user
+
+
+def _public_user(u):
+    return {"id": u.id, "name": u.name, "level": u.level}
+
+
+@auth_bp.route("/api/auth/users", methods=["GET"])
+def list_users():
+    if _admin_user() is None:
+        return jsonify({"success": False, "message": "需要管理员权限"}), 403
+    return jsonify({"success": True, "users": [_public_user(u) for u in load_users()]})
+
+
+@auth_bp.route("/api/auth/users", methods=["POST"])
+def create_user_route():
+    if _admin_user() is None:
+        return jsonify({"success": False, "message": "需要管理员权限"}), 403
+    data = request.get_json(silent=True) or {}
+    name = str(data.get("name", "")).strip()
+    password = str(data.get("password", ""))
+    level = str(data.get("level", "operator"))
+    if not name:
+        return jsonify({"success": False, "message": "请输入用户名"}), 400
+    if len(password) < 3:
+        return jsonify({"success": False, "message": "密码至少3位"}), 400
+    user = create_user(name, password, level)
+    if user is None:
+        return jsonify({"success": False, "message": "用户名已存在"}), 409
+    logger.info(f"管理员创建用户: {name} ({level})")
+    return jsonify({"success": True, "user": _public_user(user)})
+
+
+@auth_bp.route("/api/auth/users/<int:user_id>", methods=["DELETE"])
+def delete_user_route(user_id):
+    admin = _admin_user()
+    if admin is None:
+        return jsonify({"success": False, "message": "需要管理员权限"}), 403
+    if int(user_id) == int(admin.get("id")):
+        return jsonify({"success": False, "message": "不能删除当前登录账户"}), 400
+    if not delete_user(user_id):
+        return jsonify({"success": False, "message": "用户不存在"}), 404
+    logger.info(f"管理员删除用户 id={user_id}")
+    return jsonify({"success": True, "message": "用户已删除"})

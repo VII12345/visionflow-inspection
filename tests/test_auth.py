@@ -145,6 +145,93 @@ class AuthRoutesTests(unittest.TestCase):
         )
         self.assertEqual(fresh.status_code, 200)
 
+    # ========== 用户管理 ==========
+
+    def _admin_headers(self):
+        return {"Authorization": f"Bearer {self._login_token()}"}
+
+    def test_list_users_requires_admin(self):
+        # 非管理员（技术员）无法查看用户列表
+        self.client.post(
+            "/api/auth/users",
+            headers=self._admin_headers(),
+            json={"name": "tech1", "password": "tech123", "level": "tech"},
+        )
+        tech_token = self.client.post(
+            "/api/auth/login", json={"name": "tech1", "password": "tech123"}
+        ).get_json()["token"]
+        response = self.client.get(
+            "/api/auth/users", headers={"Authorization": f"Bearer {tech_token}"}
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_create_user_then_login(self):
+        response = self.client.post(
+            "/api/auth/users",
+            headers=self._admin_headers(),
+            json={"name": "operator1", "password": "op123", "level": "operator"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["user"]["name"], "operator1")
+        login = self.client.post(
+            "/api/auth/login", json={"name": "operator1", "password": "op123"}
+        )
+        self.assertEqual(login.status_code, 200)
+        self.assertEqual(login.get_json()["user"]["level"], "operator")
+
+    def test_create_duplicate_user_returns_409(self):
+        self.client.post(
+            "/api/auth/users",
+            headers=self._admin_headers(),
+            json={"name": "tech1", "password": "tech123", "level": "tech"},
+        )
+        response = self.client.post(
+            "/api/auth/users",
+            headers=self._admin_headers(),
+            json={"name": "tech1", "password": "other123", "level": "admin"},
+        )
+
+        self.assertEqual(response.status_code, 409)
+
+    def test_delete_user_prevents_login(self):
+        self.client.post(
+            "/api/auth/users",
+            headers=self._admin_headers(),
+            json={"name": "gone", "password": "gone123", "level": "operator"},
+        )
+        users = self.client.get(
+            "/api/auth/users", headers=self._admin_headers()
+        ).get_json()["users"]
+        target = next(u for u in users if u["name"] == "gone")
+
+        response = self.client.delete(
+            f"/api/auth/users/{target['id']}", headers=self._admin_headers()
+        )
+
+        self.assertEqual(response.status_code, 200)
+        login = self.client.post(
+            "/api/auth/login", json={"name": "gone", "password": "gone123"}
+        )
+        self.assertEqual(login.status_code, 401)
+
+    def test_delete_self_returns_400(self):
+        admin = self.client.get(
+            "/api/auth/users", headers=self._admin_headers()
+        ).get_json()["users"][0]
+        response = self.client.delete(
+            f"/api/auth/users/{admin['id']}", headers=self._admin_headers()
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_delete_unknown_user_returns_404(self):
+        response = self.client.delete(
+            "/api/auth/users/99999", headers=self._admin_headers()
+        )
+        self.assertEqual(response.status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

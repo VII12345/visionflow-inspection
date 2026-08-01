@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { storage } from '../../services/storage';
+import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
 import { Button, Badge } from '../common/Modal';
 import { FieldHint } from '../common/FieldHint';
-import type { User } from '../../types';
+import type { UserLevel } from '../../types';
 
 const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors placeholder:text-text-tertiary';
 const labelClass = 'text-xs text-text-secondary mb-1.5 block';
@@ -11,18 +12,32 @@ const thClass = 'px-4 py-2.5 text-left text-[11px] font-medium text-text-tertiar
 
 const levelLabels: Record<string, string> = { admin: '管理员', tech: '技术员', operator: '操作员' };
 
+interface UserSummary {
+  id: number;
+  name: string;
+  level: UserLevel;
+}
+
 export const UserTab: React.FC = () => {
   const currentUser = useAppStore(s => s.user);
   const showMessage = useAppStore(s => s.showMessage);
   const setModal = useAppStore(s => s.setModal);
-  const [users, setUsers] = useState<User[]>(storage.getUsers());
+  const [users, setUsers] = useState<UserSummary[]>([]);
   const [newName, setNewName] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [newPwd2, setNewPwd2] = useState('');
-  const [newLevel, setNewLevel] = useState<'admin' | 'tech' | 'operator'>('operator');
+  const [newLevel, setNewLevel] = useState<UserLevel>('operator');
   const [rememberLogin, setRememberLogin] = useState(storage.getRememberLogin());
 
-  const refreshUsers = () => setUsers([...storage.getUsers()]);
+  const refreshUsers = useCallback(async () => {
+    try {
+      const result = await api.getUsers();
+      if (result.success && result.users) setUsers(result.users);
+    } catch { /* 后端不可达时保留上次列表 */ }
+  }, []);
+
+  useEffect(() => { void refreshUsers(); }, [refreshUsers]);
+
   const saveRememberLogin = (checked: boolean) => {
     if (!checkAdmin()) return;
     storage.setRememberLogin(checked);
@@ -32,9 +47,9 @@ export const UserTab: React.FC = () => {
   };
 
   useEffect(() => {
-    const interval = setInterval(refreshUsers, 10000);
+    const interval = setInterval(() => void refreshUsers(), 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshUsers]);
 
   const checkAdmin = (): boolean => {
     if (!currentUser) { setModal('login', true); return false; }
@@ -42,38 +57,41 @@ export const UserTab: React.FC = () => {
     return true;
   };
 
-  const saveUser = () => {
+  const saveUser = async () => {
     if (!checkAdmin()) return;
     if (!newName) { showMessage('请输入用户名'); return; }
     if (!newPwd || newPwd.length < 3) { showMessage('密码至少3位'); return; }
     if (newPwd !== newPwd2) { showMessage('两次密码不一致'); return; }
 
-    const all = storage.getUsers();
-    if (all.find(u => u.name === newName)) { showMessage('用户名已存在'); return; }
-
-    const maxId = all.reduce((max, u) => Math.max(max, u.id), 0);
-    all.push({ id: maxId + 1, name: newName, password: newPwd, level: newLevel });
-    storage.saveUsers(all);
-    refreshUsers();
-    setNewName(''); setNewPwd(''); setNewPwd2(''); setNewLevel('operator');
-    showMessage(`账户 ${newName} 创建成功`);
+    try {
+      const result = await api.createUser(newName.trim(), newPwd, newLevel);
+      if (!result.success) { showMessage(result.message || '创建失败'); return; }
+      await refreshUsers();
+      setNewName(''); setNewPwd(''); setNewPwd2(''); setNewLevel('operator');
+      showMessage(`账户 ${newName.trim()} 创建成功`);
+    } catch (e) {
+      showMessage(`创建账户失败: ${(e as Error).message}`);
+    }
   };
 
   const deleteUser = async () => {
     if (!checkAdmin()) return;
     if (!newName) { showMessage('请输入要删除的用户名'); return; }
-    if (currentUser?.name === newName) { showMessage('不能删除当前登录账户'); return; }
+    if (currentUser?.name === newName.trim()) { showMessage('不能删除当前登录账户'); return; }
 
-    const all = storage.getUsers();
-    const idx = all.findIndex(u => u.name === newName);
-    if (idx === -1) { showMessage('用户不存在'); return; }
+    const target = users.find(u => u.name === newName.trim());
+    if (!target) { showMessage('用户不存在'); return; }
 
-    if (!window.confirm(`确认删除用户「${newName}」？`)) return;
-    all.splice(idx, 1);
-    storage.saveUsers(all);
-    refreshUsers();
-    setNewName('');
-    showMessage(`用户 ${newName} 已删除`);
+    if (!window.confirm(`确认删除用户「${newName.trim()}」？`)) return;
+    try {
+      const result = await api.deleteUser(target.id);
+      if (!result.success) { showMessage(result.message || '删除失败'); return; }
+      await refreshUsers();
+      setNewName('');
+      showMessage(`用户 ${newName.trim()} 已删除`);
+    } catch (e) {
+      showMessage(`删除失败: ${(e as Error).message}`);
+    }
   };
 
   if (currentUser?.level !== 'admin') {
@@ -115,7 +133,7 @@ export const UserTab: React.FC = () => {
               <label className={labelClass}><FieldHint text="管理员拥有全部权限；技术员可以启停设备并修改用户管理之外的设置；操作员只能启停设备。">用户级别</FieldHint></label>
               <select
                 value={newLevel}
-                onChange={e => setNewLevel(e.target.value as 'admin' | 'tech' | 'operator')}
+                onChange={e => setNewLevel(e.target.value as UserLevel)}
                 className={`${inputClass} appearance-none`}
               >
                 <option value="admin">管理员</option>
@@ -124,8 +142,8 @@ export const UserTab: React.FC = () => {
               </select>
             </div>
             <div className="flex gap-3 mt-1">
-              <Button variant="primary" onClick={saveUser}>保存账户</Button>
-              <Button variant="danger" onClick={deleteUser}>删除账户</Button>
+              <Button variant="primary" onClick={() => void saveUser()}>保存账户</Button>
+              <Button variant="danger" onClick={() => void deleteUser()}>删除账户</Button>
             </div>
           </div>
         </div>
@@ -157,7 +175,7 @@ export const UserTab: React.FC = () => {
                   <td className="px-4 py-3 text-text-tertiary">{u.id}</td>
                   <td className="px-4 py-3 font-medium text-text-primary">{u.name}</td>
                   <td className="px-4 py-3">
-                    <Badge variant={u.level as 'admin' | 'tech' | 'operator'}>{levelLabels[u.level]}</Badge>
+                    <Badge variant={u.level}>{levelLabels[u.level]}</Badge>
                   </td>
                 </tr>
               ))}
