@@ -163,4 +163,4 @@ requirements-gpu.txt      GPU + AI 依赖
 
 ## 许可证
 
-项目采用 **MIT** 许可证，见根目录 [LICENSE](LICENSE)。其中海康 MVS SDK、PyTorch 及训练模型权重等第三方组件/资源遵循各自独立许可（详见 LICENSE 内的说明）。
+本项目目前未指定开源许可证（默认保留所有权利）。海康 MVS SDK、PyTorch 及训练模型权重等第三方组件/资源遵循各自独立许可。
