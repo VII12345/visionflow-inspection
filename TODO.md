@@ -84,9 +84,9 @@
 现状结构：`EnvCheckResult`(20)、`EnvironmentChecker`(31) 含 run_all(42)/_check_python_arch(68)/_check_mvs_paths(80)/_check_import(148)/_check_sdk_init(190)/to_dict(233)/can_proceed(258)、`run_environment_check()`(269)
 
 拆分方案：
-- [ ] 检查器按类别拆分：`env_checkers/python_checker.py`、`mvs_checker.py`、`sdk_checker.py`
-- [ ] `EnvironmentChecker` 保留为编排器；`run_environment_check()` 入口不变
-- [ ] 测试与提交
+- [x] 检查器按类别拆分：`env_checkers/python_checker.py`、`mvs_checker.py`、`sdk_checker.py`
+- [x] `EnvironmentChecker` 保留为编排器；`run_environment_check()` 入口不变
+- [x] 测试与提交
 
 #### 2.1.5 拆分 backend/inference_worker.py（270 行）
 
