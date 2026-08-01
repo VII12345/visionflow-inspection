@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { HardwarePanel } from './HardwarePanel';
 import { LineCountSection } from './LineCountSection';
 import { ProductSection } from './ProductSection';
+import { SavePolicySection } from './SavePolicySection';
 import { TrainingSection } from './TrainingSection';
 import { useProductLearningSync } from './useProductLearningSync';
 import { useTrainingPanel } from './useTrainingPanel';
@@ -36,6 +37,9 @@ export const SettingsTab: React.FC = () => {
 
         {/* Line Count */}
         <LineCountSection />
+
+        {/* Save Policy */}
+        <SavePolicySection />
 
         {/* Camera Config */}
         <div className="bg-white rounded-lg shadow-card border border-gray-100 p-6">

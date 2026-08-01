@@ -52,3 +52,29 @@ def save_device_config(config):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
         json.dump(config, handle, indent=2)
+
+
+def save_only_reject_path():
+    return Config.DATA_DIR / "save_only_reject.json"
+
+
+def load_save_only_reject():
+    """读取"仅保存剔除照片"全局开关（默认关闭）。"""
+    path = save_only_reject_path()
+    if path.exists():
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            return bool(payload.get("enabled", False))
+        except (OSError, TypeError, ValueError):
+            pass
+    return False
+
+
+def save_save_only_reject(enabled):
+    enabled = bool(enabled)
+    path = save_only_reject_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump({"enabled": enabled}, handle, indent=2)
+    return enabled

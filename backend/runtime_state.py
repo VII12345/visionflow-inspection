@@ -53,6 +53,7 @@ class RuntimeState:
     )
     env_check_result: Any = None
     save_settings: dict[int, dict[str, bool]] = field(default_factory=dict)
+    save_only_reject: bool = False
     training_state: dict[str, Any] = field(default_factory=dict)
     _training_thread: Any = None
     _training_stop_flag: bool = False

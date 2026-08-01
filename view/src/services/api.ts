@@ -67,6 +67,8 @@ export const api = {
   saveDeviceConfig: (config: { training_device: string; inference_device: string }) => backendFetch<SaveDeviceConfigResponse>('/api/settings/device', { method: 'POST', body: config }),
   getLineCount: () => backendFetch<LineCountResponse>('/api/settings/line-count'),
   saveLineCount: (line_count: number) => backendFetch<SaveLineCountResponse>('/api/settings/line-count', { method: 'POST', body: { line_count } }),
+  getSaveOnlyReject: () => backendFetch<{ success: boolean; enabled: boolean }>('/api/settings/save-only-reject'),
+  saveOnlyReject: (enabled: boolean) => backendFetch<{ success: boolean; enabled?: boolean; message?: string }>('/api/settings/save-only-reject', { method: 'POST', body: { enabled } }),
   envCheck: () => backendFetch<EnvironmentCheckResponse>('/api/env-check'),
 };
 

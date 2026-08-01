@@ -14,6 +14,18 @@ from .capture_service import submit_save
 from .model_repository import get_model_reject_labels as _get_model_reject_labels
 
 
+def should_save_photo(save_only_reject, save_settings, cam_id, tag, reject_labels):
+    """判定某张照片是否应保存。
+
+    - 开启"仅保存剔除照片"：只有命中剔除类别才保存；
+    - 否则按相机级 saveGood/saveBad 开关决定。
+    """
+    if save_only_reject:
+        return tag in reject_labels
+    setting_key = "saveBad" if tag in reject_labels else "saveGood"
+    return bool(save_settings.get(cam_id, {}).get(setting_key, True))
+
+
 def initialize_camera_manager():
     """初始化相机管理器"""
 
@@ -187,12 +199,17 @@ def camera_worker(cam_id):
                     tag = result["label"]
                     model_name = model_loader.camera_product_map.get(cam_id)
                     reject_labels = _get_model_reject_labels(model_name)
-                    setting_key = "saveBad" if tag in reject_labels else "saveGood"
-                    should_save = runtime.save_settings.get(cam_id, {}).get(setting_key, True)
+                    should_save = should_save_photo(
+                        runtime.save_only_reject,
+                        runtime.save_settings,
+                        cam_id,
+                        tag,
+                        reject_labels,
+                    )
                     subdir = tag
                 else:
                     tag = "未分类"
-                    should_save = True
+                    should_save = not runtime.save_only_reject
                     subdir = tag
                 if should_save:
                     filename = f"CAM{cam_id}_{timestamp}_{millis:03d}.bmp"

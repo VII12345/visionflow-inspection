@@ -12,9 +12,11 @@ from .runtime_state import runtime
 from .settings_repository import (
     load_device_config,
     load_line_count,
+    load_save_only_reject,
     normalize_line_count,
     save_device_config,
     save_line_count,
+    save_save_only_reject,
 )
 
 
@@ -171,5 +173,25 @@ def update_device_config():
     return jsonify(
         {"success": True, "message": "设备配置已保存并即时生效", "config": cfg}
     )
+
+
+@system_bp.route("/api/settings/save-only-reject", methods=["GET"])
+def get_save_only_reject():
+    """获取"仅保存剔除照片"开关状态。"""
+    return jsonify({"success": True, "enabled": bool(runtime.save_only_reject)})
+
+
+@system_bp.route("/api/settings/save-only-reject", methods=["POST"])
+def update_save_only_reject():
+    """开启/关闭"仅保存剔除照片"（全局生效，即时作用于相机存盘）。"""
+    data = request.get_json(silent=True) or {}
+    enabled = bool(data.get("enabled"))
+    try:
+        runtime.save_only_reject = save_save_only_reject(enabled)
+    except OSError as exc:
+        logger.error(f"保存照片保存策略失败: {exc}")
+        return jsonify({"success": False, "message": str(exc)}), 500
+    logger.info(f"照片保存策略已更新: 仅保存剔除照片 = {runtime.save_only_reject}")
+    return jsonify({"success": True, "enabled": runtime.save_only_reject})
 
 

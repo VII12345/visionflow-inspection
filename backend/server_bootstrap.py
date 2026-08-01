@@ -17,6 +17,7 @@ from .system_routes import apply_line_count as _apply_line_count
 from .settings_repository import (
     load_device_config as _load_device_config,
     load_line_count as _load_line_count,
+    load_save_only_reject as _load_save_only_reject,
 )
 
 
@@ -33,6 +34,9 @@ def run_server():
 
     # 初始化用户文件（首次启动创建默认管理员并提示初始密码）
     ensure_users_file()
+
+    # 加载"仅保存剔除照片"全局开关
+    runtime.save_only_reject = _load_save_only_reject()
 
     # ========== 加载已保存的设备配置 ==========
     try:
