@@ -66,9 +66,9 @@
 - `collect_system_info()`(8)、`_detect_cpu_model`(19)、`collect_cpu_info`(95)、`_detect_memory_speed`(125)、`collect_memory_info`(181)、`collect_disk_info`(204)、`_collect_wifi_rates`(238)、`_collect_ethernet_speeds`(267)、`_classify_interface`(293)、`collect_network_info`(312)、`collect_gpu_info`(359)
 
 拆分方案：
-- [ ] 新建 `backend/hardware/cpu_collector.py`、`memory_collector.py`、`disk_collector.py`、`network_collector.py`、`gpu_collector.py`（或一个 `hardware/__init__.py` 聚合导出）
-- [ ] 原文件保留为聚合入口：`collect_system_info()` 组合各采集器
-- [ ] 测试与提交
+- [x] 新建 `backend/hardware/cpu_collector.py`、`memory_collector.py`、`disk_collector.py`、`network_collector.py`、`gpu_collector.py`（或一个 `hardware/__init__.py` 聚合导出）
+- [x] 原文件保留为聚合入口：`collect_system_info()` 组合各采集器
+- [x] 测试与提交
 
 #### 2.1.3 拆分 backend/mvs_camera.py（378 行）
 
