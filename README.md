@@ -112,6 +112,8 @@ backend/                  Flask 后端、相机、推理、训练和 PLC
   ├─ server_bootstrap.py   启动编排（环境检测/预加载/清理线程）
   ├─ camera_run_service.py 相机启动、停止与工作线程
   ├─ camera_routes.py      相机配置与运行 API
+  ├─ catalog_routes.py     产品/线体配置 API
+  ├─ catalog_repository.py 产品与线体配置持久化
   ├─ auth_routes.py        登录鉴权与 token（可选）
   ├─ model_repository.py   模型元数据、删除/重命名与删除保护
   ├─ model_routes.py       模型列表/设置/删除/重命名 API
@@ -154,13 +156,3 @@ requirements-gpu.txt      GPU + AI 依赖
 
 类别目录名称会成为模型输出标签。详细训练流程请查看[用户使用说明书](docs/用户使用说明书.md)和[项目详细文档](docs/项目详细文档.md)。
 
-## 发布前检查
-
-- 不提交 `data/`、现场图片、模型文件、PLC 地址、日志和账号密码；
-- 不提交 `.venv/`、`.venv_cpu/`、`view/node_modules/` 和构建产物；
-- 确认海康 MVS SDK、PyTorch、模型权重和第三方资源的许可证；
-- 执行 `npm run build` 和 `git diff --check`。
-
-## 许可证
-
-本项目目前未指定开源许可证（默认保留所有权利）。海康 MVS SDK、PyTorch 及训练模型权重等第三方组件/资源遵循各自独立许可。
