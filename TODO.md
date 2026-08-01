@@ -93,9 +93,9 @@
 现状结构：`set_camera_product`(29)/`warmup_model`(38)/`preload_all_models`(56)/`load_model`(79)/`get_model_for_product`(130)/`reload_all_models`(138)/`_unpack_inference_item`(162)/`inference_worker`(169)/`start_inference_worker`(243)/`submit_inference`(250)/`get_inference_result`(263)
 
 拆分方案：
-- [ ] 拆出 `model_loader.py`：load_model / warmup / preload / reload / camera_product_map 与模型缓存
-- [ ] `inference_worker.py` 保留队列/线程与提交/获取接口
-- [ ] 测试与提交
+- [x] 拆出 `model_loader.py`：load_model / warmup / preload / reload / camera_product_map 与模型缓存
+- [x] `inference_worker.py` 保留队列/线程与提交/获取接口
+- [x] 测试与提交
 
 #### 2.1.6 检查后端其余文件
 

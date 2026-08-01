@@ -7,7 +7,8 @@ from .config import Config
 from .logger import logger
 from .server import app
 from .camera_run_service import initialize_camera_manager
-from .inference_worker import preload_all_models, start_inference_worker
+from .inference_worker import start_inference_worker
+from .model_loader import preload_all_models
 from .env_check import run_environment_check
 from .capture_service import cleanup_photos, start_save_worker
 from .runtime_state import runtime

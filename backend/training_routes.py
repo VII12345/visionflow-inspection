@@ -154,7 +154,7 @@ def _run_training(folder_path, model_name, class_a_path=None, class_b_path=None)
         logger.info(f"模型已保存: {model_path}，类别: {train_set.categories}")
 
         # 清除模型缓存，下次推理自动加载新模型
-        from .inference_worker import models, model_categories, load_model
+        from .model_loader import models, model_categories, load_model
 
         models.clear()
         model_categories.clear()

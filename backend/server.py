@@ -12,8 +12,8 @@ from .config import Config
 from .logger import logger
 from .camera_config_manager import camera_config_manager
 from .camera_run_service import start_camera, stop_camera
-from .inference_worker import set_camera_product
-from . import inference_worker
+from .model_loader import set_camera_product
+from . import model_loader
 from .runtime_state import runtime
 from .camera_routes import camera_bp
 from .model_routes import model_bp
@@ -235,7 +235,7 @@ def get_status():
             "cameras": camera_status,
             "system": {
                 "running": runtime.system_running,
-                "modelLoaded": inference_worker.model_loaded,
+                "modelLoaded": model_loader.model_loaded,
             },
         }
     )

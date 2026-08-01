@@ -7,7 +7,7 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 
-from . import inference_worker
+from . import inference_worker, model_loader
 from .capture_service import submit_save
 from .config import Config
 from .logger import logger
@@ -26,7 +26,8 @@ def test_model():
     """使用真实 inference_queue、推理 Worker 和异步存盘队列执行测试。"""
     import tempfile
     from PIL import Image
-    from .inference_worker import get_inference_result, submit_inference, set_camera_product
+    from .inference_worker import get_inference_result, submit_inference
+    from .model_loader import set_camera_product
 
     IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}
     STEP_LABELS = {
@@ -85,8 +86,8 @@ def test_model():
 
         # 使用 Cam1 的真实 result_queue 作为测试通道；系统未运行时不会与真实相机竞争。
         test_cam_id = 1
-        old_mapping_exists = test_cam_id in inference_worker.camera_product_map
-        old_mapping = inference_worker.camera_product_map.get(test_cam_id)
+        old_mapping_exists = test_cam_id in model_loader.camera_product_map
+        old_mapping = model_loader.camera_product_map.get(test_cam_id)
         result_queue = inference_worker.result_queues[test_cam_id]
         while True:
             try:
@@ -253,9 +254,9 @@ def test_model():
                             image.close()
         finally:
             if old_mapping_exists:
-                inference_worker.camera_product_map[test_cam_id] = old_mapping
+                model_loader.camera_product_map[test_cam_id] = old_mapping
             else:
-                inference_worker.camera_product_map.pop(test_cam_id, None)
+                model_loader.camera_product_map.pop(test_cam_id, None)
 
         timing = {
             **timing_stats(step_values["pipeline_ms"]),

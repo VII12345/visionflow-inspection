@@ -7,7 +7,7 @@ from .config import Config
 from .logger import logger
 from .mvs_camera_manager import MVSCameraManager
 from .inference_worker import submit_inference, get_inference_result
-from . import inference_worker
+from . import model_loader
 from .plc_service import get_plc_config, PlcWriteError, plc_service
 from .runtime_state import runtime
 from .capture_service import submit_save
@@ -144,7 +144,7 @@ def camera_worker(cam_id):
 
             # 提交并等待推理结果
             submitted = False
-            if inference_worker.model_loaded:
+            if model_loader.model_loaded:
                 submitted = submit_inference(cam_id, frame)
             else:
                 logger.warning(f"Camera {cam_id}: model_loaded=False，跳过检测")
@@ -156,7 +156,7 @@ def camera_worker(cam_id):
                     runtime.set_latest_result(cam_id, result)
                     runtime.increment_stat(cam_id, "detected")
                     plc_config = get_plc_config()
-                    model_name = inference_worker.camera_product_map.get(cam_id)
+                    model_name = model_loader.camera_product_map.get(cam_id)
                     reject_labels = _get_model_reject_labels(model_name)
                     should_reject = result["label"] in reject_labels
                     if should_reject:
@@ -185,7 +185,7 @@ def camera_worker(cam_id):
                 if submitted and result:
                     plc_config = get_plc_config()
                     tag = result["label"]
-                    model_name = inference_worker.camera_product_map.get(cam_id)
+                    model_name = model_loader.camera_product_map.get(cam_id)
                     reject_labels = _get_model_reject_labels(model_name)
                     setting_key = "saveBad" if tag in reject_labels else "saveGood"
                     should_save = runtime.save_settings.get(cam_id, {}).get(setting_key, True)

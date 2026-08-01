@@ -2,7 +2,7 @@
 
 from flask import Blueprint, jsonify, request
 
-from . import inference_worker
+from . import model_loader
 from .config import Config
 from .logger import logger
 from .camera_config_manager import camera_config_manager
@@ -36,7 +36,7 @@ def health():
             "status": "ok",
             "version": "2.0.0",
             "cameras": cam_status,
-            "modelLoaded": inference_worker.model_loaded,
+            "modelLoaded": model_loader.model_loaded,
             "running": runtime.system_running,
             "dataDir": str(Config.DATA_DIR),
         }
@@ -159,7 +159,7 @@ def update_device_config():
 
     # ── 即时生效：重载推理模型到新设备 ──
     try:
-        from .inference_worker import reload_all_models
+        from .model_loader import reload_all_models
 
         reload_all_models(inference_device)
     except Exception as e:
@@ -171,6 +171,5 @@ def update_device_config():
     return jsonify(
         {"success": True, "message": "设备配置已保存并即时生效", "config": cfg}
     )
-
 
 
