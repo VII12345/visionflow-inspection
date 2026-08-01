@@ -3,13 +3,19 @@
 > 更新日期：2026-08-01
 > 规则：每完成一个点 → 单独测试 → 中文 commit → **不 push**。
 > 约束：`backend/training.py` 不动；前端只改前端、不改变后端业务/API 行为；`view/src-tauri` 既有改动不提交。
+> 当前状态：2.1.1-2.1.5 已完成并提交；2.1.6、2.2、3.x、4.x、5 尚未完成。
 
 ---
 
-## 一、已完成并提交（main 分支，ahead 10，未 push）
+## 一、已完成并提交（main 分支，ahead 16，未 push）
 
 | 提交 | 内容 | 说明 |
 | --- | --- | --- |
+| 9449252 | 重构：拆分离线模型加载与推理队列模块 | model_loader / inference_worker 分离 |
+| b3c285d | 重构：拆分环境检测为类别检查器 | env_checkers 分类 |
+| 38c9a00 | 重构：拆分MVS相机驱动为设备取流控制模块 | mvs_device / acquisition / controls |
+| 5d1319c | 重构：硬件采集器按类别拆分 | backend/hardware 采集器 |
+| f944374 | 重构：拆分服务器启动与相机运行服务 | server.py 瘦身 + camera_run_service / server_bootstrap |
 | dc1ca86 | 重构：拆分后端模型管理模块 | 模型仓库与路由分离 |
 | 6f5965c | 修复：拒绝不存在的模型配置 | 防御性校验 |
 | 6f81349 | 重构：拆分运行页布局交互 | 运行页逻辑抽到 hooks |
@@ -21,7 +27,7 @@
 | aed5efd | 重构：拆分硬件信息采集与评估模块 | hardware_collectors / hardware_checks 独立 |
 | 41640b4 | 重构：拆分离线测试页面 | TestTab → useModelTest + TestResultPanel |
 
-> 验证记录：35 项 Python 单测通过；tsc / vite build / Rust 通过。
+> 验证记录：2.1.1-2.1.5 每次均通过 35 项 Python 单测 + `compileall`；tsc / vite build / Rust 为之前提交的历史验证，2.2 前端拆分时再跑。
 
 ---
 
@@ -29,7 +35,7 @@
 
 ### 2.1 后端拆分
 
-#### 2.1.1 拆分 backend/server.py（614 行）【当前进行中，优先级最高】
+#### 2.1.1 拆分 backend/server.py（614 行）【已完成】
 
 现状结构（逐函数）：
 - 60 行 `initialize_camera_manager()`：创建 MVSCameraManager 并初始化相机状态
@@ -60,7 +66,7 @@
   - 验证：`backend.__main__` 可正常 import；`python -c "from backend.server import run_server, app"`
   - commit：`重构：拆分服务器启动与相机运行服务`
 
-#### 2.1.2 拆分 backend/hardware_collectors.py（402 行）
+#### 2.1.2 拆分 backend/hardware_collectors.py（402 行）【已完成】
 
 现状结构：
 - `collect_system_info()`(8)、`_detect_cpu_model`(19)、`collect_cpu_info`(95)、`_detect_memory_speed`(125)、`collect_memory_info`(181)、`collect_disk_info`(204)、`_collect_wifi_rates`(238)、`_collect_ethernet_speeds`(267)、`_classify_interface`(293)、`collect_network_info`(312)、`collect_gpu_info`(359)
@@ -70,7 +76,7 @@
 - [x] 原文件保留为聚合入口：`collect_system_info()` 组合各采集器
 - [x] 测试与提交
 
-#### 2.1.3 拆分 backend/mvs_camera.py（378 行）
+#### 2.1.3 拆分 backend/mvs_camera.py（378 行）【已完成】
 
 现状结构：`MVSCamera` 类含 connect(76)/disconnect(124)/start_grabbing(137)/stop_grabbing(202)/grab_frame(216)/set_exposure_time(286)/set_gain(303)/set_trigger_delay(316)/set_line_debouncer(331)/set_strobe(345)/get_info(370)
 
@@ -79,7 +85,7 @@
 - [x] MVSCamera 保留为门面类组合上述能力（或在 manager 层组合）
 - [x] 测试与提交
 
-#### 2.1.4 拆分 backend/env_check.py（273 行）
+#### 2.1.4 拆分 backend/env_check.py（273 行）【已完成】
 
 现状结构：`EnvCheckResult`(20)、`EnvironmentChecker`(31) 含 run_all(42)/_check_python_arch(68)/_check_mvs_paths(80)/_check_import(148)/_check_sdk_init(190)/to_dict(233)/can_proceed(258)、`run_environment_check()`(269)
 
@@ -88,7 +94,7 @@
 - [x] `EnvironmentChecker` 保留为编排器；`run_environment_check()` 入口不变
 - [x] 测试与提交
 
-#### 2.1.5 拆分 backend/inference_worker.py（270 行）
+#### 2.1.5 拆分 backend/inference_worker.py（270 行）【已完成】
 
 现状结构：`set_camera_product`(29)/`warmup_model`(38)/`preload_all_models`(56)/`load_model`(79)/`get_model_for_product`(130)/`reload_all_models`(138)/`_unpack_inference_item`(162)/`inference_worker`(169)/`start_inference_worker`(243)/`submit_inference`(250)/`get_inference_result`(263)
 
@@ -97,7 +103,7 @@
 - [x] `inference_worker.py` 保留队列/线程与提交/获取接口
 - [x] 测试与提交
 
-#### 2.1.6 检查后端其余文件
+#### 2.1.6 检查后端其余文件【下一步待做】
 
 - [ ] `backend/plc_service.py`（211 行）：可拆 `plc_config.py`（配置读写）+ `plc_client.py`（写节点）
 - [ ] `backend/capture_service.py`（210 行）：可拆 `photo_storage.py`（目录/清理）+ `save_queue.py`（worker/队列）
