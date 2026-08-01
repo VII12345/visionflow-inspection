@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
 import { Button } from '../common/Modal';
@@ -24,6 +24,8 @@ export const PhotoBrowser: React.FC = () => {
   const [trend, setTrend] = useState<TrendPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const firstFiltersRun = useRef(true);
 
   const filters = useMemo(() => {
     const start = startDate ? new Date(`${startDate}T00:00:00`).getTime() / 1000 : undefined;
@@ -53,9 +55,23 @@ export const PhotoBrowser: React.FC = () => {
     } catch { /* 趋势加载失败时保留上次数据 */ }
   }, [filters, trendInterval]);
 
-  useEffect(() => { void load(); }, [load]);
   useEffect(() => { void loadTrend(); }, [loadTrend]);
-  useEffect(() => { setPage(1); }, [filters]);
+
+  // 筛选条件变化：重置到第一页并触发一次加载，避免先用旧页码发一次无效请求
+  useEffect(() => {
+    if (firstFiltersRun.current) { firstFiltersRun.current = false; return; }
+    setPage(1);
+    setRefreshKey(k => k + 1);
+  }, [filters]);
+
+  useEffect(() => { void load(); }, [refreshKey]);
+
+  const changePage = (next: number) => {
+    const clamped = Math.min(totalPages, Math.max(1, next));
+    if (clamped === page) return;
+    setPage(clamped);
+    setRefreshKey(k => k + 1);
+  };
 
   const exportZip = async () => {
     setExporting(true);
@@ -164,14 +180,14 @@ export const PhotoBrowser: React.FC = () => {
         <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
           <div className="flex items-center gap-2 text-xs text-text-secondary">
             <span>共 {total} 张</span>
-            <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }} className={`${inputClass} !py-1`}>
+            <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); setRefreshKey(k => k + 1); }} className={`${inputClass} !py-1`}>
               {[20, 50, 100].map(n => <option key={n} value={n}>{n} 条/页</option>)}
             </select>
           </div>
           <div className="flex items-center gap-2 text-xs text-text-secondary">
-            <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>上一页</Button>
+            <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => changePage(page - 1)}>上一页</Button>
             <span>{page} / {totalPages}</span>
-            <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>下一页</Button>
+            <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => changePage(page + 1)}>下一页</Button>
           </div>
         </div>
       </div>
