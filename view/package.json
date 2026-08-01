@@ -17,7 +17,6 @@
     "name": "VisionFlow Inspection",
     "email": "dev@vision-system.local"
   },
-  "license": "MIT",
   "dependencies": {
     "@tauri-apps/api": "^2.8.4",
     "@tauri-apps/plugin-dialog": "^2.3.2",
