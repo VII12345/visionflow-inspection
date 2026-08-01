@@ -1,4 +1,4 @@
-import type { User, Product, LineConfig, CameraConfig, CameraStats, SaveSettings, Photo, RunLayout } from '../types';
+import type { User, Product, LineConfig, CameraStats, SaveSettings, Photo, RunLayout } from '../types';
 import { getDataPath, isTauri, loadData, saveData } from './native';
 
 let nativeDataPath = '浏览器本地存储';
@@ -16,7 +16,6 @@ function set<T>(key: string, data: T): void {
   if (isTauri()) void saveData(key, data).catch(() => { /* keep local cache available */ });
 }
 const defaults = {
-  users: [{ id: 1, name: 'admin', password: 'admin', level: 'admin' }] as User[],
   rememberLogin: true,
   products: [] as Product[],
   runLayout: { id: 'two', columns: 2, order: [] } as RunLayout,
@@ -26,7 +25,6 @@ const defaults = {
     { line: 3, name: '线体 3', productId: null, model: '-' },
     { line: 4, name: '线体 4', productId: null, model: '-' },
   ] as LineConfig[],
-  cameraConfig: {} as Record<number, Partial<CameraConfig>>,
   cameraStats: {
     1: { detected: 0, defective: 0 },
     2: { detected: 0, defective: 0 },
@@ -72,7 +70,7 @@ function normalizeLineConfig(raw: LineConfig[], count: number): LineConfig[] {
 export const storage = {
   initialize: async () => {
     if (!isTauri()) return;
-    const keys = ['users', 'rememberLogin', 'products', 'lineConfig', 'runLayout', 'cameraConfig', 'cameraStats', 'photos', 'saveSettings', 'currentUser'];
+    const keys = ['rememberLogin', 'products', 'lineConfig', 'runLayout', 'cameraStats', 'photos', 'saveSettings', 'currentUser'];
     await Promise.all(keys.map(async key => {
       try {
         const data = await loadData(key);
@@ -83,9 +81,6 @@ export const storage = {
       nativeDataPath = await getDataPath();
     } catch { /* keep browser label */ }
   },
-  getUsers: () => get('users', defaults.users),
-  saveUsers: (users: User[]) => set('users', users),
-
   // 产品显示名可随时修改；model 保留为模型文件和后端训练任务的稳定关联键。
   // 本地为缓存，后端 data/catalog_config.json 为权威存储；保存时异步上报。
   getProducts: () => normalizeProducts(get('products', defaults.products)),
@@ -132,33 +127,12 @@ export const storage = {
   getRunLayout: () => get('runLayout', defaults.runLayout),
   saveRunLayout: (layout: RunLayout) => set('runLayout', layout),
 
-  getCameraConfig: () => get('cameraConfig', defaults.cameraConfig),
-  saveCameraConfig: (cfg: Record<number, Partial<CameraConfig>>) => set('cameraConfig', cfg),
-
   getCameraStats: () => get('cameraStats', defaults.cameraStats),
   saveCameraStats: (st: Record<number, CameraStats>) => set('cameraStats', st),
-  resetCameraStats: (camId: number) => {
-    const stats = get('cameraStats', defaults.cameraStats);
-    stats[camId] = { detected: 0, defective: 0 };
-    set('cameraStats', stats);
-    return stats;
-  },
 
   getPhotos: (camId: number) => {
     const all = get('photos', defaults.photos);
     return all[camId] || [];
-  },
-  addPhoto: (camId: number, result: string) => {
-    const all = get('photos', defaults.photos);
-    if (!all[camId]) all[camId] = [];
-    all[camId].unshift({
-      id: String(Date.now() + Math.random()),
-      time: new Date().toLocaleString(),
-      result,
-      filename: `CAM${camId}_${Date.now()}.jpg`,
-    });
-    if (all[camId].length > 100) all[camId] = all[camId].slice(0, 100);
-    set('photos', all);
   },
 
   getSaveSettings: () => get('saveSettings', defaults.saveSettings),
