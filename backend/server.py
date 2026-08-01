@@ -17,6 +17,7 @@ from . import model_loader
 from .runtime_state import runtime
 from .auth_routes import auth_bp, require_auth_middleware
 from .camera_routes import camera_bp
+from .catalog_routes import catalog_bp
 from .model_routes import model_bp
 from .model_test_routes import model_test_bp
 from .photo_routes import photo_bp
@@ -28,6 +29,7 @@ from .training_routes import training_bp
 app = Flask(__name__)
 CORS(app)  # 允许跨域
 app.register_blueprint(auth_bp)
+app.register_blueprint(catalog_bp)
 app.register_blueprint(system_bp)
 app.register_blueprint(camera_bp)
 app.register_blueprint(model_bp)

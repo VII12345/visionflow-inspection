@@ -96,4 +96,11 @@ export interface DeviceConfigResponse { success: boolean; config: { training_dev
 export interface SaveDeviceConfigResponse { success: boolean; message?: string; config?: { training_device: string; inference_device: string }; }
 export interface LineCountResponse { success: boolean; line_count: number; }
 export interface SaveLineCountResponse { success: boolean; message?: string; line_count?: number; }
+
+export interface CatalogResponse {
+  success: boolean;
+  products?: { id: number; name: string; model: string; size: string; learned: boolean }[];
+  line_config?: { line: number; name: string; productId: number | null; model: string }[];
+  initialized?: boolean;
+}
 export type EnvironmentCheckResponse = EnvCheckResult;

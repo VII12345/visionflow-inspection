@@ -2,7 +2,7 @@ import type { PlcConfig, UserLevel } from '../types';
 import { API_BASE, backendFetch } from './apiClient';
 import { useAppStore } from '../store/useAppStore';
 import type {
-  AllCameraConfigsResponse, CameraConfigResponse, CameraStatusResponse, DeviceConfigResponse,
+  AllCameraConfigsResponse, CameraConfigResponse, CameraStatusResponse, CatalogResponse, DeviceConfigResponse,
   EnvironmentCheckResponse, HardwareInfoResponse, HealthResponse, ImageDirectoriesResponse,
   LineCountResponse, ModelListResponse, PhotosResponse, PlcConfigResponse, PlcWritePayload,
   PlcWriteResponse, ResetStatsResponse, SaveCameraConfigResponse, SaveCameraSettingsResponse,
@@ -29,6 +29,8 @@ export const api = {
   getUsers: () => backendFetch<{ success: boolean; users?: { id: number; name: string; level: UserLevel }[]; message?: string }>('/api/auth/users'),
   createUser: (name: string, password: string, level: UserLevel) => backendFetch<{ success: boolean; user?: { id: number; name: string; level: UserLevel }; message?: string }>('/api/auth/users', { method: 'POST', body: { name, password, level } }),
   deleteUser: (id: number) => backendFetch<{ success: boolean; message?: string }>(`/api/auth/users/${id}`, { method: 'DELETE' }),
+  getCatalog: () => backendFetch<CatalogResponse>('/api/catalog'),
+  saveCatalog: (catalog: { products?: { id: number; name: string; model: string; size: string; learned: boolean }[]; line_config?: { line: number; name: string; productId: number | null; model: string }[] }) => backendFetch<CatalogResponse>('/api/catalog', { method: 'POST', body: catalog }),
   start: (camProducts?: Record<number, string>, lineCount?: number, cameraIds?: number[]) => backendFetch<StartResponse>('/api/start', { method: 'POST', body: { camProducts, line_count: lineCount, camera_ids: cameraIds } }),
   stop: () => backendFetch<StopResponse>('/api/stop', { method: 'POST' }),
   setLineEnabled: (camId: number, enabled: boolean) => backendFetch<SetLineEnabledResponse>(`/api/lines/${camId}`, { method: 'POST', body: { enabled } }),

@@ -87,8 +87,13 @@ export const storage = {
   saveUsers: (users: User[]) => set('users', users),
 
   // 产品显示名可随时修改；model 保留为模型文件和后端训练任务的稳定关联键。
+  // 本地为缓存，后端 data/catalog_config.json 为权威存储；保存时异步上报。
   getProducts: () => normalizeProducts(get('products', defaults.products)),
-  saveProducts: (products: Product[]) => set('products', normalizeProducts(products)),
+  saveProducts: (products: Product[]) => {
+    const normalized = normalizeProducts(products);
+    set('products', normalized);
+    void import('./api').then(({ api }) => api.saveCatalog({ products: normalized })).catch(() => { /* 后端不可达时保留本地缓存 */ });
+  },
 
   getLineConfig: (count?: number) => {
     const raw = get('lineConfig', defaults.lineConfig);
@@ -98,7 +103,29 @@ export const storage = {
   },
   saveLineConfig: (cfg: LineConfig[]) => {
     const count = Math.min(16, Math.max(1, cfg.length || defaults.lineConfig.length));
-    set('lineConfig', normalizeLineConfig(cfg, count));
+    const normalized = normalizeLineConfig(cfg, count);
+    set('lineConfig', normalized);
+    void import('./api').then(({ api }) => api.saveCatalog({ line_config: normalized })).catch(() => { /* 后端不可达时保留本地缓存 */ });
+  },
+  syncCatalogFromServer: async () => {
+    try {
+      const { api } = await import('./api');
+      const result = await api.getCatalog();
+      if (!result.success) return;
+      if (!result.initialized) {
+        // 后端首次使用：把本地已有数据作为初始目录上传，避免升级丢数据
+        const localProducts = normalizeProducts(get('products', defaults.products));
+        const localLines = get('lineConfig', defaults.lineConfig) as LineConfig[];
+        const count = Math.min(16, Math.max(1, localLines.length || defaults.lineConfig.length));
+        await api.saveCatalog({ products: localProducts, line_config: normalizeLineConfig(localLines, count) });
+      } else {
+        if (result.products) set('products', normalizeProducts(result.products));
+        if (result.line_config) {
+          const count = Math.min(16, Math.max(1, result.line_config.length || defaults.lineConfig.length));
+          set('lineConfig', normalizeLineConfig(result.line_config, count));
+        }
+      }
+    } catch { /* 后端不可达时保持本地缓存 */ }
   },
   getRunLayout: () => get('runLayout', defaults.runLayout),
   saveRunLayout: (layout: RunLayout) => set('runLayout', layout),
