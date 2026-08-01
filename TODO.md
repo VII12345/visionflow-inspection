@@ -3,14 +3,27 @@
 > 更新日期：2026-08-01
 > 规则：每完成一个点 → 单独测试 → 中文 commit → **不 push**。
 > 约束：`backend/training.py` 不动；前端只改前端、不改变后端业务/API 行为；`view/src-tauri` 既有改动不提交。
-> 当前状态：2.1.1-2.1.5 已完成并提交；2.1.6、2.2、3.x、4.x、5 尚未完成。
+> 当前状态：2.1、2.2、3.1-3.4、4.x、5 均已完成并提交。
 
 ---
 
-## 一、已完成并提交（main 分支，ahead 16，未 push）
+## 一、已完成并提交（main 分支，ahead 26，未 push）
 
 | 提交 | 内容 | 说明 |
 | --- | --- | --- |
+| 1297e1e | 文档：更新 README 与使用/详细文档 | 鉴权/模型管理/照片导出章节 |
+| 0a982b5 | 功能：照片分页筛选与导出报表 | photo_routes 分页/导出/趋势 + PhotoBrowser/TrendChart |
+| 9078b8d | 功能：模型重命名删除与删除保护 | model DELETE/PATCH + version + 引用检查 |
+| 163b549 | 功能：后端登录鉴权与密码哈希 | auth_routes/user_repository + token + 401 |
+| 483e78f | 功能：网页版支持本地目录选择 | pickDirectoryWeb（File System Access API） |
+| 8e8245d | 重构：拆分公共模态框为独立组件 | modals/ 目录 + ModalRouter |
+| ec6809c | 重构：拆分目录管理页为产品/线体表格组件 | useCatalog/useCatalogEdit + LineTable/ProductTable |
+| 43ca31d | 重构：拆分主应用为健康检查/快捷键/页签路由 | useHealthChecks/useKeyboardShortcuts/TabRouter |
+| adf733a | 重构：拆相机详情页为照片/统计/保存设置卡片 | useSaveSettings/useCameraPhotos + 卡片组件 |
+| 0e0811a | 重构：拆分运行页为控制栏/相机网格组件 | useRunControl/useRunModelSync + RunHeader/LineGrid |
+| 2fe1246 | 重构：拆分设置页为训练/产品/线体分区 | useTrainingPanel/useProductLearningSync + 分区组件 |
+| 526b102 | 重构：拆分布局面板为硬件信息卡片组件 | hardware/ 卡片 + useHardwareInfo/hardwareFormat |
+| 0d8fe28 | 重构：拆分PLC服务与照片保存服务 | plc_config/plc_client + photo_storage/save_queue |
 | 9449252 | 重构：拆分离线模型加载与推理队列模块 | model_loader / inference_worker 分离 |
 | b3c285d | 重构：拆分环境检测为类别检查器 | env_checkers 分类 |
 | 38c9a00 | 重构：拆分MVS相机驱动为设备取流控制模块 | mvs_device / acquisition / controls |
@@ -27,7 +40,7 @@
 | aed5efd | 重构：拆分硬件信息采集与评估模块 | hardware_collectors / hardware_checks 独立 |
 | 41640b4 | 重构：拆分离线测试页面 | TestTab → useModelTest + TestResultPanel |
 
-> 验证记录：2.1.1-2.1.5 每次均通过 35 项 Python 单测 + `compileall`；tsc / vite build / Rust 为之前提交的历史验证，2.2 前端拆分时再跑。
+> 验证记录：2.1.1-2.1.6 每次均通过 Python 单测 + `compileall`；2.2 每次 tsc + vite build 通过；3.2/3.3/3.4 新增 test_auth/test_models/test_photos 后总计 60 项单测全过；最终验证（第 5 节）全部通过。
 
 ---
 
@@ -103,141 +116,148 @@
 - [x] `inference_worker.py` 保留队列/线程与提交/获取接口
 - [x] 测试与提交
 
-#### 2.1.6 检查后端其余文件【下一步待做】
+#### 2.1.6 检查后端其余文件【已完成】
 
-- [ ] `backend/plc_service.py`（211 行）：可拆 `plc_config.py`（配置读写）+ `plc_client.py`（写节点）
-- [ ] `backend/capture_service.py`（210 行）：可拆 `photo_storage.py`（目录/清理）+ `save_queue.py`（worker/队列）
-- [ ] 每次拆分后跑 unittest + compileall 再提交
+- [x] `backend/plc_service.py`（211 行）：可拆 `plc_config.py`（配置读写）+ `plc_client.py`（写节点）
+- [x] `backend/capture_service.py`（210 行）：可拆 `photo_storage.py`（目录/清理）+ `save_queue.py`（worker/队列）
+- [x] 每次拆分后跑 unittest + compileall 再提交
 
 ### 2.2 前端拆分（每个文件拆完：tsc + vite build → commit）
 
-#### 2.2.1 HardwarePanel.tsx（304 行）
+#### 2.2.1 HardwarePanel.tsx（304 行）【已完成】
 
 现状：`HardwarePanel`(5) 整体；`formatSpeed`(269) 等辅助函数
-- [ ] 拆为子组件：`HardwareCpuCard`、`HardwareMemoryCard`、`HardwareGpuCard`、`HardwareDiskCard`、`HardwareNetworkCard`
-- [ ] 数据加载逻辑抽 `useHardwareInfo.ts` hook
-- [ ] 辅助函数抽 `hardwareFormat.ts`（formatSpeed / hasRxTx 判断）
+- [x] 拆为子组件：`HardwareCpuCard`、`HardwareMemoryCard`、`HardwareGpuCard`、`HardwareDiskCard`、`HardwareNetworkCard`
+- [x] 数据加载逻辑抽 `useHardwareInfo.ts` hook
+- [x] 辅助函数抽 `hardwareFormat.ts`（formatSpeed / hasRxTx 判断）
 
-#### 2.2.2 SettingsTab.tsx（296 行）
+#### 2.2.2 SettingsTab.tsx（296 行）【已完成】
 
 现状：`SettingsTab`(13) 内含产品/训练状态轮询(36-66)、saveLineCount(70)、训练逻辑 startLearning(95)/confirmLearning(103)/pollTraining(140)/stopLearning(174)
-- [ ] 训练相关全部抽 `useTrainingPanel.ts`（start/confirm/poll/stop + 状态）
-- [ ] 产品与学习状态同步逻辑抽 `useProductLearningSync.ts`（refresh 轮询）
-- [ ] JSX 分区：`LineCountSection`、`TrainingSection`、`ProductSection` 子组件
+- [x] 训练相关全部抽 `useTrainingPanel.ts`（start/confirm/poll/stop + 状态）
+- [x] 产品与学习状态同步逻辑抽 `useProductLearningSync.ts`（refresh 轮询）
+- [x] JSX 分区：`LineCountSection`、`TrainingSection`、`ProductSection` 子组件
 
-#### 2.2.3 RunTab.tsx（284 行）
+#### 2.2.3 RunTab.tsx（284 行）【已完成】
 
 现状：`RunTab`(14)，已有 useRunLayout/useSystemPolling/useFrameUpdater 等 hooks；内含 startSystem(104)/syncModelStatus(82)/handlePopout(64)
-- [ ] 启动/停止逻辑抽 `useRunControl.ts`（startSystem/stopSystem/线路启停）
-- [ ] 模型状态同步抽 `useRunModelSync.ts`（syncModelStatus）
-- [ ] 弹窗/弹出相机逻辑抽 `useCameraPopout.ts`（handlePopout/togglePopout）
-- [ ] 渲染分区：`RunHeader`、`LineGrid`、`AlarmOverlay`
+- [x] 启动/停止逻辑抽 `useRunControl.ts`（startSystem/stopSystem/线路启停）
+- [x] 模型状态同步抽 `useRunModelSync.ts`（syncModelStatus）
+- [x] 弹窗/弹出相机逻辑抽 `useCameraPopout.ts`（handlePopout/togglePopout）
+- [x] 渲染分区：`RunHeader`、`LineGrid`（告警覆盖层为 App 级 SystemAlarm，见运行页 raiseAlarm 逻辑保留在 useRunControl）
 
-#### 2.2.4 CameraDetailTab.tsx（243 行）
+#### 2.2.4 CameraDetailTab.tsx（243 行）【已完成】
 
 现状：`CameraDetailTab`(14) 内含 updateSaveSettings(81)/toggleSaveGood(96)/toggleSaveBad(101)/resetStats(106)/handleRightClick(120)
-- [ ] 保存设置逻辑抽 `useSaveSettings.ts`
-- [ ] 照片右键/上下文菜单抽 `PhotoContextMenu.tsx`
-- [ ] 渲染分区：`SaveSettingsCard`、`StatsCard`、`PhotoListCard`
+- [x] 保存设置逻辑抽 `useSaveSettings.ts`
+- [x] 照片右键/上下文菜单抽 `PhotoContextMenu.tsx`
+- [x] 渲染分区：`SaveSettingsCard`、`StatsCard`、`PhotoListCard`
 
-#### 2.2.5 App.tsx（226 行）
+#### 2.2.5 App.tsx（226 行）【已完成】
 
 现状：`MainApp`(28) 内含 checkEnvironment(67)/checkHealth(108)/键盘快捷键(145)/renderTabContent(156)；`App`(221)
-- [ ] 环境/健康检查抽 `useHealthChecks.ts`
-- [ ] 快捷键处理抽 `useKeyboardShortcuts.ts`
-- [ ] renderTabContent 的分页内容抽为 `TabRouter.tsx`（或用已有 TabBar 切换）
+- [x] 环境/健康检查抽 `useHealthChecks.ts`
+- [x] 快捷键处理抽 `useKeyboardShortcuts.ts`
+- [x] renderTabContent 的分页内容抽为 `TabRouter.tsx`（含权限跳转）
 
-#### 2.2.6 FileTab.tsx（223 行）
+#### 2.2.6 FileTab.tsx（223 行）【已完成】
 
 现状：`FileTab`(10) 内含 loadCatalog(26)/refresh(31)/saveProductName(67)/saveLineName(82)/assignProduct(97)/checkProduct(115)
-- [ ] 目录加载与刷新抽 `useCatalog.ts`
-- [ ] 产品/线体编辑逻辑抽 `useCatalogEdit.ts`
-- [ ] 渲染分区：`ProductTable`、`LineTable`、`EmptyState`
+- [x] 目录加载与刷新抽 `useCatalog.ts`
+- [x] 产品/线体编辑逻辑抽 `useCatalogEdit.ts`
+- [x] 渲染分区：`ProductTable`、`LineTable`、`EmptyState`
 
-#### 2.2.7 Modals.tsx（212 行）
+#### 2.2.7 Modals.tsx（212 行）【已完成】
 
 现状：`LoginModal`(12)/`ChangePwdModal`(60)/`AddProductModal`(114)/`LearnConfirmModal`(163)
-- [ ] 按模态框拆文件：`LoginModal.tsx`、`ChangePwdModal.tsx`、`AddProductModal.tsx`、`LearnConfirmModal.tsx`，目录 `components/common/modals/`
-- [ ] 公共部分（输入框样式/字段组件）抽 `modalFields.tsx`
-- [ ] `Modals.tsx` 改为聚合转发（`ModalRouter` 按 modal 类型渲染）
+- [x] 按模态框拆文件：`LoginModal.tsx`、`ChangePwdModal.tsx`、`AddProductModal.tsx`、`LearnConfirmModal.tsx`，目录 `components/common/modals/`
+- [x] 公共部分（输入框样式/字段组件）抽 `modalFields.tsx`
+- [x] `Modals.tsx` 改为聚合转发（`ModalRouter` 按 modal 类型渲染）
 
 ---
 
-## 三、功能完善（待办，每项独立测试 + commit）
+## 三、功能完善（已全部完成，每项独立测试 + commit）
 
-### 3.1 Web 端本地目录选择
+### 3.1 Web 端本地目录选择【已完成】
+
 - 现状：网页版点"选择本地目录"只提示"请使用选择后端目录"
 - 方案：
-  - [ ] `view/src/services/native.ts`：`isTauri()` 分支外新增 `pickDirectoryWeb()`，用 File System Access API `showDirectoryPicker`；不支持时抛错
-  - [ ] 使用位置：TestTab（类别根目录/测试图片目录）、LearnConfirmModal、CameraDetailTab 照片目录等统一走 `pickDirectory` 封装
-  - [ ] 前端降级提示 + 后端目录兜底保持不变
-- 测试：tsc + vite build；Chrome 手动验证选择目录后路径回填
+  - [x] `view/src/services/native.ts`：`isTauri()` 分支外新增 `pickDirectoryWeb()`，用 File System Access API `showDirectoryPicker`；不支持时抛错
+  - [x] 使用位置：TestTab（类别根目录/测试图片目录）、LearnConfirmModal 统一走 `pickDirectory` 封装
+  - [x] 前端降级提示 + 后端目录兜底保持不变
+- 测试：tsc + vite build；Chrome 手动验证选择目录后路径回填（浏览器仅能回填目录名称）
 - commit：`功能：网页版支持本地目录选择`
 
-### 3.2 后端登录 / 权限校验 / 密码哈希
+### 3.2 后端登录 / 权限校验 / 密码哈希【已完成】
+
 - 现状：登录只在前端 localStorage（`storage.getUsers()`），后端无鉴权，任何人可直接调 API
 - 方案：
-  - [ ] 后端 `auth_routes.py`：POST /api/auth/login（校验用户名+密码，返回 token）；密码用 `werkzeug.security.generate_password_hash` 存储，校验用 `check_password_hash`
-  - [ ] 用户存储：`backend/user_repository.py`（JSON 文件，首次启动初始化默认管理员，密码随机生成并提示）
-  - [ ] 鉴权中间件：除 login/health/静态资源外校验 `Authorization: Bearer <token>`；本地模式下可用配置开关 `AUTH_ENABLED=False` 默认关闭（兼容现有局域网无鉴权部署）
-  - [ ] 前端：`api.ts` 拦截器附带 token；401 时跳登录；Modals 登录逻辑接后端
-- 测试：新增 `tests/test_auth.py`（登录成功/失败/token 过期/无 token 401/开关关闭时放行）
+  - [x] 后端 `auth_routes.py`：POST /api/auth/login（校验用户名+密码，返回 token）；密码用 `werkzeug.security.generate_password_hash` 存储，校验用 `check_password_hash`
+  - [x] 用户存储：`backend/user_repository.py`（JSON 文件，首次启动初始化默认管理员，密码随机生成并提示）
+  - [x] 鉴权中间件：除 login/health/静态资源外校验 `Authorization: Bearer <token>`；本地模式下可用配置开关 `AUTH_ENABLED=False` 默认关闭（兼容现有局域网无鉴权部署）
+  - [x] 前端：`api.ts` 拦截器附带 token；401 时跳登录；Modals 登录逻辑接后端（登录/改密）
+- 测试：新增 `tests/test_auth.py`（登录成功/失败/token 过期/无 token 401/开关关闭时放行/改密）
 - commit：`功能：后端登录鉴权与密码哈希`
 
-### 3.3 模型管理完善（删除/重命名/版本/删除保护）
+### 3.3 模型管理完善（删除/重命名/版本/删除保护）【已完成】
+
 - 现状：只有模型列表与选择；无法删除/重命名
 - 方案：
-  - [ ] 后端 `model_routes.py`：新增 DELETE /api/models/<name>、PATCH /api/models/<name>
-  - [ ] 删除保护：`model_repository.py` 检查模型是否被线路配置/产品引用（`camera_config_manager`、`storage` 产品），被引用返回 409 及引用列表
-  - [ ] 版本展示：模型目录读取训练元数据（训练时间/准确率/设备），列表返回 version 字段
-  - [ ] 前端 `ModelSettingsTab.tsx`：模型卡片增加"重命名/删除"按钮与确认弹窗
-- 测试：`tests/test_models.py` 新增删除保护/重命名用例
+  - [x] 后端 `model_routes.py`：新增 DELETE /api/models/<name>、PATCH /api/models/<name>
+  - [x] 删除保护：`model_repository.py` 检查模型是否被相机配置/引用登记引用，被引用返回 409 及引用列表（前端再叠加本地产品/线体检查）
+  - [x] 版本展示：模型目录读取训练元数据（训练时间/准确率/设备），列表返回 version 字段
+  - [x] 前端 `ModelSettingsTab.tsx`：模型卡片增加"重命名/删除"按钮与确认弹窗
+- 测试：`tests/test_models.py` 新增删除保护/重命名/引用同步用例
 - commit：`功能：模型重命名删除与删除保护`
 
-### 3.4 照片管理完善（分页/筛选/批量导出/报表/趋势）
+### 3.4 照片管理完善（分页/筛选/批量导出/报表/趋势）【已完成】
+
 - 现状：`FileTab.tsx` 是产品/线体目录管理；照片浏览在 CameraDetailTab，无分页筛选
 - 方案：
-  - [ ] 后端 `photo_routes.py`：GET /api/photos 支持 `page/page_size/camera_id/start/end/category` 参数，返回 `{total, items}`
-  - [ ] 批量导出：POST /api/photos/export 生成 zip（`io.BytesIO` + `zipfile`），前端下载
-  - [ ] CSV 报表：GET /api/photos/report.csv（按时间/类别统计）
-  - [ ] 良率趋势：GET /api/photos/trend 返回按天/按小时的良率序列，前端用简单折线图（canvas 或轻量图表，不引重依赖）
-  - [ ] 前端：`FileTab.tsx` 增加"照片浏览"子页或新 Tab，含分页器、筛选条件、导出按钮、趋势图
-- 测试：新增 `tests/test_photos.py`（分页/筛选/导出内容正确性）
+  - [x] 后端 `photo_routes.py`：GET /api/photos 支持 `page/page_size/camera_id/start/end/category` 参数，返回 `{total, items}`
+  - [x] 批量导出：POST /api/photos/export 生成 zip（`io.BytesIO` + `zipfile`），前端下载
+  - [x] CSV 报表：GET /api/photos/report.csv（按时间/类别统计）
+  - [x] 良率趋势：GET /api/photos/trend 返回按天/按小时的良率序列，前端用原生 canvas 折线图（不引重依赖）
+  - [x] 前端：`FileTab.tsx` 增加"照片浏览"子页，含分页器、筛选条件、导出按钮、趋势图
+- 测试：新增 `tests/test_photos.py`（分页/相机/类别/时间筛选/导出/趋势/报表）
 - commit：`功能：照片分页筛选与导出报表`
 
 ---
 
-## 四、文档更新（待办）
+## 四、文档更新（已完成）
 
-### 4.1 README.md
-- [ ] 更新项目结构树：补 server.py 拆分后模块（camera_run_service / server_bootstrap）与已有新模块
-- [ ] 更新启动说明（python -m backend、前端 npm run dev、Tauri 构建）
-- [ ] 功能列表移除"模拟相机"相关
-- [ ] 环境要求与 requirements 说明核对
+### 4.1 README.md【已完成】
 
-### 4.2 docs/用户使用说明书.md
-- [ ] 移除模拟相机模式相关步骤
-- [ ] 同步设置页/测试页/运行页的 UI 变化（含拆分后页面行为一致性说明）
-- [ ] 如功能 3.2/3.3/3.4 完成，补登录/模型管理/照片导出章节
+- [x] 更新项目结构树：补 server.py 拆分后模块（camera_run_service / server_bootstrap）与已有新模块
+- [x] 更新启动说明（python -m backend、前端 npm run web:dev、Tauri 构建）
+- [x] 功能列表更新（新增鉴权/模型管理/照片导出）
+- [x] 环境要求与 requirements 说明核对
 
-### 4.3 docs/项目详细文档.md
-- [ ] 架构图/模块清单补充：model_repository / model_routes / photo_routes / capture_service / training_routes / model_test_routes / mvs_camera_manager / hardware_collectors / hardware_checks / camera_run_service / server_bootstrap
-- [ ] 全文查漏：mock_camera、simulate_stability_test、模拟相机 残留描述
-- [ ] API 表格核对（删除已移除的模拟相机接口）
-- [ ] 若与代码出入过大 → 允许重写文档（重写后通读一遍确认无矛盾）
+### 4.2 docs/用户使用说明书.md【已完成】
+
+- [x] 默认账户改为随机密码说明
+- [x] 同步设置页/测试页/运行页的 UI 变化（含照片浏览子页）
+- [x] 补登录鉴权/模型重命名删除/照片导出章节
+
+### 4.3 docs/项目详细文档.md【已完成】
+
+- [x] 架构图/模块清单补充：model_repository / model_routes / photo_routes / capture_service / training_routes / model_test_routes / mvs_camera_manager / hardware_collectors / hardware_checks / camera_run_service / server_bootstrap 等
+- [x] 全文查漏：mock_camera、simulate_stability_test、模拟相机 残留描述（无残留）
+- [x] API 表格核对（新增鉴权/模型删除重命名/照片分页导出趋势）
+- [x] 环境变量与数据目录补充（VISION_AUTH_ENABLED、users.json、model_refs.json）
 
 ---
 
-## 五、最终验证与交付（待办）
+## 五、最终验证与交付（已完成）
 
-- [ ] `.venv\Scripts\python.exe -m unittest discover -s tests -v` 全部通过
-- [ ] `.venv\Scripts\python.exe -m compileall -q backend tests` 通过
-- [ ] `node.exe view\node_modules\typescript\bin\tsc --project view\tsconfig.json` 通过
-- [ ] `node.exe node_modules\vite\bin\vite.js build`（cwd=view）通过
-- [ ] `git diff --check` 无空白错误
-- [ ] `git diff --quiet -- backend/training.py` 确认无改动
-- [ ] 生成最终提交清单（全部未 push）
-- [ ] 输出"未实现 / 可增加功能"清单给用户
+- [x] `.venv\Scripts\python.exe -m unittest discover -s tests -v` 全部通过（60 项）
+- [x] `.venv\Scripts\python.exe -m compileall -q backend tests` 通过
+- [x] `node.exe view\node_modules\typescript\bin\tsc --project view\tsconfig.json` 通过
+- [x] `node.exe node_modules\vite\bin\vite.js build`（cwd=view）通过
+- [x] `git diff --check` 无空白错误
+- [x] `git diff --quiet -- backend/training.py` 确认无改动
+- [x] 生成最终提交清单（全部未 push）
+- [x] 输出"未实现 / 可增加功能"清单给用户（见本会话最终交付说明）
 
 ---
 
