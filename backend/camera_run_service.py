@@ -168,7 +168,7 @@ def camera_worker(cam_id):
                     runtime.set_latest_result(cam_id, result)
                     runtime.increment_stat(cam_id, "detected")
                     plc_config = get_plc_config()
-                    model_name = model_loader.camera_product_map.get(cam_id)
+                    model_name = model_loader.get_camera_product(cam_id)
                     reject_labels = _get_model_reject_labels(model_name)
                     should_reject = result["label"] in reject_labels
                     if should_reject:
@@ -195,9 +195,8 @@ def camera_worker(cam_id):
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
                 millis = int((time.time() * 1000) % 1000)
                 if submitted and result:
-                    plc_config = get_plc_config()
                     tag = result["label"]
-                    model_name = model_loader.camera_product_map.get(cam_id)
+                    model_name = model_loader.get_camera_product(cam_id)
                     reject_labels = _get_model_reject_labels(model_name)
                     should_save = should_save_photo(
                         runtime.save_only_reject,

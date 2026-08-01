@@ -1,5 +1,7 @@
 """模型加载与缓存：模型文件、预热、产品映射与设备热切换。"""
 
+import threading
+
 import torch
 
 from .config import Config
@@ -12,14 +14,33 @@ model_categories = {}  # {model_name: [category_name, ...]}
 model_loaded = False
 camera_product_map = {}  # {cam_id: model_name}  每个摄像头用哪个产品的模型
 
+# 相机→产品映射由 API 线程写入、相机 worker 线程读取，用锁保护
+_product_map_lock = threading.Lock()
+
 
 def set_camera_product(cam_id, model_name):
     """设置摄像头使用的产品模型"""
-    camera_product_map[cam_id] = model_name
+    with _product_map_lock:
+        camera_product_map[cam_id] = model_name
     # 预加载对应模型
     if model_name and model_name not in models:
         load_model(model_name)
     logger.info(f"Cam{cam_id} → 模型: {model_name or '默认(种子)'}")
+
+
+def get_camera_product(cam_id):
+    with _product_map_lock:
+        return camera_product_map.get(cam_id)
+
+
+def has_camera_product(cam_id):
+    with _product_map_lock:
+        return cam_id in camera_product_map
+
+
+def remove_camera_product(cam_id):
+    with _product_map_lock:
+        camera_product_map.pop(cam_id, None)
 
 
 def warmup_model(model, model_name="__default__"):

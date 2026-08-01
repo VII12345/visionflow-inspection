@@ -86,8 +86,8 @@ def test_model():
 
         # 使用 Cam1 的真实 result_queue 作为测试通道；系统未运行时不会与真实相机竞争。
         test_cam_id = 1
-        old_mapping_exists = test_cam_id in model_loader.camera_product_map
-        old_mapping = model_loader.camera_product_map.get(test_cam_id)
+        old_mapping_exists = model_loader.has_camera_product(test_cam_id)
+        old_mapping = model_loader.get_camera_product(test_cam_id)
         result_queue = inference_worker.result_queues[test_cam_id]
         while True:
             try:
@@ -254,9 +254,9 @@ def test_model():
                             image.close()
         finally:
             if old_mapping_exists:
-                model_loader.camera_product_map[test_cam_id] = old_mapping
+                model_loader.set_camera_product(test_cam_id, old_mapping)
             else:
-                model_loader.camera_product_map.pop(test_cam_id, None)
+                model_loader.remove_camera_product(test_cam_id)
 
         timing = {
             **timing_stats(step_values["pipeline_ms"]),

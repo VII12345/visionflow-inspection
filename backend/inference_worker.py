@@ -63,7 +63,7 @@ def inference_worker():
             groups: dict[str, list[tuple[int, float, dict]]] = {}
             frames_by_group: dict[str, list[Image.Image]] = {}
             for cid, img, ts, meta in items:
-                product_model = model_loader.camera_product_map.get(cid)
+                product_model = model_loader.get_camera_product(cid)
                 key = product_model or "__default__"
                 groups.setdefault(key, []).append((cid, ts, meta))
                 frames_by_group.setdefault(key, []).append(img)
