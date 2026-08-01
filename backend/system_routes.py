@@ -2,7 +2,7 @@
 
 from flask import Blueprint, jsonify, request
 
-from . import model_loader
+from . import __version__, model_loader
 from .config import Config
 from .logger import logger
 from .camera_config_manager import camera_config_manager
@@ -36,7 +36,7 @@ def health():
     return jsonify(
         {
             "status": "ok",
-            "version": "2.0.0",
+            "version": __version__,
             "cameras": cam_status,
             "modelLoaded": model_loader.model_loaded,
             "running": runtime.system_running,

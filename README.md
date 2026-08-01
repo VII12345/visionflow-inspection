@@ -159,9 +159,8 @@ requirements-gpu.txt      GPU + AI 依赖
 - 不提交 `data/`、现场图片、模型文件、PLC 地址、日志和账号密码；
 - 不提交 `.venv/`、`.venv_cpu/`、`view/node_modules/` 和构建产物；
 - 确认海康 MVS SDK、PyTorch、模型权重和第三方资源的许可证；
-- 正式开源前在根目录补充 `LICENSE` 文件；
 - 执行 `npm run build` 和 `git diff --check`。
 
 ## 许可证
 
-前端 Tauri 配置声明为 MIT。正式发布前请补充完整的根目录 `LICENSE`，并核对全部第三方组件和模型资源的许可范围。
+项目采用 **MIT** 许可证，见根目录 [LICENSE](LICENSE)。其中海康 MVS SDK、PyTorch 及训练模型权重等第三方组件/资源遵循各自独立许可（详见 LICENSE 内的说明）。
