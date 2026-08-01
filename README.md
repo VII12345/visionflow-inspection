@@ -16,9 +16,11 @@
 - 海康 MVS 工业相机接入和触发参数配置；
 - 基于 MobileNetV3-Large 的多类别图像分类；
 - 训练、停止训练、训练历史、模型测试和推理耗时明细；
-- 好品/坏品照片保存、历史查看和自动清理；
+- 模型重命名、删除与删除保护（检查产品/线体引用）；
+- 好品/坏品照片保存、历史查看、分页筛选、批量导出 Zip、CSV 报表和良率趋势；
 - PLC 地址、节点和剔除信号配置与测试；
 - 管理员、技术员、操作员三级权限；
+- 可选后端登录鉴权（`VISION_AUTH_ENABLED`，默认关闭），密码使用哈希存储；
 - CPU-only 便携版、CPU-only NSIS 安装包和完整依赖版本。
 
 ## 快速开始
@@ -106,6 +108,23 @@ Vite 会将 `/api` 请求代理到 `http://127.0.0.1:5000`。如后端地址不�
 
 ```text
 backend/                  Flask 后端、相机、推理、训练和 PLC
+  ├─ server.py             Flask 应用与 API 路由
+  ├─ server_bootstrap.py   启动编排（环境检测/预加载/清理线程）
+  ├─ camera_run_service.py 相机启动、停止与工作线程
+  ├─ camera_routes.py      相机配置与运行 API
+  ├─ auth_routes.py        登录鉴权与 token（可选）
+  ├─ model_repository.py   模型元数据、删除/重命名与删除保护
+  ├─ model_routes.py       模型列表/设置/删除/重命名 API
+  ├─ photo_routes.py       照片保存、分页筛选、导出、报表与趋势
+  ├─ training_routes.py    模型训练接口
+  ├─ model_test_routes.py  离线模型测试接口
+  ├─ inference_worker.py   推理队列
+  ├─ model_loader.py       模型加载与缓存
+  ├─ plc_service.py        PLC 服务聚合（plc_config/plc_client）
+  ├─ capture_service.py    照片保存服务聚合（photo_storage/save_queue）
+  ├─ user_repository.py    用户存储与密码哈希
+  ├─ hardware/             硬件采集器
+  └─ env_checkers/         环境类别检查器
 view/src/                 React 页面、组件、状态和 API 服务
 view/src-tauri/           Tauri 桌面端和本地数据命令
 docs/                     用户手册和技术文档
@@ -115,6 +134,8 @@ requirements.txt          通用 Python 运行依赖
 requirements-cpu.txt      CPU + AI 依赖
 requirements-gpu.txt      GPU + AI 依赖
 ```
+
+> 登录：首次启动后端会在 `data/users.json` 初始化默认管理员，初始密码随机生成并打印在后端启动日志中，请登录后立即修改。默认不启用后端鉴权（`VISION_AUTH_ENABLED=0`），需要局域网无鉴权部署时保持不变即可。
 
 ## 训练数据格式
 
