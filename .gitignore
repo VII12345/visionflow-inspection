@@ -81,6 +81,8 @@ view/src-tauri/resources/
 
 dist_portable_tauri/
 build_tauri/
+dist_portable_tauri_cpu/
+build_tauri_cpu/
 pyinstaller-build-tauri-portable.log
 
 
