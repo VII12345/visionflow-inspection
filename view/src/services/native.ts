@@ -30,6 +30,24 @@ export async function selectLocalFolder(): Promise<string | null> {
   return Array.isArray(selected) ? (selected[0] ?? null) : selected;
 }
 
+/**
+ * 网页端本地目录选择：使用 File System Access API（Chrome/Edge 支持）。
+ * 受浏览器安全限制，只能获取目录名称，无法取得真实磁盘路径；不支持时抛错。
+ */
+export async function pickDirectoryWeb(): Promise<string | null> {
+  if (typeof window.showDirectoryPicker !== 'function') {
+    throw new Error('当前浏览器不支持本地目录选择，请使用 Chrome/Edge，或改用"选择后端目录"');
+  }
+  const handle = await window.showDirectoryPicker();
+  return handle?.name || null;
+}
+
+/** 统一目录选择：桌面端走 Tauri 对话框，网页端走 File System Access API。 */
+export async function pickDirectory(): Promise<string | null> {
+  if (isTauri()) return selectLocalFolder();
+  return pickDirectoryWeb();
+}
+
 export async function openCameraPopout(camId: number): Promise<void> {
   if (!isTauri()) throw new Error('当前环境不是 Tauri 桌面端');
   const label = `camera-popout-${camId}`;

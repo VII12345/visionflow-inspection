@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { storage } from '../../services/storage';
-import { isTauri, selectLocalFolder } from '../../services/native';
+import { isTauri, pickDirectory } from '../../services/native';
 import { useAppStore } from '../../store/useAppStore';
 import type { BackendImageDirectory } from '../common/BackendDirectoryPicker';
 import type { StepTiming } from './TimingBreakdown';
@@ -69,13 +69,13 @@ export const useModelTest = () => {
   }));
 
   const browseLocalFolder = useCallback(async (setter: (value: string) => void) => {
-    if (!isTauri()) {
-      showMessage('网页版暂不支持选择当前电脑的本地文件夹，请使用"选择后端目录"');
-      return;
-    }
     try {
-      const selected = await selectLocalFolder();
-      if (selected) setter(selected);
+      const selected = await pickDirectory();
+      if (!selected) return;
+      setter(selected);
+      if (!isTauri()) {
+        showMessage('已选择目录（网页版仅能获取目录名称，实际测试路径请用"选择后端目录"）');
+      }
     } catch (reason) {
       showMessage('选择本地目录失败: ' + (reason as Error).message);
     }
