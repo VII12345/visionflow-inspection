@@ -5,9 +5,7 @@ from flask import Blueprint, jsonify, request
 from .catalog_repository import (
     catalog_file_exists,
     load_catalog,
-    normalize_line_config,
-    normalize_products,
-    save_catalog,
+    update_catalog as update_catalog_repo,
 )
 from .logger import logger
 
@@ -31,15 +29,15 @@ def get_catalog():
 
 @catalog_bp.route("/api/catalog", methods=["POST"])
 def update_catalog():
-    """保存产品/线体配置（可只传其中一项）。"""
+    """保存产品/线体配置（可只传其中一项，锁内原子更新）。"""
     data = request.get_json(silent=True) or {}
-    catalog = load_catalog()
-    if "products" in data:
-        catalog["products"] = normalize_products(data.get("products"))
-    if "line_config" in data:
-        catalog["line_config"] = normalize_line_config(data.get("line_config"))
     try:
-        saved = save_catalog(catalog)
+        kwargs = {}
+        if "products" in data:
+            kwargs["products"] = data.get("products")
+        if "line_config" in data:
+            kwargs["line_config"] = data.get("line_config")
+        saved = update_catalog_repo(**kwargs)
     except OSError as exc:
         logger.error(f"保存目录配置失败: {exc}", exc_info=True)
         return jsonify({"success": False, "message": str(exc)}), 500

@@ -82,6 +82,17 @@ class CatalogTests(unittest.TestCase):
         fetched = self.client.get("/api/catalog").get_json()
         self.assertEqual([p["model"] for p in fetched["products"]], ["b"])
 
+    def test_partial_updates_preserve_other_field(self):
+        # 只更新产品不应清掉线体配置，只更新线体不应清掉产品
+        self.client.post("/api/catalog", json={"products": [{"id": 1, "model": "demo"}]})
+        self.client.post(
+            "/api/catalog", json={"line_config": [{"line": 1, "name": "一号线"}]}
+        )
+
+        fetched = self.client.get("/api/catalog").get_json()
+        self.assertEqual(fetched["products"][0]["model"], "demo")
+        self.assertEqual(fetched["line_config"][0]["name"], "一号线")
+
     def test_normalize_products_fills_defaults(self):
         products = normalize_products(
             [{"model": "demo"}, {"id": "2", "name": "", "model": "demo2"}, "bad"]

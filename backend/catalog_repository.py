@@ -5,9 +5,15 @@
 """
 
 import json
+import threading
 
 from .config import Config
 from .logger import logger
+
+
+# 串行化目录配置的读-改-写，避免并发保存互相覆盖
+_catalog_lock = threading.RLock()
+_UNSET = object()
 
 
 def catalog_file_path():
@@ -110,3 +116,14 @@ def save_catalog(catalog):
     )
     logger.info(f"目录配置已保存: {len(normalized['products'])} 个产品, {len(normalized['line_config'])} 条线体")
     return normalized
+
+
+def update_catalog(products=_UNSET, line_config=_UNSET):
+    """在锁内完成读-改-写，只更新传入的字段，防止并发保存互相覆盖。"""
+    with _catalog_lock:
+        catalog = load_catalog()
+        if products is not _UNSET:
+            catalog["products"] = normalize_products(products)
+        if line_config is not _UNSET:
+            catalog["line_config"] = normalize_line_config(line_config)
+        return save_catalog(catalog)
