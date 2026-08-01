@@ -75,9 +75,9 @@
 现状结构：`MVSCamera` 类含 connect(76)/disconnect(124)/start_grabbing(137)/stop_grabbing(202)/grab_frame(216)/set_exposure_time(286)/set_gain(303)/set_trigger_delay(316)/set_line_debouncer(331)/set_strobe(345)/get_info(370)
 
 拆分方案：
-- [ ] 按 SDK 操作分组：`mvs_device.py`（connect/disconnect/get_info）、`mvs_acquisition.py`（start/stop/grab）、`mvs_controls.py`（曝光/增益/触发/去抖/strobe）
-- [ ] MVSCamera 保留为门面类组合上述能力（或在 manager 层组合）
-- [ ] 测试与提交
+- [x] 按 SDK 操作分组：`mvs_device.py`（connect/disconnect/get_info）、`mvs_acquisition.py`（start/stop/grab）、`mvs_controls.py`（曝光/增益/触发/去抖/strobe）
+- [x] MVSCamera 保留为门面类组合上述能力（或在 manager 层组合）
+- [x] 测试与提交
 
 #### 2.1.4 拆分 backend/env_check.py（273 行）
 
