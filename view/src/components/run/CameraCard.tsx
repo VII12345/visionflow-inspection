@@ -18,10 +18,7 @@ interface CameraCardProps {
   isCustomLayout: boolean;
   cardStyle?: React.CSSProperties;
   onRef: (element: HTMLDivElement | null) => void;
-  onDragStart: (event: React.DragEvent<HTMLDivElement>) => void;
-  onDragOver: () => void;
-  onDrop: (event: React.DragEvent<HTMLDivElement>) => void;
-  onDragEnd: () => void;
+  onPointerDown: (event: React.PointerEvent<HTMLDivElement>, camId: number) => void;
   onToggleLine: () => void;
   onPopout: () => void;
   onDetails: () => void;
@@ -31,7 +28,7 @@ interface CameraCardProps {
 export const CameraCard: React.FC<CameraCardProps> = ({
   camId, lineName, modelName, prod, camStatus, frameUrl, rejectLabels, canEditRun,
   poppedOut, lineEnabled, dropTarget, dragging, isCustomLayout, cardStyle, onRef,
-  onDragStart, onDragOver, onDrop, onDragEnd, onToggleLine, onPopout, onDetails, onResize,
+  onPointerDown, onToggleLine, onPopout, onDetails, onResize,
 }) => {
 let badgeVariant: 'pending' | 'ok' | 'ng' | 'error' = 'pending';
 let badgeText = '待检测';
@@ -55,7 +52,7 @@ if (camStatus?.state === 'running' && camStatus.result) {
 }
 
 return (
-  <div ref={onRef} key={camId} draggable={canEditRun} onDragStart={event => canEditRun && onDragStart(event)} onDragOver={event => { if (canEditRun) { event.preventDefault(); onDragOver(); } }} onDrop={event => canEditRun && onDrop(event)} onDragEnd={onDragEnd} className={`relative bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden flex flex-col cursor-grab active:cursor-grabbing transition-shadow ${dropTarget && !dragging ? 'cam-card-drop-target' : ''} ${dragging ? 'cam-card-dragging' : ''}`} style={cardStyle}>
+  <div ref={onRef} key={camId} data-cam-id={camId} draggable={false} onPointerDown={event => canEditRun && onPointerDown(event, camId)} className={`relative bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden flex flex-col cursor-grab active:cursor-grabbing select-none transition-shadow ${dropTarget && !dragging ? 'cam-card-drop-target' : ''} ${dragging ? 'cam-card-dragging' : ''}`} style={cardStyle}>
     {/* Header */}
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-4 py-2.5 2xl:px-5 2xl:py-3 border-b border-gray-100">
       <span className="min-w-0 text-[13px]">
@@ -121,6 +118,7 @@ return (
       <img
         src={frameUrl || ''}
         alt={`Cam${camId}`}
+        draggable={false}
         className={`max-w-full max-h-full object-contain ${frameUrl ? 'opacity-100' : 'hidden'}`}
       />
       {!frameUrl && (

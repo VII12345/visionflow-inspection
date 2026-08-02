@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { DragEvent, PointerEvent as ReactPointerEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { storage } from '../../services/storage';
 import type { RunLayout, RunLayoutId } from '../../types';
 
@@ -23,8 +23,12 @@ export const useRunLayout = (lineCount: number, showMessage: MessageHandler) => 
   const [draggingCamId, setDraggingCamId] = useState<number | null>(null);
   const [dropTargetCamId, setDropTargetCamId] = useState<number | null>(null);
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
-  // 拖拽源用 ref 记录：drop 事件触发时 React state 可能尚未刷新，直接读 ref 最可靠
-  const draggingCamIdRef = useRef<number | null>(null);
+  // 指针拖拽：WebView2 中 HTML5 拖拽事件不可靠，改用 pointer 事件。
+  // 手势与源/目标都放在 ref 里，避免窗口级事件闭包读到过期的 state。
+  const dragGestureRef = useRef<{ camId: number; startX: number; startY: number; active: boolean } | null>(null);
+  const dragSourceRef = useRef<number | null>(null);
+  const dragTargetRef = useRef<number | null>(null);
+  const swapRef = useRef<(source: number, target: number) => void>(() => {});
   const [resizeSession, setResizeSession] = useState<{
     camId: number;
     startX: number;
@@ -86,27 +90,59 @@ export const useRunLayout = (lineCount: number, showMessage: MessageHandler) => 
     });
   };
 
-  const handleCamDragStart = (event: DragEvent<HTMLDivElement>, camId: number) => {
-    setDraggingCamId(camId);
-    draggingCamIdRef.current = camId;
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', String(camId));
+  // 窗口级拖拽监听里通过 ref 调用最新的 swapCamPosition，避免闭包读到过期实现
+  swapRef.current = swapCamPosition;
+
+  const startCardDrag = (event: ReactPointerEvent<HTMLDivElement>, camId: number) => {
+    if (event.button !== 0) return;
+    dragGestureRef.current = { camId, startX: event.clientX, startY: event.clientY, active: false };
+    dragSourceRef.current = camId;
   };
 
   const clearDrag = () => {
-    draggingCamIdRef.current = null;
+    dragGestureRef.current = null;
+    dragSourceRef.current = null;
+    dragTargetRef.current = null;
     setDraggingCamId(null);
     setDropTargetCamId(null);
   };
 
-  const handleCamDrop = (event: DragEvent<HTMLDivElement>, targetCamId: number) => {
-    event.preventDefault();
-    const sourceCamId = draggingCamIdRef.current
-      || draggingCamId
-      || Number(event.dataTransfer.getData('text/plain'));
-    if (sourceCamId) swapCamPosition(sourceCamId, targetCamId);
-    clearDrag();
-  };
+  // 窗口级监听拖拽移动/释放（指针按下后移动超过阈值才进入拖拽，避免干扰按钮点击）
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      const gesture = dragGestureRef.current;
+      if (!gesture) return;
+      if (!gesture.active) {
+        const distance = Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY);
+        if (distance < 6) return;
+        gesture.active = true;
+        setDraggingCamId(gesture.camId);
+      }
+      const element = document.elementFromPoint(event.clientX, event.clientY);
+      const card = element?.closest('[data-cam-id]') as HTMLElement | null;
+      const targetId = card ? Number(card.dataset.camId) : null;
+      dragTargetRef.current = targetId;
+      setDropTargetCamId(targetId);
+    };
+    const handlePointerUp = () => {
+      const gesture = dragGestureRef.current;
+      const source = dragSourceRef.current;
+      const target = dragTargetRef.current;
+      if (gesture?.active && source && target && source !== target) {
+        swapRef.current(source, target);
+      }
+      clearDrag();
+    };
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const selectLayout = (id: RunLayoutId) => {
     if (id === 'custom') {
@@ -174,12 +210,9 @@ export const useRunLayout = (lineCount: number, showMessage: MessageHandler) => 
     cardRefs,
     draggingCamId,
     dropTargetCamId,
-    setDropTargetCamId,
-    setDraggingCamId,
     clearDrag,
+    startCardDrag,
     selectLayout,
-    handleCamDragStart,
-    handleCamDrop,
     startCardResize,
     resetCustomSizes,
   };

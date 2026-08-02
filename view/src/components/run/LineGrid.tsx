@@ -1,5 +1,5 @@
 import React from 'react';
-import type { DragEvent, PointerEvent as ReactPointerEvent, RefObject } from 'react';
+import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
 import type { LineConfig, Product, RunLayout, SystemStatus } from '../../types';
 import { CameraCard } from './CameraCard';
 
@@ -18,10 +18,7 @@ interface Props {
   dropTargetCamId: number | null;
   draggingCamId: number | null;
   cardRefs: RefObject<Record<number, HTMLDivElement | null>>;
-  onDragStart: (event: DragEvent<HTMLDivElement>, camId: number) => void;
-  onDragOver: (camId: number) => void;
-  onDrop: (event: DragEvent<HTMLDivElement>, camId: number) => void;
-  onDragEnd: () => void;
+  onCardPointerDown: (event: ReactPointerEvent<HTMLDivElement>, camId: number) => void;
   onToggleLine: (camId: number) => void;
   onPopout: (camId: number) => void;
   onDetails: (camId: number) => void;
@@ -44,10 +41,7 @@ export const LineGrid: React.FC<Props> = ({
   dropTargetCamId,
   draggingCamId,
   cardRefs,
-  onDragStart,
-  onDragOver,
-  onDrop,
-  onDragEnd,
+  onCardPointerDown,
   onToggleLine,
   onPopout,
   onDetails,
@@ -95,10 +89,7 @@ export const LineGrid: React.FC<Props> = ({
             isCustomLayout={layout.id === 'custom'}
             cardStyle={cardStyle}
             onRef={element => { if (cardRefs.current) cardRefs.current[camId] = element; }}
-            onDragStart={event => onDragStart(event, camId)}
-            onDragOver={() => onDragOver(camId)}
-            onDrop={event => onDrop(event, camId)}
-            onDragEnd={onDragEnd}
+            onPointerDown={(event) => onCardPointerDown(event, camId)}
             onToggleLine={() => onToggleLine(camId)}
             onPopout={() => onPopout(camId)}
             onDetails={() => onDetails(camId)}

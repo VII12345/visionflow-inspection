@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { useSystemPolling, useFrameUpdater } from '../../hooks/useSystem';
 import { storage } from '../../services/storage';
@@ -26,11 +26,9 @@ export const RunTab: React.FC = () => {
     cardRefs,
     draggingCamId,
     dropTargetCamId,
-    setDropTargetCamId,
     clearDrag,
+    startCardDrag,
     selectLayout,
-    handleCamDragStart,
-    handleCamDrop,
     startCardResize,
     resetCustomSizes,
   } = useRunLayout(lineCount, showMessage);
@@ -52,10 +50,6 @@ export const RunTab: React.FC = () => {
     }
   }
   totalStats.ok = totalStats.total - totalStats.ng;
-
-  const handleDragEnd = useCallback(() => {
-    clearDrag();
-  }, [clearDrag]);
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -88,10 +82,7 @@ export const RunTab: React.FC = () => {
         dropTargetCamId={dropTargetCamId}
         draggingCamId={draggingCamId}
         cardRefs={cardRefs}
-        onDragStart={handleCamDragStart}
-        onDragOver={setDropTargetCamId}
-        onDrop={handleCamDrop}
-        onDragEnd={handleDragEnd}
+        onCardPointerDown={startCardDrag}
         onToggleLine={toggleLine}
         onPopout={handlePopout}
         onDetails={camId => openDynamicTab('cam-detail-' + camId)}
