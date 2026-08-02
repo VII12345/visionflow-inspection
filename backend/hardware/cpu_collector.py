@@ -1,7 +1,8 @@
 """CPU 硬件信息采集。"""
 
 import platform
-import subprocess
+
+from .run_hidden import run_hidden
 
 
 def _detect_cpu_model(system_name):
@@ -23,7 +24,7 @@ def _detect_cpu_model(system_name):
 
             if not cpu_model:
                 try:
-                    result = subprocess.run(
+                    result = run_hidden(
                         ["powershell", "-Command", "(Get-CimInstance Win32_Processor).Name"],
                         capture_output=True,
                         text=True,
@@ -38,7 +39,7 @@ def _detect_cpu_model(system_name):
 
             if not cpu_model:
                 try:
-                    result = subprocess.run(
+                    result = run_hidden(
                         ["wmic", "cpu", "get", "name"],
                         capture_output=True,
                         text=True,
@@ -55,7 +56,7 @@ def _detect_cpu_model(system_name):
                 except Exception:
                     pass
         elif system_name == "Linux":
-            result = subprocess.run(
+            result = run_hidden(
                 ["cat", "/proc/cpuinfo"],
                 capture_output=True,
                 text=True,
@@ -67,7 +68,7 @@ def _detect_cpu_model(system_name):
                     cpu_model = line.split(":")[1].strip()
                     break
         elif system_name == "Darwin":
-            result = subprocess.run(
+            result = run_hidden(
                 ["sysctl", "-n", "machdep.cpu.brand_string"],
                 capture_output=True,
                 text=True,

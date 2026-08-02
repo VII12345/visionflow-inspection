@@ -1,13 +1,13 @@
 """网络硬件信息采集。"""
 
-import subprocess
+from .run_hidden import run_hidden
 
 
 def _collect_wifi_rates():
     """Windows netsh 获取 WiFi 真实协商速率。"""
     wifi_rates = {}
     try:
-        result = subprocess.run(
+        result = run_hidden(
             ["netsh", "wlan", "show", "interfaces"],
             capture_output=True,
             text=True,
@@ -36,7 +36,7 @@ def _collect_ethernet_speeds():
     """Windows PowerShell 获取以太网真实链路速率。"""
     eth_speeds = {}
     try:
-        result = subprocess.run(
+        result = run_hidden(
             ["powershell", "-Command", "Get-NetAdapter | Select-Object Name,LinkSpeed | ConvertTo-Json -Compress"],
             capture_output=True,
             text=True,

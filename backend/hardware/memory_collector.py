@@ -1,6 +1,6 @@
 """内存硬件信息采集。"""
 
-import subprocess
+from .run_hidden import run_hidden
 
 
 def _detect_memory_speed(system_name):
@@ -9,7 +9,7 @@ def _detect_memory_speed(system_name):
     try:
         if system_name == "Windows":
             try:
-                result = subprocess.run(
+                result = run_hidden(
                     ["powershell", "-Command", "(Get-CimInstance Win32_PhysicalMemory | Select-Object -First 1).Speed"],
                     capture_output=True,
                     text=True,
@@ -23,7 +23,7 @@ def _detect_memory_speed(system_name):
                 pass
             if not mem_speed:
                 try:
-                    result = subprocess.run(
+                    result = run_hidden(
                         ["wmic", "memorychip", "get", "speed"],
                         capture_output=True,
                         text=True,
@@ -39,7 +39,7 @@ def _detect_memory_speed(system_name):
                     pass
         elif system_name == "Linux":
             try:
-                result = subprocess.run(
+                result = run_hidden(
                     ["dmidecode", "-t", "memory"],
                     capture_output=True,
                     text=True,
