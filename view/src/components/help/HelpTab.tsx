@@ -36,7 +36,7 @@ export const HelpTab: React.FC = () => {
         <Section title="运行和停止"><p>“运行”页面的“启动”和“停止”是设备控制按钮。启动前请确认线体已经分配模型、相机连接正常、PLC 配置已保存。运行中不要修改线体数量和相机关键参数，停止设备后再修改。</p></Section>
         <Section title="测试和照片"><p>“测试”页面的“分类测试”需要类别根目录，可以查看准确率和每个类别的统计；“批量推理”只需要图片目录。检测照片可以在“文件”页面或相机详情中查看，照片子目录名称就是实际识别类别。</p></Section>
         <Section title="用户权限"><ul className="list-disc pl-5 space-y-1"><li>管理员：最高权限，可以使用和配置全部功能，修改密码和保持登录设置也只有管理员可以操作。</li><li>技术员：可以启动/停止设备，并使用用户管理之外的设置、模型、PLC 和测试功能。</li><li>操作员：只能启动和停止设备，其他功能不可操作。</li></ul></Section>
-        <Section title="网页访问和常见问题"><p>免安装版启动后，可以在本机浏览器打开 <code>http://127.0.0.1:5173</code>；局域网其他电脑使用运行该程序电脑的 IP 地址访问。如果页面提示后端不可用，请先检查程序是否已启动、5000 和 5173 端口是否被占用。</p></Section>
+        <Section title="网页访问和常见问题"><p>免安装版启动后，可以在本机浏览器打开 <code>http://127.0.0.1:5000</code>；局域网其他电脑使用 <code>http://运行该程序电脑的IP:5000</code> 访问。如果页面提示后端不可用，请先检查程序是否已启动、5000 端口是否被占用。</p></Section>
       </div>
       <div className="flex justify-end"><Button variant="secondary" size="sm" onClick={() => setActiveTab('settings')}>前往设置</Button></div>
     </div>
