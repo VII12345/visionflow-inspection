@@ -27,7 +27,7 @@ export const RunTab: React.FC = () => {
     draggingCamId,
     dropTargetCamId,
     setDropTargetCamId,
-    setDraggingCamId,
+    clearDrag,
     selectLayout,
     handleCamDragStart,
     handleCamDrop,
@@ -54,9 +54,8 @@ export const RunTab: React.FC = () => {
   totalStats.ok = totalStats.total - totalStats.ng;
 
   const handleDragEnd = useCallback(() => {
-    setDraggingCamId(null);
-    setDropTargetCamId(null);
-  }, [setDraggingCamId, setDropTargetCamId]);
+    clearDrag();
+  }, [clearDrag]);
 
   return (
     <div className="flex flex-col h-full overflow-auto">

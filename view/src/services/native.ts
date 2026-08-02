@@ -67,8 +67,16 @@ export async function openCameraPopout(camId: number): Promise<void> {
     resizable: true,
     center: true,
   });
-  await popout.once('tauri://created', () => undefined);
-  await popout.once('tauri://destroyed', () => {
+  // WebviewWindow 的创建是异步 IPC；必须等 tauri://created 确认窗口真正创建成功，
+  // 否则窗口创建失败也会被当作成功（旧实现只在 once 上挂监听、并不等待事件）。
+  await new Promise<void>((resolve, reject) => {
+    popout.once('tauri://created', () => resolve());
+    popout.once('tauri://error', (event: unknown) => {
+      const payload = (event as { payload?: unknown })?.payload;
+      reject(new Error(typeof payload === 'string' ? payload : '创建相机窗口失败'));
+    });
+  });
+  popout.once('tauri://destroyed', () => {
     void emit('camera-popout-closed', camId);
   });
 }

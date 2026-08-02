@@ -23,6 +23,8 @@ export const useRunLayout = (lineCount: number, showMessage: MessageHandler) => 
   const [draggingCamId, setDraggingCamId] = useState<number | null>(null);
   const [dropTargetCamId, setDropTargetCamId] = useState<number | null>(null);
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  // 拖拽源用 ref 记录：drop 事件触发时 React state 可能尚未刷新，直接读 ref 最可靠
+  const draggingCamIdRef = useRef<number | null>(null);
   const [resizeSession, setResizeSession] = useState<{
     camId: number;
     startX: number;
@@ -86,16 +88,24 @@ export const useRunLayout = (lineCount: number, showMessage: MessageHandler) => 
 
   const handleCamDragStart = (event: DragEvent<HTMLDivElement>, camId: number) => {
     setDraggingCamId(camId);
+    draggingCamIdRef.current = camId;
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', String(camId));
   };
 
-  const handleCamDrop = (event: DragEvent<HTMLDivElement>, targetCamId: number) => {
-    event.preventDefault();
-    const sourceCamId = draggingCamId || Number(event.dataTransfer.getData('text/plain'));
-    if (sourceCamId) swapCamPosition(sourceCamId, targetCamId);
+  const clearDrag = () => {
+    draggingCamIdRef.current = null;
     setDraggingCamId(null);
     setDropTargetCamId(null);
+  };
+
+  const handleCamDrop = (event: DragEvent<HTMLDivElement>, targetCamId: number) => {
+    event.preventDefault();
+    const sourceCamId = draggingCamIdRef.current
+      || draggingCamId
+      || Number(event.dataTransfer.getData('text/plain'));
+    if (sourceCamId) swapCamPosition(sourceCamId, targetCamId);
+    clearDrag();
   };
 
   const selectLayout = (id: RunLayoutId) => {
@@ -166,6 +176,7 @@ export const useRunLayout = (lineCount: number, showMessage: MessageHandler) => 
     dropTargetCamId,
     setDropTargetCamId,
     setDraggingCamId,
+    clearDrag,
     selectLayout,
     handleCamDragStart,
     handleCamDrop,
