@@ -64,24 +64,24 @@ export const CameraPopoutPage: React.FC<{ camId: number }> = ({ camId }) => {
     : camera.result?.label || (camera.state === 'running' ? '等待触发' : '等待检测');
 
   return (
-    <div className="min-h-screen bg-[#f6f8fb] text-[#263246] p-5">
-      <div className="mx-auto flex min-h-[calc(100vh-40px)] max-w-[980px] flex-col overflow-hidden rounded-lg border border-[#dce2eb] bg-white shadow-sm">
-        <header className="flex items-center justify-between border-b border-[#e6eaf0] px-5 py-4">
+    <div className="min-h-screen bg-surface text-text-primary p-5">
+      <div className="mx-auto flex min-h-[calc(100vh-40px)] max-w-[980px] flex-col overflow-hidden rounded-lg border border-gray-100 bg-white shadow-card">
+        <header className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
           <div>
-            <div className="text-sm font-semibold">相机 {camId}</div>
-            <div className="mt-1 text-xs text-[#8b95a5]">实时检测画面</div>
+            <div className="text-sm font-semibold text-text-primary">相机 {camId}</div>
+            <div className="mt-1 text-xs text-text-secondary">实时检测画面</div>
           </div>
-          <div className={`rounded px-2.5 py-1 text-xs font-semibold ${camera.state === 'error' ? 'bg-red-50 text-red-600' : isOk ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+          <div className={`rounded px-2.5 py-1 text-xs font-semibold ${camera.state === 'error' ? 'bg-red-50 text-ng' : isOk ? 'bg-emerald-50 text-ok' : 'bg-amber-50 text-warn'}`}>
             {badge}
           </div>
         </header>
-        <main className="flex flex-1 items-center justify-center bg-[#10151d] p-4">
-          {frameUrl ? <img src={frameUrl} alt={`相机 ${camId}`} className="max-h-full max-w-full object-contain" /> : <span className="text-sm text-[#aeb8c6]">等待相机信号...</span>}
+        <main className="flex flex-1 items-center justify-center bg-gray-50 p-4">
+          {frameUrl ? <img src={frameUrl} alt={`相机 ${camId}`} className="max-h-full max-w-full object-contain" /> : <span className="text-sm text-text-tertiary">等待相机信号...</span>}
         </main>
-        <footer className="flex items-center justify-between border-t border-[#e6eaf0] px-5 py-3 text-xs text-[#7f8998]">
+        <footer className="flex items-center justify-between border-t border-gray-100 px-5 py-3 text-xs text-text-tertiary">
           <span>{camera.error || (camera.result ? `${camera.result.label} (${Math.round(camera.result.confidence * 100)}%)` : `已触发 ${camera.totalTriggers || 0} 次`)}</span>
           <span>{camera.lastFrameTime || '—'}</span>
-          <button type="button" onClick={close} className="rounded border border-[#d6dce5] px-3 py-1.5 text-xs font-medium text-[#526176] hover:bg-[#f6f8fb]">关闭窗口</button>
+          <button type="button" onClick={close} className="rounded border border-gray-200 px-3 py-1.5 text-xs font-medium text-text-primary shadow-sm hover:bg-gray-50 hover:border-gray-300">关闭窗口</button>
         </footer>
       </div>
     </div>
