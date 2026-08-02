@@ -67,6 +67,8 @@ npm run web:dev
 
 Vite 会将 `/api` 请求代理到 `http://127.0.0.1:5000`。如后端地址不同，可在 `view/.env.local` 中设置 `VITE_BACKEND_URL`。
 
+> 以上 `5173` 是开发模式端口；**打包后的 exe 在 `5000` 端口提供网页访问**，见下方“打包应用的浏览器访问”。
+
 ## Windows 发布
 
 ### CPU-only 便携版
