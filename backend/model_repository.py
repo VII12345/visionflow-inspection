@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 from .camera_config_manager import camera_config_manager
-from .catalog_repository import rename_model_references
+from .catalog_repository import load_catalog, rename_model_references
 from .config import Config
 from .logger import logger
 from .plc_service import get_plc_config
@@ -207,12 +207,20 @@ def save_model_references(references):
 
 
 def find_model_references(model_name):
-    """返回引用该模型的配置列表（相机配置 + 后端引用登记）。"""
+    """返回引用该模型的配置列表（相机配置 + 引用登记 + 目录配置）。"""
     references = []
+    seen = set()
+
+    def _add(reference):
+        key = (reference.get("type"), reference.get("label"))
+        if key not in seen:
+            seen.add(key)
+            references.append(reference)
+
     camera_config = camera_config_manager.get_config()
     for cam_id, cam_cfg in (camera_config.get("cameras", {}) or {}).items():
         if isinstance(cam_cfg, dict) and cam_cfg.get("model") == model_name:
-            references.append(
+            _add(
                 {
                     "type": "camera",
                     "label": f"相机 {cam_id}",
@@ -225,7 +233,7 @@ def find_model_references(model_name):
             if isinstance(refs, list):
                 for item in refs:
                     if isinstance(item, dict) and item.get("model") == model_name:
-                        references.append(
+                        _add(
                             {
                                 "type": str(item.get("type", "product")),
                                 "label": str(item.get("label", "未知配置")),
@@ -234,6 +242,28 @@ def find_model_references(model_name):
                         )
     except (OSError, ValueError, TypeError) as exc:
         logger.warning(f"读取模型引用登记失败: {exc}")
+    try:
+        catalog = load_catalog()
+        for product in catalog.get("products", []):
+            if isinstance(product, dict) and product.get("model") == model_name:
+                _add(
+                    {
+                        "type": "product",
+                        "label": f"产品「{product.get('name') or model_name}」",
+                        "detail": product.get("name") or model_name,
+                    }
+                )
+        for line in catalog.get("line_config", []):
+            if isinstance(line, dict) and line.get("model") == model_name:
+                _add(
+                    {
+                        "type": "line",
+                        "label": f"线体「{line.get('name') or line.get('line')}」",
+                        "detail": line.get("name") or str(line.get("line")),
+                    }
+                )
+    except (OSError, ValueError, TypeError) as exc:
+        logger.warning(f"读取目录配置引用失败: {exc}")
     return references
 
 

@@ -20,6 +20,7 @@ a = Analysis(
         'backend.training', 'backend.mvs_camera', 'backend.mvs_camera_manager',
         'backend.inference_worker', 'backend.env_check',
         'backend.camera_config_manager', 'backend.plc_service',
+        'backend.hardware.run_hidden',
     ],
     hookspath=[], hooksconfig={}, runtime_hooks=[], excludes=[],
     win_no_prefer_redirects=False, win_private_assemblies=False,

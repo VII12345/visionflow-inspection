@@ -76,6 +76,43 @@ class ModelLifecycleTests(unittest.TestCase):
         payload = response.get_json()
         self.assertEqual(payload["references"][0]["label"], "成品一号")
 
+    def test_delete_referenced_by_catalog_returns_409(self):
+        # 目录中产品引用该模型时，后端删除保护也应生效
+        save_catalog(
+            {
+                "products": [{"id": 1, "name": "成品一号", "model": "demo"}],
+                "line_config": [
+                    {"line": 1, "name": "一号线", "productId": 1, "model": "demo"},
+                ],
+            }
+        )
+
+        response = self.client.delete("/api/models/demo")
+
+        self.assertEqual(response.status_code, 409)
+        payload = response.get_json()
+        labels = [ref["label"] for ref in payload["references"]]
+        self.assertIn("产品「成品一号」", labels)
+        self.assertIn("线体「一号线」", labels)
+        self.assertTrue((self.data_dir / "model_classifier_demo.pth").exists())
+
+    def test_delete_catalog_references_deduped(self):
+        # 同一引用同时存在于引用登记与目录时，只返回一条
+        save_catalog({"products": [{"id": 1, "name": "成品一号", "model": "demo"}]})
+        (self.data_dir / "model_refs.json").write_text(
+            json.dumps(
+                [{"model": "demo", "type": "product", "label": "产品「成品一号」"}],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        response = self.client.delete("/api/models/demo")
+
+        self.assertEqual(response.status_code, 409)
+        labels = [ref["label"] for ref in response.get_json()["references"]]
+        self.assertEqual(labels.count("产品「成品一号」"), 1)
+
     def test_rename_model_updates_files_and_references(self):
         with patch.object(
             camera_config_manager,

@@ -38,6 +38,7 @@ a = Analysis(
         'backend.env_check',
         'backend.camera_config_manager',
         'backend.plc_service',
+        'backend.hardware.run_hidden',
     ],
     hookspath=[],
     hooksconfig={},
