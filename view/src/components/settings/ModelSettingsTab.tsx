@@ -8,6 +8,7 @@ import type { ModelInfo } from '../../types';
 export const ModelSettingsTab: React.FC = () => {
   const user = useAppStore(s => s.user);
   const showMessage = useAppStore(s => s.showMessage);
+  const refreshCatalog = useAppStore(s => s.refreshCatalog);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -81,11 +82,18 @@ export const ModelSettingsTab: React.FC = () => {
       const ok = window.confirm(`模型「${model.name}」正在被以下配置引用：${refs.join('、')}。\n重命名后这些产品/线体需要重新分配，确定继续？`);
       if (!ok) return;
     }
-    const newName = window.prompt('请输入新的模型名称（字母、数字、-、_、.）', model.name);
-    if (!newName || !newName.trim()) return;
+    const oldName = model.name;
+    const newName = (window.prompt('请输入新的模型名称（字母、数字、-、_、.）', oldName) || '').trim();
+    if (!newName) return;
     try {
-      const result = await api.renameModel(model.name, newName.trim());
+      const result = await api.renameModel(oldName, newName);
       if (!result.success) { showMessage(`重命名失败：${result.error || '未知错误'}`); return; }
+      // 全同步：把本地产品与线体中引用该模型的名称一并改为新名称，并通知依赖目录的页面刷新
+      const products = storage.getProducts().map(p => p.model === oldName ? { ...p, model: newName } : p);
+      storage.saveProducts(products);
+      const lines = storage.getLineConfig().map(l => l.model === oldName ? { ...l, model: newName } : l);
+      storage.saveLineConfig(lines);
+      refreshCatalog();
       showMessage(`模型已重命名为「${result.model}」`);
       await load();
     } catch (e) {

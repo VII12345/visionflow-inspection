@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from .camera_config_manager import camera_config_manager
+from .catalog_repository import rename_model_references
 from .config import Config
 from .logger import logger
 from .plc_service import get_plc_config
@@ -253,7 +254,7 @@ def delete_model(model_name):
 
 
 def _update_references_after_rename(old_name, new_name):
-    """重命名后同步相机配置与后端引用登记中的模型名称。"""
+    """重命名后同步相机配置、后端引用登记与目录配置中的模型名称。"""
     try:
         camera_config = camera_config_manager.get_config()
         changed = False
@@ -277,6 +278,10 @@ def _update_references_after_rename(old_name, new_name):
                 )
     except (OSError, ValueError, TypeError) as exc:
         logger.warning(f"更新模型引用登记失败: {exc}")
+    try:
+        rename_model_references(old_name, new_name)
+    except Exception as exc:
+        logger.warning(f"更新目录配置模型引用失败: {exc}")
 
 
 def rename_model(model_name, new_name):

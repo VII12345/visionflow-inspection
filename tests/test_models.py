@@ -9,6 +9,7 @@ from flask import Flask
 from backend.config import Config
 from backend import model_repository
 from backend.camera_config_manager import camera_config_manager
+from backend.catalog_repository import save_catalog
 from backend.model_routes import model_bp
 
 
@@ -103,6 +104,29 @@ class ModelLifecycleTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         stored = json.loads((self.data_dir / "model_refs.json").read_text(encoding="utf-8"))
         self.assertEqual(stored[0]["model"], "demo-v2")
+
+    def test_rename_model_syncs_catalog_references(self):
+        # 目录中产品与线体引用旧模型名，重命名后应一并更新
+        save_catalog(
+            {
+                "products": [{"id": 1, "name": "成品一号", "model": "demo"}],
+                "line_config": [
+                    {"line": 1, "name": "一号线", "productId": 1, "model": "demo"},
+                    {"line": 2, "name": "二号线", "productId": None, "model": "-"},
+                ],
+            }
+        )
+
+        response = self.client.patch("/api/models/demo", json={"name": "demo-v2"})
+
+        self.assertEqual(response.status_code, 200)
+        stored = json.loads(
+            (self.data_dir / "catalog_config.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(stored["products"][0]["model"], "demo-v2")
+        self.assertEqual(stored["line_config"][0]["model"], "demo-v2")
+        # 未引用该模型的线体保持原样
+        self.assertEqual(stored["line_config"][1]["model"], "-")
 
     def test_rename_duplicate_name_returns_400(self):
         _make_model(self.data_dir, "other")

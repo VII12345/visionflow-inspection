@@ -127,3 +127,25 @@ def update_catalog(products=_UNSET, line_config=_UNSET):
         if line_config is not _UNSET:
             catalog["line_config"] = normalize_line_config(line_config)
         return save_catalog(catalog)
+
+
+def rename_model_references(old_name, new_name):
+    """模型重命名后同步目录中引用该模型的产品与线体；无改动时返回 None。"""
+    old_name = str(old_name or "").strip()
+    new_name = str(new_name or "").strip()
+    if not old_name or not new_name or old_name == new_name:
+        return None
+    with _catalog_lock:
+        catalog = load_catalog()
+        changed = False
+        for product in catalog["products"]:
+            if product.get("model") == old_name:
+                product["model"] = new_name
+                changed = True
+        for line in catalog["line_config"]:
+            if line.get("model") == old_name:
+                line["model"] = new_name
+                changed = True
+        if not changed:
+            return None
+        return save_catalog(catalog)
