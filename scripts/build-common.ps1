@@ -25,3 +25,22 @@ function Get-DirectorySizeMiB([string]$Path) {
     $sum = (Get-ChildItem -LiteralPath $Path -Recurse -File | Measure-Object Length -Sum).Sum
     return [math]::Round($sum / 1MB, 1)
 }
+
+<#
+.SYNOPSIS
+把前端构建产物 dist/ 复制到后端资源目录，让打包后的 Flask 后端能直接向浏览器
+提供网页访问（http://<host>:5000/）。必须在 npm run build 之后调用。
+#>
+function Copy-FrontendDist([string]$ViewRoot, [string]$BackendDir, [string]$ResourcesBackendDir) {
+    $webDist = Join-Path $ViewRoot 'dist'
+    if (-not (Test-Path -LiteralPath (Join-Path $webDist 'index.html'))) {
+        throw "未找到前端构建产物: $webDist（请先执行 npm run build）"
+    }
+    foreach ($target in @($BackendDir, $ResourcesBackendDir) | Select-Object -Unique) {
+        if (-not $target -or -not (Test-Path -LiteralPath $target)) { continue }
+        $dest = Join-Path $target 'dist'
+        if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
+        Copy-Item -LiteralPath $webDist -Destination $dest -Recurse -Force
+        Write-Host "  ✓ 前端 dist 已复制到后端资源: $dest" -ForegroundColor Green
+    }
+}

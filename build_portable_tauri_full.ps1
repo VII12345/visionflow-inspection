@@ -65,6 +65,7 @@ Write-Host "[4/5] 构建 React/Vite 和 Tauri 可执行文件..." -ForegroundCol
 Push-Location $ViewRoot
 try {
     Invoke-Checked "npm" @('run', 'build')
+    Copy-FrontendDist -ViewRoot $ViewRoot -BackendDir $BackendDir -ResourcesBackendDir $ResourcesBackendDir
     Invoke-Checked "npm" @('run', 'tauri:prepare')
     Invoke-Checked "npx" @('tauri', 'build', '--no-bundle')
 }

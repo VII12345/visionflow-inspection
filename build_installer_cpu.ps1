@@ -11,7 +11,8 @@ $OutputDir = Join-Path $ProjectRoot "releases"
 $DistDir = Join-Path $ProjectRoot "dist_portable_cpu"
 $BuildDir = Join-Path $ProjectRoot "build_cpu"
 $CpuVenvPath = Join-Path $ProjectRoot ".venv_cpu"
-$ResourcesBackendDir = Join-Path $ProjectRoot "view\resources\backend"
+$ViewRoot = Join-Path $ProjectRoot "view"
+$ResourcesBackendDir = Join-Path $ViewRoot "resources\backend"
 $CpuTorchIndex = "https://download.pytorch.org/whl/cpu"
 
 
@@ -68,6 +69,7 @@ Push-Location (Join-Path $ProjectRoot "view")
 try {
     npm run build
     if ($LASTEXITCODE -ne 0) { throw "前端构建失败" }
+    Copy-FrontendDist -ViewRoot $ViewRoot -BackendDir $BackendDir -ResourcesBackendDir $ResourcesBackendDir
     npm run tauri:prepare
     if ($LASTEXITCODE -ne 0) { throw "Tauri sidecar 准备失败" }
     npx tauri build --bundles nsis

@@ -4,8 +4,11 @@ Flask HTTP 服务器
 """
 
 import io
+import os
+import sys
+from pathlib import Path
 
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request, send_file, send_from_directory
 from flask_cors import CORS
 
 from .config import Config
@@ -40,6 +43,56 @@ app.register_blueprint(training_bp)
 # 登录鉴权：默认关闭（AUTH_ENABLED=False），兼容现有局域网无鉴权部署。
 if Config.AUTH_ENABLED:
     app.before_request(require_auth_middleware)
+
+
+# ========== 网页静态服务（浏览器访问打包应用） ==========
+
+
+def _frontend_dist_dir():
+    """定位前端构建产物目录；找不到返回 None（仅 API 模式）。"""
+    candidates = []
+    env_dist = os.environ.get("VISION_WEB_DIST")
+    if env_dist:
+        candidates.append(Path(env_dist))
+    if getattr(sys, "frozen", False):
+        # 打包：dist 随后端放在同一目录下（resources/backend/dist）
+        candidates.append(Path(sys.executable).parent / "dist")
+    else:
+        # 开发：项目根目录下的 view/dist
+        candidates.append(Path(__file__).resolve().parent.parent / "view" / "dist")
+    for candidate in candidates:
+        if candidate.is_dir() and (candidate / "index.html").exists():
+            return candidate
+    return None
+
+
+def register_web_static(app):
+    """让后端同时服务前端静态页面，浏览器直接访问 http://<host>:5000/ 使用整站。"""
+    web_dist = _frontend_dist_dir()
+    if web_dist is None:
+        logger.info("未找到前端构建产物，网页静态服务未启用（仅提供 API）")
+        return
+
+    @app.route("/")
+    def _web_index():
+        return send_from_directory(web_dist, "index.html")
+
+    @app.route("/<path:filename>")
+    def _web_static(filename):
+        if filename.startswith("api/"):
+            return jsonify({"error": "接口不存在"}), 404
+        target = (web_dist / filename).resolve()
+        try:
+            if target.is_relative_to(web_dist.resolve()) and target.is_file():
+                return send_from_directory(web_dist, filename)
+        except (OSError, ValueError):
+            pass
+        # SPA 回退：hash 路由下未知路径一律返回入口页
+        return send_from_directory(web_dist, "index.html")
+
+
+register_web_static(app)
+logger.info(f"网页入口: http://{Config.FLASK_HOST}:{Config.FLASK_PORT}/")
 
 
 # ========== API 端点 ==========

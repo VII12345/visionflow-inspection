@@ -50,6 +50,7 @@ Write-Host "[4/5] 构建 Tauri NSIS 安装包..." -ForegroundColor Yellow
 Push-Location $ViewRoot
 try {
     Invoke-Checked 'npm' @('run', 'build')
+    Copy-FrontendDist -ViewRoot $ViewRoot -BackendDir $BackendDir -ResourcesBackendDir $ResourcesBackendDir
     Invoke-Checked 'npm' @('run', 'tauri:prepare')
     Invoke-Checked 'npx' @('tauri', 'build', '--bundles', 'nsis')
 }
