@@ -16,6 +16,8 @@ from .logger import logger
 
 # 全局推理队列
 inference_queue = queue.Queue(maxsize=Config.INFERENCE_QUEUE_SIZE)
+# 按相机槽位的结果队列。线体数量可在运行时调整到最多 16 路，访问处用
+# setdefault 惰性创建，避免导入时仅按默认 CAMERA_COUNT 建立而越界。
 result_queues = {i: queue.Queue() for i in range(1, Config.CAMERA_COUNT + 1)}
 
 
@@ -92,7 +94,7 @@ def inference_worker():
                             "model_prepare_ms": round(model_prepare_ms, 2),
                             **{key: round(value, 2) for key, value in (worker_timing or {}).items()},
                         }
-                    result_queues[cid].put(result)
+                    result_queues.setdefault(cid, queue.Queue()).put(result)
 
         except queue.Empty:
             continue
@@ -123,7 +125,7 @@ def submit_inference(cam_id: int, image: Image.Image, timed: bool = False):
 def get_inference_result(cam_id: int, timeout=0.1):
     """获取推理结果（非阻塞）"""
     try:
-        result = result_queues[cam_id].get(timeout=timeout)
+        result = result_queues.setdefault(cam_id, queue.Queue()).get(timeout=timeout)
         return result
     except queue.Empty:
         return None
