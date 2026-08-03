@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { Badge, Button } from '../common/Modal';
 import type { LineConfig, Product } from '../../types';
 import { editInputClass, thClass } from './fileStyles';
+import { resolveProductLabel } from '../../utils/productLabel';
 
 interface Props {
   lineConfig: LineConfig[];
@@ -38,7 +39,7 @@ export const LineTable: React.FC<Props> = ({ lineConfig, products, lineNameDraft
                       className={`${editInputClass} w-36`}
                     />
                   </td>
-                  <td className="px-4 py-3 text-text-secondary">{prod ? (prod.name || prod.model) : '-'}</td>
+                  <td className="px-4 py-3 text-text-secondary">{resolveProductLabel(products, item.productId, '-')}</td>
                   <td className="px-4 py-3">
                     {prod
                       ? (prod.learned

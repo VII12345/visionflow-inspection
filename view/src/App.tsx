@@ -16,6 +16,7 @@ import { useHealthChecks } from './hooks/useHealthChecks';
 import { useInitialPassword } from './hooks/useInitialPassword';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useModelRefSync } from './hooks/useModelRefSync';
+import { resolveProductLabel } from './utils/productLabel';
 
 const MainApp: React.FC = () => {
   const envCheckModal = useAppStore(s => s.envCheckModal);
@@ -71,7 +72,7 @@ const MainApp: React.FC = () => {
         <TrainingCompleteModal
           open={trainingCompleteModal}
           onClose={() => setModal('trainingComplete', false)}
-          modelName={storage.getProducts().find(product => product.model === trainingResult.modelName)?.name || trainingResult.modelName}
+          modelName={resolveProductLabel(storage.getProducts(), trainingResult.modelName, trainingResult.modelName)}
           modelPath={trainingResult.modelPath}
           evalResult={trainingResult.evalResult as { accuracy: number; precision: number; recall: number; f1: number; confusion_matrix: { TP: number; TN: number; FP: number; FN: number }; total: number } | null}
           errorMessage={trainingResult.errorMessage}

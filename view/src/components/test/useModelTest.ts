@@ -3,6 +3,7 @@ import { api } from '../../services/api';
 import { storage } from '../../services/storage';
 import { isTauri, pickDirectory } from '../../services/native';
 import { useAppStore } from '../../store/useAppStore';
+import { resolveProductLabel } from '../../utils/productLabel';
 import type { BackendImageDirectory } from '../common/BackendDirectoryPicker';
 import type { StepTiming } from './TimingBreakdown';
 
@@ -65,7 +66,7 @@ export const useModelTest = () => {
 
   const modelOptions = models.map(model => ({
     name: model.name,
-    label: storage.getProducts().find(product => product.model === model.name)?.name || model.name,
+    label: resolveProductLabel(storage.getProducts(), model.name, model.name),
   }));
 
   const browseLocalFolder = useCallback(async (setter: (value: string) => void) => {

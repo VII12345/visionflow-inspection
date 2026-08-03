@@ -2,6 +2,7 @@ import React from 'react';
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
 import type { LineConfig, Product, RunLayout, SystemStatus } from '../../types';
 import { CameraCard } from './CameraCard';
+import { resolveProductLabel } from '../../utils/productLabel';
 
 interface Props {
   layout: RunLayout;
@@ -59,7 +60,7 @@ export const LineGrid: React.FC<Props> = ({
       {orderedCamIds.map(camId => {
         const cfg = lineConfig[camId - 1];
         const prod = products.find(p => p.id === cfg?.productId);
-        const modelName = prod ? (prod.name || prod.model) : '-';
+        const modelName = resolveProductLabel(products, cfg?.productId, '-');
         const lineName = cfg?.name || `线体 ${camId}`;
         const camStatus = status.cameras[camId];
         const frameUrl = frames[camId];

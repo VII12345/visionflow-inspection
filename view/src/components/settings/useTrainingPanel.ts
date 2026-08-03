@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
 import { useTrainingStore } from '../../store/useTrainingStore';
+import { resolveProductLabel } from '../../utils/productLabel';
 import type { Product } from '../../types';
 
 interface UseTrainingPanelOptions {
@@ -105,7 +106,7 @@ export const useTrainingPanel = ({ products, selectedModel, onTrainingComplete }
       setModal('learnConfirm', false);
       setTrainingProgress({ running: true, progress: 0, label: '正在初始化...', metrics: '--' });
       pollTraining();
-      showMessage(`开始学习 ${products.find(p => p.id === selectedModel!.id)?.name || selectedModel!.model}`);
+      showMessage(`开始学习 ${resolveProductLabel(products, selectedModel!.id, selectedModel!.model)}`);
     } catch (e) {
       showMessage('启动训练失败: ' + ((e as Error).message || '无法连接后端训练服务'));
     }

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { storage } from '../../services/storage';
 import { useAppStore } from '../../store/useAppStore';
+import { deriveModelReferences } from '../../hooks/useModelRefSync';
 import { Button } from '../common/Modal';
 import type { ModelInfo } from '../../types';
 
@@ -29,19 +30,8 @@ export const ModelSettingsTab: React.FC = () => {
 
   const canEdit = user?.level === 'admin' || user?.level === 'tech';
 
-  const findLocalReferences = (modelName: string): string[] => {
-    const products = storage.getProducts();
-    const lineConfig = storage.getLineConfig();
-    const refs: string[] = [];
-    for (const p of products) {
-      if (p.model === modelName) refs.push(`产品「${p.name || p.model}」`);
-    }
-    for (const line of lineConfig) {
-      const prod = products.find(p => p.id === line.productId);
-      if (prod?.model === modelName) refs.push(`线体「${line.name}」`);
-    }
-    return refs;
-  };
+  const findLocalReferences = (modelName: string): string[] =>
+    deriveModelReferences().filter(r => r.model === modelName).map(r => r.label);
 
   const deleteModel = async (model: ModelInfo) => {
     if (!canEdit) {
