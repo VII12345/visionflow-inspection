@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../../store/useAppStore';
-import { isTauri, pickDirectory } from '../../../services/native';
+import { useLocalFolderPicker } from '../../../hooks/useLocalFolderPicker';
 import { BackendDirectoryPicker, type BackendImageDirectory } from '../BackendDirectoryPicker';
 import { FieldHint } from '../FieldHint';
 import { Button, Modal } from '../Modal';
@@ -12,19 +12,7 @@ export const LearnConfirmModal: React.FC<{ onConfirm: (categoryRoot: string) => 
   const setModal = useAppStore(s => s.setModal);
   const showMessage = useAppStore(s => s.showMessage);
 
-  const browseLocalFolder = async () => {
-    try {
-      const path = await pickDirectory();
-      if (path) {
-        setCategoryRoot(path);
-        if (!isTauri()) {
-          showMessage('已选择目录（网页版仅能获取目录名称，实际训练路径请用"选择后端目录"）');
-        }
-      }
-    } catch (error) {
-      showMessage(`选择本地目录失败: ${(error as Error).message}`);
-    }
-  };
+  const browseLocalFolder = useLocalFolderPicker(showMessage);
 
   const applyDirectory = (directory: BackendImageDirectory) => {
     setCategoryRoot(directory.path);
@@ -45,7 +33,7 @@ export const LearnConfirmModal: React.FC<{ onConfirm: (categoryRoot: string) => 
             <label className={labelClass}><FieldHint text="选择训练数据的根目录；下面每个有图片的子目录都会成为一个类别。">类别根目录</FieldHint></label>
             <div className="flex gap-2">
               <input type="text" placeholder="选择包含多个类别子目录的文件夹" value={categoryRoot} onChange={e => setCategoryRoot(e.target.value)} className={`${inputClass} flex-1`} />
-              <Button variant="secondary" size="sm" onClick={browseLocalFolder}>选择本地目录</Button>
+              <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setCategoryRoot, '实际训练路径')}>选择本地目录</Button>
               <Button variant="secondary" size="sm" onClick={() => setPickerOpen(true)}>选择后端目录</Button>
             </div>
           </div>

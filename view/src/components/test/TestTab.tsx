@@ -85,8 +85,8 @@ export const TestTab: React.FC = () => {
               <div className="flex gap-2">
                 <input type="text" placeholder="选择包含多个类别子目录的文件夹" value={categoryRootPath} readOnly
                   className={inputClass + ' flex-1 bg-gray-50 cursor-pointer'}
-                  onClick={() => browseLocalFolder(setCategoryRootPath)} />
-                <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setCategoryRootPath)}>选择本地目录</Button>
+                  onClick={() => browseLocalFolder(setCategoryRootPath, '实际测试路径')} />
+                <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setCategoryRootPath, '实际测试路径')}>选择本地目录</Button>
                 <Button variant="secondary" size="sm" onClick={() => setPickerTarget('categoryRoot')}>选择后端目录</Button>
               </div>
             </div>
@@ -98,8 +98,8 @@ export const TestTab: React.FC = () => {
             <div className="flex gap-2">
               <input type="text" placeholder="选择包含图片的文件夹" value={folderPath} readOnly
                 className={inputClass + ' flex-1 bg-gray-50 cursor-pointer'}
-                onClick={() => browseLocalFolder(setFolderPath)} />
-              <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setFolderPath)}>选择本地目录</Button>
+                onClick={() => browseLocalFolder(setFolderPath, '实际测试路径')} />
+              <Button variant="secondary" size="sm" onClick={() => browseLocalFolder(setFolderPath, '实际测试路径')}>选择本地目录</Button>
               <Button variant="secondary" size="sm" onClick={() => setPickerTarget('folder')}>选择后端目录</Button>
             </div>
             <p className="text-[11px] text-text-tertiary mt-1">不限类别，按真实异步检测链路执行，并按文件名输出每张图片的结果和逐步延迟。网页版不能直接选择浏览器所在电脑的本地文件夹，测试图片需要位于后端电脑。</p>
