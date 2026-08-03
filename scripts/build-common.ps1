@@ -28,6 +28,16 @@ function Get-DirectorySizeMiB([string]$Path) {
 
 <#
 .SYNOPSIS
+断言 CPU-only 后端产物不包含 GPU/CUDA DLL，否则中止构建。
+#>
+function Assert-NoGpuDll([string]$BackendDir) {
+    $gpuDllPattern = '^(torch_cuda|c10_cuda|cublas|cudnn|cudart|nvrtc|caffe2_nvrtc).*\.dll$'
+    $gpuDlls = Get-ChildItem -LiteralPath $BackendDir -Recurse -File | Where-Object { $_.Name -match $gpuDllPattern }
+    if ($gpuDlls) { throw "CPU-only 包检测到 GPU DLL: $(($gpuDlls.Name -join ', '))" }
+}
+
+<#
+.SYNOPSIS
 把前端构建产物 dist/ 复制到后端资源目录，让打包后的 Flask 后端能直接向浏览器
 提供网页访问（http://<host>:5000/）。必须在 npm run build 之后调用。
 #>

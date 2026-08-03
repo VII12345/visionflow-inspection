@@ -54,9 +54,7 @@ if ($LASTEXITCODE -ne 0) { throw "PyInstaller 失败，详情见: $pyinstallerLo
 $BackendDir = Join-Path $DistDir "backend"
 $BackendExe = Join-Path $BackendDir "backend.exe"
 if (-not (Test-Path -LiteralPath $BackendExe)) { throw "CPU 后端打包失败：未找到 backend.exe" }
-$gpuDllPattern = '^(torch_cuda|c10_cuda|cublas|cudnn|cudart|nvrtc|caffe2_nvrtc).*\.dll$'
-$gpuDlls = Get-ChildItem -LiteralPath $BackendDir -Recurse -File | Where-Object { $_.Name -match $gpuDllPattern }
-if ($gpuDlls) { throw "CPU 包检测到 GPU DLL，已终止发布: $(($gpuDlls.Name -join ', '))" }
+Assert-NoGpuDll $BackendDir
 $backendSize = Get-DirectorySizeMiB $BackendDir
 Write-Host "  ✓ CPU 后端完成 ($backendSize MB，未检测到 CUDA DLL)" -ForegroundColor Green
 

@@ -53,9 +53,7 @@ $pyinstallerLog = Join-Path $ProjectRoot "pyinstaller-build-tauri-cpu.log"
 if ($LASTEXITCODE -ne 0) { throw "CPU-only PyInstaller 构建失败，详情见: $pyinstallerLog" }
 if (Test-Path -LiteralPath (Join-Path $DistDir "backend" "backend.exe")) { $BackendDir = Join-Path $DistDir "backend" }
 if (-not (Test-Path -LiteralPath (Join-Path $BackendDir "backend.exe"))) { throw "未找到 CPU-only backend.exe" }
-$gpuDllPattern = '^(torch_cuda|c10_cuda|cublas|cudnn|cudart|nvrtc|caffe2_nvrtc).*\.dll$'
-$gpuDlls = Get-ChildItem -LiteralPath $BackendDir -Recurse -File | Where-Object { $_.Name -match $gpuDllPattern }
-if ($gpuDlls) { throw "CPU-only 包检测到 GPU DLL: $(($gpuDlls.Name -join ', '))" }
+Assert-NoGpuDll $BackendDir
 Write-Host "  ✓ CPU-only backend.exe 已生成，未检测到 GPU DLL" -ForegroundColor Green
 
 Write-Host "[3/5] 准备便携版后端资源..." -ForegroundColor Yellow
