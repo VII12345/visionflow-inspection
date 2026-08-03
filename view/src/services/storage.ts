@@ -89,6 +89,26 @@ export const storage = {
     set('products', normalized);
     void import('./api').then(({ api }) => api.saveCatalog({ products: normalized })).catch(() => { /* 后端不可达时保留本地缓存 */ });
   },
+  /** 从后端模型列表同步本地产品 learned 状态；返回是否发生变化。 */
+  syncProductsLearningStatus: async (): Promise<boolean> => {
+    try {
+      const { api } = await import('./api');
+      const data = await api.getModels();
+      if (!(data as { success: boolean }).success || !(data as { models: { name: string }[] }).models) return false;
+      const trainedNames = new Set((data as { models: { name: string }[] }).models.map(m => m.name));
+      const prods = storage.getProducts();
+      let changed = false;
+      for (const p of prods) {
+        const was = p.learned;
+        p.learned = trainedNames.has(p.model);
+        if (p.learned !== was) changed = true;
+      }
+      if (changed) storage.saveProducts(prods);
+      return changed;
+    } catch {
+      return false;
+    }
+  },
 
   getLineConfig: (count?: number) => {
     const raw = get('lineConfig', defaults.lineConfig);

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { storage } from '../../services/storage';
-import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
+import { usePolling } from '../../hooks/usePolling';
 import type { Product, LineConfig } from '../../types';
 
 /** 目录加载、刷新与轮询（产品列表 + 线体配置）。 */
@@ -12,7 +12,6 @@ export const useCatalog = () => {
   const addProductModal = useAppStore(s => s.addProductModal);
   const [products, setProducts] = useState<Product[]>(storage.getProducts());
   const [lineConfig, setLineConfig] = useState<LineConfig[]>(() => storage.getLineConfig(lineCount));
-  const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadCatalog = useCallback(() => {
     setProducts([...storage.getProducts()]);
@@ -20,21 +19,8 @@ export const useCatalog = () => {
   }, [lineCount]);
 
   const refresh = useCallback(async () => {
-    try {
-      const data = await api.getModels();
-      if ((data as { success: boolean }).success && (data as { models: { name: string }[] }).models) {
-        const trainedNames = new Set((data as { models: { name: string }[] }).models.map(m => m.name));
-        const prods = storage.getProducts();
-        let changed = false;
-        for (const p of prods) {
-          const was = p.learned;
-          p.learned = trainedNames.has(p.model);
-          if (p.learned !== was) changed = true;
-        }
-        if (changed) storage.saveProducts(prods);
-        setProducts([...prods]);
-      }
-    } catch { /* ignore */ }
+    const changed = await storage.syncProductsLearningStatus();
+    if (changed) setProducts([...storage.getProducts()]);
     setLineConfig([...storage.getLineConfig(lineCount)]);
   }, [lineCount]);
 
@@ -45,15 +31,8 @@ export const useCatalog = () => {
     if (!addProductModal) loadCatalog();
   }, [addProductModal, loadCatalog]);
 
-  useEffect(() => {
-    if (isRunning) {
-      refreshRef.current = setInterval(refresh, 5000);
-    } else if (refreshRef.current) {
-      clearInterval(refreshRef.current);
-      refreshRef.current = null;
-    }
-    return () => { if (refreshRef.current) clearInterval(refreshRef.current); };
-  }, [isRunning, refresh]);
+  // 系统运行期间每 5s 同步一次产品/线体与模型学习状态。
+  usePolling(refresh, 5000, isRunning);
 
   return { products, lineConfig, loadCatalog, refresh };
 };

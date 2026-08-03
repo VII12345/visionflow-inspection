@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { storage } from '../../services/storage';
 import { useAppStore } from '../../store/useAppStore';
+import { usePolling } from '../../hooks/usePolling';
 
 /** 运行页模型学习状态与剔除类别同步。 */
 export const useRunModelSync = () => {
@@ -15,25 +16,10 @@ export const useRunModelSync = () => {
   useEffect(() => { setProducts(storage.getProducts()); }, [catalogRevision]);
 
   const syncModelStatus = useCallback(async () => {
-    try {
-      const data = await api.getModels();
-      if ((data as { success: boolean; models?: { name: string }[] }).success && (data as { models: { name: string }[] }).models) {
-        const trainedNames = new Set((data as { models: { name: string }[] }).models.map(m => m.name));
-        const prods = storage.getProducts();
-        let changed = false;
-        for (const p of prods) {
-          const was = p.learned;
-          p.learned = trainedNames.has(p.model);
-          if (p.learned !== was) changed = true;
-        }
-        if (changed) {
-          storage.saveProducts(prods);
-          setProducts([...prods]);
-        }
-      }
-    } catch { /* backend may not be ready */ }
+    const changed = await storage.syncProductsLearningStatus();
+    if (changed) setProducts([...storage.getProducts()]);
   }, []);
-  useEffect(() => { syncModelStatus(); const iv = setInterval(syncModelStatus, 10000); return () => clearInterval(iv); }, [syncModelStatus]);
+  usePolling(syncModelStatus, 10000);
 
   return { products, rejectLabels };
 };

@@ -1,33 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../services/api';
-import type { SystemStatus, CameraStatus } from '../types';
+import type { SystemStatus } from '../types';
 import { useAppStore } from '../store/useAppStore';
+import { usePolling } from './usePolling';
 
 export function useSystemPolling(isRunning: boolean) {
   const [status, setStatus] = useState<SystemStatus>({ cameras: {} });
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const poll = useCallback(async () => {
     try {
       const data = await api.status();
-      setStatus({ cameras: (data as unknown as SystemStatus).cameras || {} });
+      setStatus({ cameras: data.cameras || {} });
     } catch { /* ignore */ }
   }, []);
 
-  useEffect(() => {
-    if (isRunning) {
-      poll();
-      intervalRef.current = setInterval(poll, 500);
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [isRunning, poll]);
+  usePolling(poll, 500, isRunning);
 
   return status;
 }

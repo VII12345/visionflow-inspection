@@ -35,7 +35,7 @@ export interface ImageDirectory { path: string; name: string; relativePath: stri
 export interface ImageDirectoriesResponse { success: boolean; directories: ImageDirectory[]; }
 export interface SaveSettingsResponse { success: boolean; settings: Record<number, { saveGood: boolean; saveBad: boolean }>; }
 export interface SaveCameraSettingsResponse { success: boolean; settings?: { saveGood: boolean; saveBad: boolean }; error?: string; }
-export interface PhotosResponse { success: boolean; photos: { filename: string; mtime: string; size: number; result: string; timestamp: number }[]; okCount: number; ngCount: number; }
+export interface PhotosResponse { success: boolean; photos: { filename: string; subdir: string; mtime: string; size: number; result: string; timestamp: number }[]; okCount: number; ngCount: number; }
 
 export interface PhotoItem {
   camId: number;

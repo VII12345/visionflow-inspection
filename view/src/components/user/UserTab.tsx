@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { storage } from '../../services/storage';
 import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
+import { usePolling } from '../../hooks/usePolling';
 import { Button, Badge } from '../common/Modal';
 import { FieldHint } from '../common/FieldHint';
 import type { UserLevel } from '../../types';
@@ -36,7 +37,8 @@ export const UserTab: React.FC = () => {
     } catch { /* 后端不可达时保留上次列表 */ }
   }, []);
 
-  useEffect(() => { void refreshUsers(); }, [refreshUsers]);
+  // 挂载时立即拉取一次并按 10s 轮询（usePolling 自带 in-flight 互斥）
+  usePolling(refreshUsers, 10000);
 
   const saveRememberLogin = (checked: boolean) => {
     if (!checkAdmin()) return;
@@ -45,11 +47,6 @@ export const UserTab: React.FC = () => {
     if (!checked) storage.setCurrentUser(null);
     showMessage(checked ? '下次打开系统将自动保持当前登录账户' : '已关闭保持登录，下次打开系统需要重新登录');
   };
-
-  useEffect(() => {
-    const interval = setInterval(() => void refreshUsers(), 10000);
-    return () => clearInterval(interval);
-  }, [refreshUsers]);
 
   const checkAdmin = (): boolean => {
     if (!currentUser) { setModal('login', true); return false; }

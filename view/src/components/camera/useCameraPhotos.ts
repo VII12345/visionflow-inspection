@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { storage } from '../../services/storage';
 import { useAppStore } from '../../store/useAppStore';
+import { usePolling } from '../../hooks/usePolling';
 import type { Photo } from '../../types';
 
 export type FilterTab = 'all' | 'pass' | 'reject';
@@ -20,7 +21,6 @@ export const useCameraPhotos = (
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
   const [stats, setStats] = useState(storage.getCameraStats());
   const [photoStats, setPhotoStats] = useState({ ok: 0, ng: 0, unk: 0 });
-  const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadPhotos = useCallback(async () => {
     try {
@@ -44,7 +44,7 @@ export const useCameraPhotos = (
     try {
       const data = await api.getPhotos(camId);
       if (data.success && data.photos) {
-        const photosData: Photo[] = data.photos.map((p: { filename: string; mtime: string; size: number; result: string; timestamp: number; subdir?: string }) => ({
+        const photosData: Photo[] = data.photos.map(p => ({
           id: p.filename,
           time: p.mtime,
           result: p.result || '--',
@@ -69,14 +69,7 @@ export const useCameraPhotos = (
 
   useEffect(() => { loadPhotos(); }, [loadPhotos]);
 
-  useEffect(() => {
-    if (isRunning) {
-      refreshRef.current = setInterval(loadPhotos, 2000);
-    } else {
-      if (refreshRef.current) { clearInterval(refreshRef.current); refreshRef.current = null; }
-    }
-    return () => { if (refreshRef.current) clearInterval(refreshRef.current); };
-  }, [isRunning, loadPhotos]);
+  usePolling(loadPhotos, 2000, isRunning);
 
   const resetStats = async () => {
     try {
