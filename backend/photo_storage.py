@@ -4,12 +4,9 @@ import json
 import os
 from pathlib import Path
 
-from .config import Config
+from .config import Config, IMAGE_EXTENSIONS
 from .logger import logger
 from .photo_service import cleanup_captures
-
-
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 
 
 def default_save_settings():

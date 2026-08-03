@@ -10,9 +10,9 @@ from flask import Blueprint, jsonify, request
 
 from . import inference_worker, model_loader
 from .capture_service import submit_save
-from .config import Config
+from .config import Config, IMAGE_EXTENSIONS
 from .logger import logger
-from .model_repository import resolve_model_path
+from .model_repository import DEFAULT_CATEGORIES, resolve_model_path
 from .runtime_state import runtime
 
 
@@ -30,7 +30,7 @@ def test_model():
     from .inference_worker import get_inference_result, submit_inference
     from .model_loader import set_camera_product
 
-    IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}
+    IMG_EXTS = IMAGE_EXTENSIONS
     STEP_LABELS = {
         "inference_submit_ms": "提交推理队列",
         "inference_queue_wait_ms": "推理队列等待",
@@ -69,7 +69,7 @@ def test_model():
             return jsonify({"success": False, "message": "请指定模型名称"}), 400
         if mode not in ("labeled", "unlabeled"):
             return jsonify({"success": False, "message": "无效的测试模式"}), 400
-        model_categories = ["类别1", "类别2"]
+        model_categories = list(DEFAULT_CATEGORIES)
         model_path = resolve_model_path(model_name)
         if model_path is None:
             return jsonify({"success": False, "message": "模型不存在"}), 404

@@ -6,6 +6,7 @@ import torch
 
 from .config import Config
 from .logger import logger
+from .model_repository import DEFAULT_CATEGORIES
 
 
 # 全局模型（按产品名缓存）
@@ -94,7 +95,7 @@ def load_model(model_name=None):
         model_path = Config.get_active_model_path(model_name)
         logger.info(f"加载模型: {model_path or '无'} (请求: {model_name or '自动'})")
 
-        categories = ["类别1", "类别2"]
+        categories = list(DEFAULT_CATEGORIES)
         state_dict = None
         metadata_path = None
         if model_path is not None:

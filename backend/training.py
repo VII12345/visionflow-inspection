@@ -30,6 +30,9 @@ from torchvision.models import mobilenet_v3_large, MobileNet_V3_Large_Weights
 from torchvision import transforms
 from torch.amp import autocast
 
+from .config import IMAGE_EXTENSIONS
+from .model_repository import DEFAULT_CATEGORIES
+
 IMG_SIZE = 224
 # 默认设备（运行时可通过 set_training_device() 覆盖）
 _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -138,7 +141,6 @@ def load_and_prepare(img_path: str) -> np.ndarray | None:
 
 def _find_category_dirs(folder: Path):
     """发现包含图片的类别子目录，按目录名称排序以保持标签稳定。"""
-    image_exts = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
     if not folder.is_dir():
         return []
     return sorted(
@@ -147,15 +149,14 @@ def _find_category_dirs(folder: Path):
             for directory in folder.iterdir()
             if directory.is_dir()
             and not directory.name.startswith(".")
-            and any(item.is_file() and item.suffix.lower() in image_exts for item in directory.iterdir())
+            and any(item.is_file() and item.suffix.lower() in IMAGE_EXTENSIONS for item in directory.iterdir())
         ],
         key=lambda item: item.name,
     )
 
 
 def _image_files(folder: Path):
-    image_exts = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
-    return sorted([item for item in folder.glob("*") if item.is_file() and item.suffix.lower() in image_exts])
+    return sorted([item for item in folder.glob("*") if item.is_file() and item.suffix.lower() in IMAGE_EXTENSIONS])
 
 
 def _find_labeled_images(folder: Path):
@@ -173,7 +174,7 @@ def _find_auto_images(image_dir: Path):
         [
             p
             for p in image_dir.glob("*")
-            if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp")
+            if p.suffix.lower() in IMAGE_EXTENSIONS
         ]
     )
     samples = []
@@ -215,7 +216,7 @@ class ProductDataset(Dataset):
                 samples.extend((image, label, False) for image in _image_files(category_dir))
         else:
             self.mode = "auto"
-            self.categories = ["类别1", "类别2"]
+            self.categories = list(DEFAULT_CATEGORIES)
             image_paths = _image_files(folder)
             for image_path in image_paths:
                 samples.append((image_path, 0, False))
@@ -576,7 +577,7 @@ def train_model_v2(
 
 
 def _label_for_index(index: int, labels: list[str] | None = None) -> str:
-    names = labels or ["类别1", "类别2"]
+    names = labels or list(DEFAULT_CATEGORIES)
     return names[index] if index < len(names) else f"类别{index + 1}"
 
 

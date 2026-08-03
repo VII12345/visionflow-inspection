@@ -4,8 +4,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from .config import IMAGE_EXTENSIONS
 
-PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp"}
+
 MIME_TYPES = {
     ".png": "image/png",
     ".bmp": "image/bmp",
@@ -41,7 +42,7 @@ def list_camera_photos(capture_dir: Path, reject_labels):
         except OSError:
             continue
         for file_path in files:
-            if not file_path.is_file() or file_path.suffix.lower() not in PHOTO_EXTENSIONS:
+            if not file_path.is_file() or file_path.suffix.lower() not in IMAGE_EXTENSIONS:
                 continue
             try:
                 stat = file_path.stat()
@@ -97,7 +98,7 @@ def cleanup_captures(capture_root: Path, camera_count: int, max_age_days: int, r
         for subdir in iter_photo_subdirs(capture_dir):
             try:
                 for file_path in subdir.iterdir():
-                    if file_path.is_file() and file_path.suffix.lower() in PHOTO_EXTENSIONS:
+                    if file_path.is_file() and file_path.suffix.lower() in IMAGE_EXTENSIONS:
                         files.append((file_path, file_path.stat().st_mtime))
             except OSError:
                 continue

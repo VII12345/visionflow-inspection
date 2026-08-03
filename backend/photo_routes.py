@@ -12,11 +12,10 @@ from .capture_service import (
     list_image_directories_data,
     persist_save_settings,
 )
-from .config import Config
+from .config import Config, IMAGE_EXTENSIONS
 from .logger import logger
 from .model_repository import get_model_reject_labels
 from .photo_service import (
-    PHOTO_EXTENSIONS,
     delete_photo as delete_photo_file,
     find_photo,
     iter_photo_subdirs,
@@ -134,7 +133,7 @@ def _iter_all_photos(camera_id=None):
             except OSError:
                 continue
             for file_path in files:
-                if not file_path.is_file() or file_path.suffix.lower() not in PHOTO_EXTENSIONS:
+                if not file_path.is_file() or file_path.suffix.lower() not in IMAGE_EXTENSIONS:
                     continue
                 try:
                     stat = file_path.stat()

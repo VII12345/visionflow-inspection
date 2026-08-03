@@ -7,6 +7,9 @@ import platform
 import sys
 from pathlib import Path
 
+# 训练/测试/照片扫描共用的图片扩展名（单一来源）
+IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"})
+
 
 class _LazyDevice:
     """首次读取时检测推理/训练设备并缓存。

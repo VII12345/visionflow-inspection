@@ -7,7 +7,7 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 
-from .config import Config
+from .config import Config, IMAGE_EXTENSIONS
 from .logger import logger
 from .runtime_state import runtime
 
@@ -221,7 +221,7 @@ def start_training():
         class_b_path = clean_path("classBPath")
         model_name = clean_path("modelName") or "default"
 
-        image_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
+        image_extensions = IMAGE_EXTENSIONS
 
         def validate_image_directory(path_value, label, recursive=False):
             directory = Path(path_value)
