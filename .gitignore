@@ -1,5 +1,5 @@
 data/
-test/
+/test/
 .claude/
 # Python virtual environment
 .venv/
