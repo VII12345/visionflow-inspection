@@ -81,12 +81,6 @@ export async function openCameraPopout(camId: number): Promise<void> {
   });
 }
 
-export async function closeCameraPopout(camId: number): Promise<void> {
-  if (!isTauri()) return;
-  const existing = await WebviewWindow.getByLabel(`camera-popout-${camId}`);
-  if (existing) await existing.close();
-}
-
 export function subscribeCameraPopoutClosed(callback: (camId: number) => void): Promise<UnlistenFn> {
   if (!isTauri()) return Promise.resolve(() => undefined);
   return listen<number>('camera-popout-closed', event => callback(event.payload));

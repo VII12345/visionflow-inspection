@@ -36,10 +36,11 @@ const MainApp: React.FC = () => {
   const initialPassword = useInitialPassword();
 
   // Storage info
+  const storageInfo = storage.getStorageInfo();
+  const storageInfoText = storageInfo.type === 'encrypted' ? `加密存储: ${storageInfo.path}` : `明文存储: ${storageInfo.path}`;
   useEffect(() => {
-    const info = storage.getStorageInfo();
-    showMessage(info.type === 'encrypted' ? `加密存储: ${info.path}` : `明文存储: ${info.path}`);
-  }, [showMessage]);
+    showMessage(storageInfoText);
+  }, [showMessage, storageInfoText]);
 
   const handleLearnConfirm = useCallback((categoryRoot: string) => {
     if (learnCallback) learnCallback(categoryRoot);
@@ -60,7 +61,7 @@ const MainApp: React.FC = () => {
       {/* Status Bar */}
       <footer className="status-bar flex items-center justify-between gap-4 h-8 px-4 2xl:px-8 bg-surface border-t border-gray-200 shrink-0 text-[11px] text-text-tertiary relative">
         <span className="flex-1 min-w-0 truncate">{statusMessage}</span>
-        <span className="shrink-0 max-w-[45%] truncate">{storage.getStorageInfo().type === 'encrypted' ? `加密存储: ${storage.getStorageInfo().path}` : `明文存储: ${storage.getStorageInfo().path}`}</span>
+        <span className="shrink-0 max-w-[45%] truncate">{storageInfoText}</span>
       </footer>
 
       <SystemAlarm />

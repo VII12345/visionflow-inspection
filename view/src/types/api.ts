@@ -8,9 +8,7 @@ export interface SetLineEnabledResponse { success: boolean; enabled?: boolean; r
 export interface CameraStatusResponse extends SystemStatus { cameras: Record<number, CameraStatus>; system?: { running: boolean; modelLoaded?: boolean }; }
 
 export interface CameraConfigResponse { success: boolean; config: Record<string, unknown>; }
-export interface AllCameraConfigsResponse { success: boolean; config: { cameras: Record<string, Record<string, unknown>> }; }
 export interface SaveCameraConfigResponse { success: boolean; message?: string; plcSuccess?: boolean; plcError?: string; }
-export interface TestRejectSignalResponse { success: boolean; camera?: number; address?: string; value?: number; error?: string; }
 
 export interface StartTrainingParams { categoryRootPath?: string; classAPath?: string; classBPath?: string; folderPath?: string; modelName: string; }
 export interface StartTrainingResponse { success: boolean; message?: string; error?: string; }
@@ -23,13 +21,10 @@ export interface TimingSummary { avg_ms: number; min_ms: number; max_ms: number;
 export interface TestModelResponse {
   success: boolean; message?: string; mode: string; model_name: string; total: number; correct?: number; accuracy?: number; categories?: string[];
   category_counts?: Record<string, { total: number; correct: number; accuracy: number | null }>;
-  class_a_total?: number; class_a_correct?: number; class_a_accuracy?: number | null;
-  class_b_total?: number; class_b_correct?: number; class_b_accuracy?: number | null;
   timing?: TimingSummary;
   results: { filename: string; expected?: string; predicted: string; confidence: number; correct?: boolean; time_ms?: number; timing?: Record<string, number> }[];
 }
 
-export type StatsResponse = Record<number, CameraStats>;
 export interface ResetStatsResponse { success: boolean; stats?: CameraStats; }
 export interface ImageDirectory { path: string; name: string; relativePath: string; root: string; imageCount: number; }
 export interface ImageDirectoriesResponse { success: boolean; directories: ImageDirectory[]; }

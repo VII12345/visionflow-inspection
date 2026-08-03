@@ -2,14 +2,14 @@ import type { PlcConfig, UserLevel } from '../types';
 import { API_BASE, backendFetch } from './apiClient';
 import { useAppStore } from '../store/useAppStore';
 import type {
-  AllCameraConfigsResponse, CameraConfigResponse, CameraStatusResponse, CatalogResponse, DeviceConfigResponse,
+  CameraConfigResponse, CameraStatusResponse, CatalogResponse, DeviceConfigResponse,
   EnvironmentCheckResponse, HardwareInfoResponse, HealthResponse, ImageDirectoriesResponse,
   InitialPasswordResponse, LineCountResponse, ModelListResponse, PhotosResponse, PlcConfigResponse, PlcWritePayload,
   PlcWriteResponse, ResetStatsResponse, SaveCameraConfigResponse, SaveCameraSettingsResponse,
   SaveDeviceConfigResponse, SaveLineCountResponse, SaveModelSettingsResponse, SavePlcConfigResponse,
   SaveSettingsResponse, SetLineEnabledResponse, StartResponse, StartTrainingParams,
-  StartTrainingResponse, StatsResponse, StopResponse, TestModelParams, TestModelResponse,
-  TestRejectSignalResponse, TrainingStatusResponse, PhotoFilterParams, PhotoListResponse,
+  StartTrainingResponse, StopResponse, TestModelParams, TestModelResponse,
+  TrainingStatusResponse, PhotoFilterParams, PhotoListResponse,
   PhotoTrendResponse,
 } from '../types/api';
 
@@ -38,9 +38,7 @@ export const api = {
   status: () => backendFetch<CameraStatusResponse>('/api/status'),
   getFrame: (camId: number) => backendFetch<Blob>(`/api/frame/${camId}`, { responseType: 'blob' }),
   getCameraConfig: (camId: number) => backendFetch<CameraConfigResponse>(`/api/cameras/config/${camId}`),
-  getAllCameraConfigs: () => backendFetch<AllCameraConfigsResponse>('/api/cameras/config'),
   saveCameraConfig: (camId: number, config: Record<string, unknown>) => backendFetch<SaveCameraConfigResponse>(`/api/cameras/config/${camId}`, { method: 'POST', body: config }),
-  testRejectSignal: (camId: number) => backendFetch<TestRejectSignalResponse>(`/api/cameras/${camId}/plc/test-reject`, { method: 'POST' }),
   startTraining: (params: StartTrainingParams) => backendFetch<StartTrainingResponse>('/api/training/start', { method: 'POST', body: params }),
   stopTraining: () => backendFetch('/api/training/stop', { method: 'POST' }),
   trainingStatus: () => backendFetch<TrainingStatusResponse>('/api/training/status'),
@@ -50,7 +48,6 @@ export const api = {
   renameModel: (name: string, newName: string) => backendFetch<{ success: boolean; model?: string; error?: string }>(`/api/models/${encodeURIComponent(name)}`, { method: 'PATCH', body: { name: newName } }),
   saveModelSettings: (modelName: string, rejectLabels: string[], categoryDescriptions: Record<string, string> = {}) => backendFetch<SaveModelSettingsResponse>(`/api/models/${encodeURIComponent(modelName)}/settings`, { method: 'POST', body: { reject_labels: rejectLabels, category_descriptions: categoryDescriptions } }),
   testModel: (params: TestModelParams) => backendFetch<TestModelResponse>('/api/test', { method: 'POST', body: params }),
-  getStats: () => backendFetch<StatsResponse>('/api/stats'),
   resetStats: (camId: number) => backendFetch<ResetStatsResponse>(`/api/stats/reset/${camId}`, { method: 'POST' }),
   getImageDirectories: () => backendFetch<ImageDirectoriesResponse>('/api/image-directories'),
   getSaveSettings: () => backendFetch<SaveSettingsResponse>('/api/save-settings'),
