@@ -1,7 +1,6 @@
 """MVS 相机控制能力：曝光、增益、触发延时、滤波与频闪。"""
 
 from .logger import logger
-from .mvs_sdk import *  # noqa: F401,F403
 
 
 class MVSControlsMixin:

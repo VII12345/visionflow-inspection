@@ -6,7 +6,6 @@
 from .mvs_acquisition import MVSAcquisitionMixin
 from .mvs_controls import MVSControlsMixin
 from .mvs_device import MVSDeviceMixin
-from .mvs_sdk import *  # noqa: F401,F403  # 保持 manager 的 SDK 星号导入兼容
 
 
 class MVSCamera(MVSDeviceMixin, MVSAcquisitionMixin, MVSControlsMixin):

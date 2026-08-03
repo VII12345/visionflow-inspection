@@ -1,7 +1,12 @@
 """MVS 设备生命周期：连接/断开与设备信息解析。"""
 
 from .logger import logger
-from .mvs_sdk import *  # noqa: F401,F403
+from .mvs_sdk import MV_GIGE_DEVICE, MvCamera, parse_gige_info
+
+try:
+    from .mvs_sdk import MV_ACCESS_ExclusiveWithSwitch
+except ImportError:
+    MV_ACCESS_ExclusiveWithSwitch = 2
 
 
 class MVSDeviceMixin:
@@ -51,12 +56,7 @@ class MVSDeviceMixin:
                 raise RuntimeError(f"创建句柄失败，错误码: {ret}")
 
             # 打开设备（先尝试强制切换，相机配置变更后可能需要强制接管）
-            ret = self.handle.MV_CC_OpenDevice(
-                MV_ACCESS_ExclusiveWithSwitch
-                if "MV_ACCESS_ExclusiveWithSwitch" in dir()
-                else 2,
-                0,
-            )
+            ret = self.handle.MV_CC_OpenDevice(MV_ACCESS_ExclusiveWithSwitch, 0)
             if ret != 0:
                 raise RuntimeError(f"打开设备失败，错误码: {ret}")
 
