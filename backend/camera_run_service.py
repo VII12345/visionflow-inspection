@@ -9,7 +9,7 @@ from .mvs_camera_manager import MVSCameraManager
 from .inference_worker import submit_inference, get_inference_result
 from . import model_loader
 from .plc_service import get_plc_config, PlcWriteError, plc_service
-from .runtime_state import runtime
+from .runtime_state import runtime, DEFAULT_CAMERA_STATE
 from .capture_service import submit_save
 from .model_repository import get_model_reject_labels as _get_model_reject_labels
 
@@ -35,17 +35,7 @@ def initialize_camera_manager():
 
     # 初始化相机状态
     for i in range(1, Config.CAMERA_COUNT + 1):
-        runtime.camera_states[i] = {
-            "state": "disconnected",
-            "serial": None,
-            "model": None,
-            "ip": None,
-            "triggerMode": "hardware",  # 硬触发模式
-            "fps": 0,  # 触发频率（次/秒）
-            "totalTriggers": 0,  # 累计触发次数
-            "lastFrameTime": None,
-            "error": None,
-        }
+        runtime.camera_states[i] = dict(DEFAULT_CAMERA_STATE)
 
     logger.info(f"相机状态已初始化: {len(runtime.camera_states)} 个相机槽位")
 

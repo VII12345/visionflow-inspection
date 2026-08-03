@@ -8,7 +8,7 @@ from .logger import logger
 from .camera_config_manager import camera_config_manager
 from .env_check import run_environment_check
 from .hardware_service import collect_hardware_info
-from .runtime_state import runtime
+from .runtime_state import runtime, DEFAULT_CAMERA_STATE
 from .settings_repository import (
     load_device_config,
     load_line_count,
@@ -69,17 +69,7 @@ def apply_line_count(count):
         for i in range(1, count + 1)
     }
     for cam_id in range(1, count + 1):
-        runtime.camera_states.setdefault(cam_id, {
-            "state": "disconnected",
-            "serial": None,
-            "model": None,
-            "ip": None,
-            "triggerMode": "hardware",
-            "fps": 0,
-            "totalTriggers": 0,
-            "lastFrameTime": None,
-            "error": None,
-        })
+        runtime.camera_states.setdefault(cam_id, dict(DEFAULT_CAMERA_STATE))
     for cam_id in list(runtime.camera_states):
         if cam_id > count and cam_id not in runtime.cameras:
             runtime.camera_states.pop(cam_id, None)
