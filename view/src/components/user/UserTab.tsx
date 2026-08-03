@@ -5,11 +5,8 @@ import { useAppStore } from '../../store/useAppStore';
 import { usePolling } from '../../hooks/usePolling';
 import { Button, Badge } from '../common/Modal';
 import { FieldHint } from '../common/FieldHint';
+import { inputClass, labelClass, thClass } from '../common/uiClasses';
 import type { UserLevel } from '../../types';
-
-const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors placeholder:text-text-tertiary';
-const labelClass = 'text-xs text-text-secondary mb-1.5 block';
-const thClass = 'px-4 py-2.5 text-left text-[11px] font-medium text-text-tertiary uppercase tracking-wide';
 
 const levelLabels: Record<string, string> = { admin: '管理员', tech: '技术员', operator: '操作员' };
 

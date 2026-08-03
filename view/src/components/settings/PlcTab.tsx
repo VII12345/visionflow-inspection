@@ -3,10 +3,8 @@ import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
 import { Button } from '../common/Modal';
 import { FieldHint } from '../common/FieldHint';
+import { inputClass, labelClass } from '../common/uiClasses';
 import type { PlcConfig } from '../../types';
-
-const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors';
-const labelClass = 'text-xs text-text-secondary mb-1.5 block';
 
 const fallbackConfig: PlcConfig = {
   enabled: true,

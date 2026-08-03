@@ -2,11 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
 import { Button } from '../common/Modal';
+import { inputClassCompact, thClass } from '../common/uiClasses';
 import type { PhotoItem, TrendPoint } from '../../types/api';
 import { TrendChart } from './TrendChart';
-
-const inputClass = 'bg-white border border-gray-300 rounded-md px-2.5 py-1.5 text-[12px] text-text-primary outline-none focus:border-accent';
-const thClass = 'px-4 py-2.5 text-left text-[11px] font-medium text-text-tertiary uppercase tracking-wide';
 
 /** 照片浏览：分页/筛选/批量导出/良率趋势。 */
 export const PhotoBrowser: React.FC = () => {
@@ -101,7 +99,7 @@ export const PhotoBrowser: React.FC = () => {
       <div className="bg-white rounded-lg shadow-card border border-gray-100 p-4">
         <div className="flex items-center gap-3 flex-wrap">
           <label className="text-xs text-text-secondary">相机
-            <select value={cameraId ?? ''} onChange={e => setCameraId(e.target.value ? Number(e.target.value) : undefined)} className={`${inputClass} ml-2`}>
+            <select value={cameraId ?? ''} onChange={e => setCameraId(e.target.value ? Number(e.target.value) : undefined)} className={`${inputClassCompact} ml-2`}>
               <option value="">全部</option>
               {Array.from({ length: lineCount }, (_, i) => i + 1).map(id => (
                 <option key={id} value={id}>相机 {id}</option>
@@ -109,17 +107,17 @@ export const PhotoBrowser: React.FC = () => {
             </select>
           </label>
           <label className="text-xs text-text-secondary">结果
-            <select value={category} onChange={e => setCategory(e.target.value)} className={`${inputClass} ml-2`}>
+            <select value={category} onChange={e => setCategory(e.target.value)} className={`${inputClassCompact} ml-2`}>
               <option value="">全部</option>
               <option value="OK">放行 (OK)</option>
               <option value="NG">剔除 (NG)</option>
             </select>
           </label>
           <label className="text-xs text-text-secondary">开始日期
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`${inputClass} ml-2`} />
+            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`${inputClassCompact} ml-2`} />
           </label>
           <label className="text-xs text-text-secondary">结束日期
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`${inputClass} ml-2`} />
+            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`${inputClassCompact} ml-2`} />
           </label>
           <div className="ml-auto flex items-center gap-2">
             <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>查询</Button>
@@ -182,7 +180,7 @@ export const PhotoBrowser: React.FC = () => {
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-gray-100">
           <div className="flex items-center gap-2 text-xs text-text-secondary">
             <span>共 {total} 张</span>
-            <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); setRefreshKey(k => k + 1); }} className={`${inputClass} !py-1`}>
+            <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); setRefreshKey(k => k + 1); }} className={`${inputClassCompact} !py-1`}>
               {[20, 50, 100].map(n => <option key={n} value={n}>{n} 条/页</option>)}
             </select>
           </div>

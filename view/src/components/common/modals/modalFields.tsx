@@ -1,10 +1,8 @@
 import React from 'react';
 import { FieldHint } from '../FieldHint';
+import { inputClass, labelClass } from '../uiClasses';
 
-export const inputClass =
-  'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors placeholder:text-text-tertiary';
-
-export const labelClass = 'text-xs text-text-secondary mb-1.5 block';
+export { inputClass, labelClass };
 
 interface ModalTextFieldProps {
   label: string;

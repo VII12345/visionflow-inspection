@@ -3,6 +3,7 @@ import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
 import { Button, Modal } from '../common/Modal';
 import { FieldHint } from '../common/FieldHint';
+import { inputClass, labelClassCompact } from '../common/uiClasses';
 
 interface Props {
   camId: number;
@@ -22,9 +23,6 @@ const fieldMeta: { key: string; label: string; type: 'number' | 'select' | 'togg
   { key: 'strobeDelay', label: '频闪延时 (us)', type: 'number', min: 0, max: 100000, step: 10, hint: '触发后延时多久打开光源' },
   { key: 'strobeDuration', label: '频闪持续时间 (us)', type: 'number', min: 0, max: 100000, step: 100, hint: '0=与曝光时间同步' },
 ];
-
-const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors';
-const labelClass = 'text-xs text-text-secondary mb-1 block';
 
 export const CameraConfigModal: React.FC<Props> = ({ camId, open, onClose }) => {
   const showMessage = useAppStore(s => s.showMessage);
@@ -84,7 +82,7 @@ export const CameraConfigModal: React.FC<Props> = ({ camId, open, onClose }) => 
           <span className="text-[13px] text-text-primary font-medium">启用相机</span>
         </label>
         <div>
-          <label className={labelClass}><FieldHint text="填写相机在当前局域网中的 IPv4 地址，例如 192.168.1.50。启用相机时必须填写正确。">IP 地址</FieldHint></label>
+          <label className={labelClassCompact}><FieldHint text="填写相机在当前局域网中的 IPv4 地址，例如 192.168.1.50。启用相机时必须填写正确。">IP 地址</FieldHint></label>
           <input type="text" value={ip} onChange={e => setIp(e.target.value)} placeholder="192.168.1.50"
             className={inputClass} />
         </div>
@@ -92,7 +90,7 @@ export const CameraConfigModal: React.FC<Props> = ({ camId, open, onClose }) => 
         <div className="grid grid-cols-2 gap-x-4 gap-y-3">
           {fieldMeta.map(m => (
             <div key={m.key} className={m.type === 'toggle' ? 'col-span-2 flex items-center gap-3' : ''}>
-              <label className={m.type !== 'toggle' ? labelClass : 'text-xs text-text-secondary'}><FieldHint text={m.hint || '按现场相机说明和产线要求填写；不确定时请保持原值。'}>{m.label}</FieldHint></label>
+              <label className={m.type !== 'toggle' ? labelClassCompact : 'text-xs text-text-secondary'}><FieldHint text={m.hint || '按现场相机说明和产线要求填写；不确定时请保持原值。'}>{m.label}</FieldHint></label>
               {m.type === 'select' ? (
                 <select value={String(fields[m.key] ?? '')} onChange={e => update(m.key, e.target.value)}
                   className={`${inputClass} appearance-none`}>

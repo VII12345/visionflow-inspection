@@ -4,8 +4,7 @@ import { FieldHint } from '../common/FieldHint';
 import { BackendDirectoryPicker } from '../common/BackendDirectoryPicker';
 import { TestResultPanel } from './TestResultPanel';
 import { useModelTest } from './useModelTest';
-
-const inputClass = 'w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-colors placeholder:text-text-tertiary';
+import { inputClass } from '../common/uiClasses';
 
 export const TestTab: React.FC = () => {
   const {
