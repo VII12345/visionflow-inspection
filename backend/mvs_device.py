@@ -20,28 +20,10 @@ class MVSDeviceMixin:
 
         # 解析相机信息
         if device_info.nTLayerType == MV_GIGE_DEVICE:
-            gige_info = device_info.SpecialInfo.stGigEInfo
-
-            # 型号
-            self.model = ""
-            for per in gige_info.chModelName:
-                if per == 0:
-                    break
-                self.model += chr(per)
-
-            # 序列号
-            self.serial = ""
-            for per in gige_info.chSerialNumber:
-                if per == 0:
-                    break
-                self.serial += chr(per)
-
-            # IP 地址
-            nip1 = (gige_info.nCurrentIp & 0xFF000000) >> 24
-            nip2 = (gige_info.nCurrentIp & 0x00FF0000) >> 16
-            nip3 = (gige_info.nCurrentIp & 0x0000FF00) >> 8
-            nip4 = gige_info.nCurrentIp & 0x000000FF
-            self.ip = f"{nip1}.{nip2}.{nip3}.{nip4}"
+            info = parse_gige_info(device_info.SpecialInfo.stGigEInfo)
+            self.model = info["model"]
+            self.serial = info["serial"]
+            self.ip = info["ip"]
 
             logger.info(f"MVSCamera {cam_id}: {self.model} - {self.serial} - {self.ip}")
         else:

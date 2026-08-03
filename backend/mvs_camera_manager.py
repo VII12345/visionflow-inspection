@@ -63,36 +63,14 @@ class MVSCameraManager:
                 ).contents
 
                 if mvcc_dev_info.nTLayerType == MV_GIGE_DEVICE:
-                    gige_info = mvcc_dev_info.SpecialInfo.stGigEInfo
-
-                    # 型号
-                    model = ""
-                    for per in gige_info.chModelName:
-                        if per == 0:
-                            break
-                        model += chr(per)
-
-                    # 序列号
-                    serial = ""
-                    for per in gige_info.chSerialNumber:
-                        if per == 0:
-                            break
-                        serial += chr(per)
-
-                    # IP
-                    nip1 = (gige_info.nCurrentIp & 0xFF000000) >> 24
-                    nip2 = (gige_info.nCurrentIp & 0x00FF0000) >> 16
-                    nip3 = (gige_info.nCurrentIp & 0x0000FF00) >> 8
-                    nip4 = gige_info.nCurrentIp & 0x000000FF
-                    ip = f"{nip1}.{nip2}.{nip3}.{nip4}"
-
+                    info = parse_gige_info(mvcc_dev_info.SpecialInfo.stGigEInfo)
                     camera_list.append(
                         {
                             "index": i,
-                            "serial": serial,
-                            "model": model,
+                            "serial": info["serial"],
+                            "model": info["model"],
                             "type": "GigE",
-                            "ip": ip,
+                            "ip": info["ip"],
                         }
                     )
                 else:
