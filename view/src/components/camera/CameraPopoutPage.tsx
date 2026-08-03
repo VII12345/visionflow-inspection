@@ -58,10 +58,15 @@ export const CameraPopoutPage: React.FC<{ camId: number }> = ({ camId }) => {
     else window.history.back();
   };
 
-  const isOk = camera.result?.label === '类别A';
+  // 类别名由训练子目录定义、可自定义，无法用固定标签判断 OK/NG；仅按状态着色
   const badge = camera.state === 'error'
     ? '错误'
     : camera.result?.label || (camera.state === 'running' ? '等待触发' : '等待检测');
+  const badgeClass = camera.state === 'error'
+    ? 'bg-red-50 text-ng'
+    : camera.result
+      ? 'bg-gray-100 text-text-secondary'
+      : 'bg-amber-50 text-warn';
 
   return (
     <div className="min-h-screen bg-surface text-text-primary p-5">
@@ -71,7 +76,7 @@ export const CameraPopoutPage: React.FC<{ camId: number }> = ({ camId }) => {
             <div className="text-sm font-semibold text-text-primary">相机 {camId}</div>
             <div className="mt-1 text-xs text-text-secondary">实时检测画面</div>
           </div>
-          <div className={`rounded px-2.5 py-1 text-xs font-semibold ${camera.state === 'error' ? 'bg-red-50 text-ng' : isOk ? 'bg-emerald-50 text-ok' : 'bg-amber-50 text-warn'}`}>
+          <div className={`rounded px-2.5 py-1 text-xs font-semibold ${badgeClass}`}>
             {badge}
           </div>
         </header>
