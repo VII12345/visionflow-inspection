@@ -90,8 +90,11 @@ export const useRunLayout = (lineCount: number, showMessage: MessageHandler) => 
     });
   };
 
-  // 窗口级拖拽监听里通过 ref 调用最新的 swapCamPosition，避免闭包读到过期实现
-  swapRef.current = swapCamPosition;
+  // 窗口级拖拽监听里通过 ref 调用最新的 swapCamPosition，避免闭包读到过期实现。
+  // 在 effect 里保持 ref 最新，避免渲染期间写 ref。
+  useEffect(() => {
+    swapRef.current = swapCamPosition;
+  });
 
   const startCardDrag = (event: ReactPointerEvent<HTMLDivElement>, camId: number) => {
     if (event.button !== 0) return;

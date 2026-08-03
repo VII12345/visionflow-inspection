@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { Badge } from '../common/Badge';
 import { Button } from '../common/Button';
@@ -14,7 +14,7 @@ interface Props {
   productNameDrafts: Record<number, string>;
   setProductNameDrafts: Dispatch<SetStateAction<Record<number, string>>>;
   onSaveProductName: (product: Product) => void;
-  onAssignProduct: (productId: number) => void;
+  onAssignProduct: (productId: number, line: number) => void;
   onRefresh: () => void;
   onAddProduct: () => void;
 }
@@ -32,6 +32,7 @@ export const ProductTable: React.FC<Props> = ({
   onRefresh,
   onAddProduct,
 }) => {
+  const [lineDrafts, setLineDrafts] = useState<Record<number, string>>({});
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
@@ -72,14 +73,14 @@ export const ProductTable: React.FC<Props> = ({
                   <td className="px-4 py-3 text-text-secondary">{p.size}</td>
                   <td className="px-4 py-3">{p.learned ? <Badge variant="learned">已学习</Badge> : <Badge variant="unlearned">未学习</Badge>}</td>
                   <td className="px-4 py-3">
-                    <select id={`prod-line-${p.id}`} className="bg-white border border-gray-300 rounded-md px-3 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent w-32">
+                    <select value={lineDrafts[p.id] ?? ''} onChange={e => setLineDrafts(prev => ({ ...prev, [p.id]: e.target.value }))} className="bg-white border border-gray-300 rounded-md px-3 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent w-32">
                       <option value="">--</option>
                       {lineConfig.map(line => <option key={line.line} value={line.line}>{line.name}</option>)}
                     </select>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <Button variant="secondary" size="sm" onClick={() => onSaveProductName(p)}>保存名称</Button>
-                    <Button variant="primary" size="sm" className="ml-2" onClick={() => onAssignProduct(p.id)}>分配</Button>
+                    <Button variant="primary" size="sm" className="ml-2" onClick={() => onAssignProduct(p.id, Number(lineDrafts[p.id] || 0))}>分配</Button>
                   </td>
                 </tr>
               ))}

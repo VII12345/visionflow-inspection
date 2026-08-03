@@ -27,11 +27,11 @@ export const EnvCheckModal: React.FC = () => {
       <div className="overflow-x-auto">
         <table className="w-full text-[13px] min-w-[440px]">
           <tbody>
-            {result.results.map((r, i) => {
+            {result.results.map(r => {
               const statusText = r.passed ? '通过' : (r.level === 'error' ? '错误' : '警告');
               const statusColor = r.passed ? 'text-ok' : (r.level === 'error' ? 'text-ng' : 'text-warn');
               return (
-                <tr key={i}
+                <tr key={r.name}
                   onClick={() => r.detail && setSelectedDetail(r.detail)}
                   className={`border-b border-gray-100 ${selectedDetail === r.detail ? 'bg-blue-50' : ''} ${r.detail ? 'cursor-pointer hover:bg-gray-50' : ''}`}
                 >

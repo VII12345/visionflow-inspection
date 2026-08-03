@@ -48,11 +48,9 @@ export const useCatalogEdit = (
     showMessage(`线体名称已更新为“${name}”`);
   };
 
-  const assignProduct = (productId: number) => {
+  const assignProduct = (productId: number, line: number) => {
     if (!requireEditPermission()) return;
-    const sel = document.getElementById(`prod-line-${productId}`) as HTMLSelectElement;
-    if (!sel?.value) { showMessage('请先选择线体'); return; }
-    const line = parseInt(sel.value);
+    if (!Number.isInteger(line) || line < 1 || line > lineCount) { showMessage('请先选择线体'); return; }
     const config = storage.getLineConfig(lineCount);
     const prod = products.find(p => p.id === productId);
     config[line - 1] = { ...config[line - 1], line, productId, model: prod?.model || '-' };

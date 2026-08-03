@@ -24,6 +24,8 @@ export const PhotoBrowser: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const firstFiltersRun = useRef(true);
+  // 请求序号：快速翻页/切筛选时丢弃晚到的旧响应，避免覆盖新列表
+  const loadSeqRef = useRef(0);
 
   const filters = useMemo(() => {
     const start = startDate ? new Date(`${startDate}T00:00:00`).getTime() / 1000 : undefined;
@@ -32,17 +34,20 @@ export const PhotoBrowser: React.FC = () => {
   }, [cameraId, category, startDate, endDate]);
 
   const load = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     try {
       const result = await api.listPhotos({ ...filters, page, page_size: pageSize });
+      if (seq !== loadSeqRef.current) return;
       if (result.success) {
         setItems(result.items);
         setTotal(result.total);
       }
     } catch (e) {
+      if (seq !== loadSeqRef.current) return;
       showMessage(`照片列表加载失败: ${(e as Error).message}`);
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
   }, [filters, page, pageSize, showMessage]);
 

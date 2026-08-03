@@ -92,8 +92,8 @@ export const TestResultPanel: React.FC<{ result: ModelTestResult }> = ({ result 
               </tr>
             </thead>
             <tbody>
-              {result.results.map((item, index) => (
-                <tr key={index} className={'border-t border-gray-100 ' + (item.correct === false ? 'bg-red-50/50' : '')}>
+              {result.results.map((item) => (
+                <tr key={item.filename} className={'border-t border-gray-100 ' + (item.correct === false ? 'bg-red-50/50' : '')}>
                   <td className="px-3 py-2 text-text-primary font-mono text-[11px] truncate max-w-[200px]">{item.filename}</td>
                   {item.expected != null && (
                     <td className="px-3 py-2">

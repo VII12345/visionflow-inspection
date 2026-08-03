@@ -27,7 +27,7 @@ export const HardwareNetworkCard: React.FC<Props> = ({ hardware }) => {
         {interfaces.map((iface, i, arr) => {
           const rxTx = hasRxTx(iface);
           return (
-            <div key={i} className={`flex items-center justify-between text-xs py-1 ${i < arr.length - 1 ? 'border-b border-gray-100' : ''}`}>
+            <div key={iface.name} className={`flex items-center justify-between text-xs py-1 ${i < arr.length - 1 ? 'border-b border-gray-100' : ''}`}>
               <div className="flex items-center gap-2 min-w-0">
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${iface.up ? 'bg-ok' : 'bg-gray-300'}`} />
                 <span className="text-text-primary font-medium truncate">{iface.name}</span>

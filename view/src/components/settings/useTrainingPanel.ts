@@ -80,6 +80,11 @@ export const useTrainingPanel = ({ products, selectedModel, onTrainingComplete }
       showMessage('请选择类别根目录');
       return;
     }
+    const model = selectedModelRef.current;
+    if (!model) {
+      showMessage('请先选择一个产品');
+      return;
+    }
     try {
       const currentStatus = await api.trainingStatus();
       if (currentStatus.running) {
@@ -96,7 +101,7 @@ export const useTrainingPanel = ({ products, selectedModel, onTrainingComplete }
     try {
       const result = await api.startTraining({
         categoryRootPath, folderPath: categoryRootPath,
-        modelName: selectedModel!.model,
+        modelName: model.model,
       });
       if (!result.success) {
         const message = result.message || result.error || '后端拒绝启动训练';
@@ -106,7 +111,7 @@ export const useTrainingPanel = ({ products, selectedModel, onTrainingComplete }
       setModal('learnConfirm', false);
       setTrainingProgress({ running: true, progress: 0, label: '正在初始化...', metrics: '--' });
       pollTraining();
-      showMessage(`开始学习 ${resolveProductLabel(products, selectedModel!.id, selectedModel!.model)}`);
+      showMessage(`开始学习 ${resolveProductLabel(products, model.id, model.model)}`);
     } catch (e) {
       showMessage('启动训练失败: ' + ((e as Error).message || '无法连接后端训练服务'));
     }
