@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { Button } from '../common/Modal';
+import { Button } from '../common/Button';
 import { canAccessTab } from '../../services/permissions';
 
 const roleLabels: Record<string, string> = { admin: '管理员', tech: '技术员', operator: '操作员' };

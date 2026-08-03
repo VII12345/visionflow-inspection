@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from '../common/Modal';
+import { Button } from '../common/Button';
 import type { RunLayout, RunLayoutId } from '../../types';
 import { LAYOUT_OPTIONS } from './useRunLayout';
 

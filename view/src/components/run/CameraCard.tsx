@@ -1,6 +1,6 @@
 import React from 'react';
 import type { CameraStatus, Product } from '../../types';
-import { Badge } from '../common/Modal';
+import { Badge } from '../common/Badge';
 
 interface CameraCardProps {
   camId: number;

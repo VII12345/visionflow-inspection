@@ -1,5 +1,6 @@
 import React from 'react';
-import { Modal, Button } from '../common/Modal';
+import { Modal } from '../common/Modal';
+import { Button } from '../common/Button';
 
 interface EvalResult {
   accuracy: number;

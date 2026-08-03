@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { Button } from './Modal';
+import { Button } from './Button';
 
 export const SystemAlarm: React.FC = () => {
   const alarm = useAppStore(s => s.systemAlarm);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from '../common/Modal';
+import { Button } from '../common/Button';
 import { useAppStore } from '../../store/useAppStore';
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
-import { Button } from '../common/Modal';
+import { Button } from '../common/Button';
 import { inputClass } from './settingsStyles';
 
 /** 线体数量设置卡片。 */

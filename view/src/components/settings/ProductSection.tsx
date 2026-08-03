@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Badge } from '../common/Modal';
+import { Badge } from '../common/Badge';
 import type { Product } from '../../types';
 import { inputClass, thClass } from './settingsStyles';
 

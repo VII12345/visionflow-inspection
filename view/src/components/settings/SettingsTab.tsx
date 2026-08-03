@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button } from '../common/Modal';
+import { Button } from '../common/Button';
 import { useAppStore } from '../../store/useAppStore';
 import { HardwarePanel } from './HardwarePanel';
 import { LineCountSection } from './LineCountSection';

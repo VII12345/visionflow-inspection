@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
-import { Button, Modal } from './Modal';
+import { Button } from './Button';
+import { Modal } from './Modal';
 
 export interface BackendImageDirectory {
   path: string;

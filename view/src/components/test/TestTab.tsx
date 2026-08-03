@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from '../common/Modal';
+import { Button } from '../common/Button';
 import { FieldHint } from '../common/FieldHint';
 import { BackendDirectoryPicker } from '../common/BackendDirectoryPicker';
 import { TestResultPanel } from './TestResultPanel';

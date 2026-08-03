@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
-import { Button } from '../common/Modal';
+import { Button } from '../common/Button';
 import { inputClassCompact, thClass } from '../common/uiClasses';
 import type { PhotoItem, TrendPoint } from '../../types/api';
 import { TrendChart } from './TrendChart';

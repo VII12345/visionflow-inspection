@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { Badge, Button } from '../common/Modal';
+import { Badge } from '../common/Badge';
+import { Button } from '../common/Button';
 import type { LineConfig, Product } from '../../types';
 import { EmptyState } from './EmptyState';
 import { editInputClass, thClass } from './fileStyles';

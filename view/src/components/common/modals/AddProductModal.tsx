@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../../store/useAppStore';
 import { storage } from '../../../services/storage';
-import { Button, Modal } from '../Modal';
+import { Button } from '../Button';
+import { Modal } from '../Modal';
 import { ModalTextField } from './modalFields';
 
 export const AddProductModal: React.FC = () => {

@@ -3,7 +3,8 @@ import { useAppStore } from '../../../store/useAppStore';
 import { useLocalFolderPicker } from '../../../hooks/useLocalFolderPicker';
 import { BackendDirectoryPicker, type BackendImageDirectory } from '../BackendDirectoryPicker';
 import { FieldHint } from '../FieldHint';
-import { Button, Modal } from '../Modal';
+import { Button } from '../Button';
+import { Modal } from '../Modal';
 import { inputClass, labelClass } from './modalFields';
 
 export const LearnConfirmModal: React.FC<{ onConfirm: (categoryRoot: string) => void }> = ({ onConfirm }) => {

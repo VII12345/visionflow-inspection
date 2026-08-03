@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../../store/useAppStore';
-import { Button, Modal } from '../Modal';
+import { Button } from '../Button';
+import { Modal } from '../Modal';
 
 interface Props {
   username: string;

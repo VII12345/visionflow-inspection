@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from '../common/Modal';
+import { Button } from '../common/Button';
 import type { Product } from '../../types';
 
 interface Props {

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
-import { Button } from '../common/Modal';
+import { Button } from '../common/Button';
 import { FieldHint } from '../common/FieldHint';
 import { inputClass, labelClass } from '../common/uiClasses';
 import type { PlcConfig } from '../../types';

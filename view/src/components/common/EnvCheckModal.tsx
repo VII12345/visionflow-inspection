@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
-import { Button, Modal } from './Modal';
+import { Button } from './Button';
+import { Modal } from './Modal';
 
 export const EnvCheckModal: React.FC = () => {
   const [result, setResult] = useState<{ passed: boolean; summary: string; results: { name: string; message: string; passed: boolean; level: string; detail?: string }[] } | null>(null);

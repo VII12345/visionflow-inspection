@@ -3,7 +3,7 @@ import { api } from '../../services/api';
 import { storage } from '../../services/storage';
 import { useAppStore } from '../../store/useAppStore';
 import { deriveModelReferences } from '../../hooks/useModelRefSync';
-import { Button } from '../common/Modal';
+import { Button } from '../common/Button';
 import type { ModelInfo } from '../../types';
 
 export const ModelSettingsTab: React.FC = () => {
