@@ -197,8 +197,9 @@ class MvCamera:
     """模拟的 MvCamera：类方法做 SDK 生命周期/枚举，实例方法做单相机操作。"""
 
     _devices = []
-    _device_infos = []          # MV_CC_DEVICE_INFO 实例（需存活）
-    _device_info_ptrs = None    # 指针数组（需存活）
+    _device_infos = []          # MV_CC_DEVICE_INFO 实例（永久保留，避免缓存相机读失效内存）
+    _device_info_ptrs = []      # 指向 _device_infos 的指针列表（与结构一一对应）
+    _device_info_ptrs_keep = None  # 最近一次枚举用的指针数组（保持存活）
 
     @classmethod
     def MV_CC_Initialize(cls):
@@ -210,18 +211,27 @@ class MvCamera:
 
     @classmethod
     def MV_CC_EnumDevices(cls, tlayer_type, device_list):
-        cls._device_infos = []
+        # device_info 只在首次枚举时构建并永久保留：后端 MVSCameraManager 会跨启动
+        # 缓存相机实例并持有旧 device_info 的 ctypes 视图，若每次枚举都重建并让旧
+        # 结构被 GC，缓存的相机将读到已释放内存里的乱码 IP，导致 CreateHandle 失败。
+        if not cls._device_infos or len(cls._device_infos) != len(cls._devices):
+            cls._device_infos = []
+            cls._device_info_ptrs = []
+            for i, dev in enumerate(cls._devices):
+                info = MV_CC_DEVICE_INFO()
+                info.nTLayerType = MV_GIGE_DEVICE
+                _fill_c_bytes(info.SpecialInfo.stGigEInfo.chModelName, dev.model)
+                _fill_c_bytes(info.SpecialInfo.stGigEInfo.chSerialNumber, dev.serial)
+                info.SpecialInfo.stGigEInfo.nCurrentIp = _ip_to_uint(dev.ip)
+                cls._device_infos.append(info)
+                cls._device_info_ptrs.append(
+                    C.cast(C.pointer(info), C.POINTER(MV_CC_DEVICE_INFO))
+                )
         n = len(cls._devices)
         arr = (C.POINTER(MV_CC_DEVICE_INFO) * max(n, 1))()
-        for i, dev in enumerate(cls._devices):
-            info = MV_CC_DEVICE_INFO()
-            info.nTLayerType = MV_GIGE_DEVICE
-            _fill_c_bytes(info.SpecialInfo.stGigEInfo.chModelName, dev.model)
-            _fill_c_bytes(info.SpecialInfo.stGigEInfo.chSerialNumber, dev.serial)
-            info.SpecialInfo.stGigEInfo.nCurrentIp = _ip_to_uint(dev.ip)
-            cls._device_infos.append(info)
-            arr[i] = C.cast(C.pointer(info), C.POINTER(MV_CC_DEVICE_INFO))
-        cls._device_info_ptrs = arr
+        for i in range(n):
+            arr[i] = cls._device_info_ptrs[i]
+        cls._device_info_ptrs_keep = arr  # 当前枚举用的数组也保留，避免被 GC
         device_list.nDeviceNum = n
         device_list.pDeviceInfo = arr
         return _ERR_OK
