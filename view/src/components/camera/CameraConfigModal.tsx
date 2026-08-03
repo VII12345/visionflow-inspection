@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
-import { Button, Modal } from '../common/Modal';
+import { Button } from '../common/Button';
+import { Modal } from '../common/Modal';
 import { FieldHint } from '../common/FieldHint';
 import { inputClass, labelClassCompact } from '../common/uiClasses';
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import type { CameraStats } from '../../types';
-import { Button } from '../common/Modal';
+import { Button } from '../common/Button';
 
 interface Props {
   camId: number;
