@@ -25,13 +25,7 @@ class ModelInUseError(RuntimeError):
 
 def resolve_model_path(model_name=None):
     """解析模型路径；显式指定名称时不回退到其他模型。"""
-    trained = sorted(Config.DATA_DIR.glob("*_classifier_*.pth"))
-    if model_name:
-        return next(
-            (path for path in trained if path.stem.rsplit("_classifier_", 1)[-1] == model_name),
-            None,
-        )
-    return trained[0] if trained else None
+    return Config.get_active_model_path(model_name)
 
 
 def read_model_metadata(model_path: Path | None, fallback_categories=None):

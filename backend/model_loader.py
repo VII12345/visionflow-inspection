@@ -6,7 +6,7 @@ import torch
 
 from .config import Config
 from .logger import logger
-from .model_repository import DEFAULT_CATEGORIES
+from .model_repository import DEFAULT_CATEGORIES, read_model_metadata
 
 
 # 全局模型（按产品名缓存）
@@ -97,17 +97,8 @@ def load_model(model_name=None):
 
         categories = list(DEFAULT_CATEGORIES)
         state_dict = None
-        metadata_path = None
         if model_path is not None:
-            metadata_path = model_path.with_suffix(".json")
-            if metadata_path.exists():
-                try:
-                    import json
-                    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-                    if isinstance(metadata.get("categories"), list) and metadata["categories"]:
-                        categories = [str(item) for item in metadata["categories"]]
-                except Exception as exc:
-                    logger.warning(f"模型类别元数据读取失败: {exc}")
+            _, categories, _ = read_model_metadata(model_path, fallback_categories=categories)
             if model_path.exists():
                 state_dict = torch.load(model_path, map_location=Config.DEVICE, weights_only=True)
         num_classes = len(categories)

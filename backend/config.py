@@ -105,15 +105,14 @@ class Config:
     # 活跃模型：优先用 data/ 下已训练的任意产品模型，否则用种子模型
     @classmethod
     def get_active_model_path(cls, model_name=None):
-        """获取模型路径。指定 model_name 则用对应产品模型，否则用第一个已训练的。"""
+        """获取模型路径。指定 model_name 时精确匹配（找不到返回 None），否则用第一个已训练的。"""
         trained = sorted(cls.DATA_DIR.glob("*_classifier_*.pth"))
         if model_name:
-            for p in trained:
-                if p.stem.rsplit("_classifier_", 1)[-1] == model_name:
-                    return p
-        if trained:
-            return trained[0]
-        return None
+            return next(
+                (p for p in trained if p.stem.rsplit("_classifier_", 1)[-1] == model_name),
+                None,
+            )
+        return trained[0] if trained else None
 
     # ========== 照片管理 ==========
     MAX_PHOTO_AGE_DAYS = 30
