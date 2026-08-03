@@ -33,7 +33,7 @@ FAKE_CAMERA_COUNT=4 FAKE_CAMERA_INTERVAL_MS=2000 PYTHONPATH=simulator .venv/Scri
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
 | `FAKE_CAMERA_COUNT` | `4` | 模拟相机台数（1–16，建议 ≥ 线体数） |
-| `FAKE_CAMERA_INTERVAL_MS` | `2000` | 触发间隔，即每多少毫秒出一帧 |
+| `FAKE_CAMERA_INTERVAL_MS` | `2000` | 触发间隔（毫秒/帧）。做吞吐/压力测试时可设很小（如 `10`=目标 100fps）以把系统压到处理上限 |
 | `FAKE_CAMERA_IMAGE_DIR` | `data/images` | 帧图库目录（按子目录循环）；为空时生成渐变占位帧 |
 
 启动后日志会打印模拟相机清单，IP 依次为 `192.168.10.50..65`、序列号

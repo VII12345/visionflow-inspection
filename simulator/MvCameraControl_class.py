@@ -321,7 +321,9 @@ def _setup():
         interval_ms = int(os.environ.get("FAKE_CAMERA_INTERVAL_MS", "2000"))
     except ValueError:
         interval_ms = 2000
-    interval_ms = max(200, interval_ms)
+    # 允许很低间隔（最快 1ms/帧 ≈ 1000fps），用于把系统压到吞吐上限。
+    # grab 在间隔未到时会 sleep，不会空转 CPU。
+    interval_ms = max(1, interval_ms)
 
     frames = _load_frames(image_dir)
     MvCamera._devices = []
