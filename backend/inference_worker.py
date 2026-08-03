@@ -129,18 +129,3 @@ def get_inference_result(cam_id: int, timeout=0.1):
         return result
     except queue.Empty:
         return None
-
-
-# 向后兼容：模型缓存状态现归 model_loader 管理。
-from .model_loader import (  # noqa: E402,F401
-    camera_product_map,
-    get_model_for_product,
-    load_model,
-    model_categories,
-    model_loaded,
-    models,
-    preload_all_models,
-    reload_all_models,
-    set_camera_product,
-    warmup_model,
-)
