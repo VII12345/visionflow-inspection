@@ -5,7 +5,7 @@ from flask import Blueprint, jsonify, request
 from .camera_config_manager import camera_config_manager
 from .config import Config
 from .logger import logger
-from .plc_service import get_plc_config, save_plc_config, PlcWriteError, PlcService, plc_service
+from .plc_service import get_plc_config, save_plc_config, PlcWriteError, plc_service
 from .runtime_state import runtime
 
 camera_bp = Blueprint("camera", __name__)
@@ -167,7 +167,7 @@ def test_plc_write():
         address = mapping.get(key)
         if not address:
             return jsonify({"success": False, "error": "该相机尚未配置节点名称"}), 400
-        client = PlcService(base_url=config["base_url"], proxy_url=config.get("proxy_url", ""), node_prefix=config.get("node_prefix", "NODES.MODBUS."), timeout_seconds=config.get("timeout_seconds", 3))
+        client = plc_service.with_base_url(config["base_url"])
         value = int(data.get("value", 1))
         result = client.write_byte(address, value) if key == "reject_signal" else client.write_dword(address, value)
         return jsonify({"success": True, "camera_id": cam_id, "type": key, "address": address, "value": value, "plc": result})

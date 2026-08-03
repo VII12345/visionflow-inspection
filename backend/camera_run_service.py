@@ -165,7 +165,7 @@ def camera_worker(cam_id):
                         runtime.increment_stat(cam_id, "defective")
                     if plc_config.get("enabled", True) and should_reject:
                         try:
-                            plc_service.with_base_url(plc_config.get("base_url", plc_service.base_url)).write_reject_signal(cam_id)
+                            plc_service.with_base_url(plc_config.get("base_url", plc_service.base_url), config=plc_config).write_reject_signal(cam_id)
                         except (PlcWriteError, ValueError) as e:
                             logger.error(f"Camera {cam_id}: 结果写入 PLC 失败: {e}")
                     logger.info(

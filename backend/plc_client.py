@@ -19,6 +19,11 @@ class PlcWriteError(RuntimeError):
     """Raised when an PLC node write fails."""
 
 
+# 全局写入锁：with_base_url() 会为每次调用新建 PlcService 实例，若锁挂在实例上，
+# 多相机 worker 并发写 PLC 实际不会串行化。这里统一用模块级锁串行所有写入。
+_plc_write_lock = threading.Lock()
+
+
 class PlcService:
     """Thread-safe client for the configurable PLC write API."""
 
@@ -27,12 +32,11 @@ class PlcService:
         self.proxy_url = proxy_url
         self.node_prefix = node_prefix
         self.timeout_seconds = float(timeout_seconds)
-        self._lock = threading.Lock()
         self.last_error = None
         self.last_write = None
 
-    def with_base_url(self, base_url):
-        config = get_plc_config()
+    def with_base_url(self, base_url, config=None):
+        config = config or get_plc_config()
         return PlcService(
             base_url=base_url,
             proxy_url=config.get("proxy_url", self.proxy_url),
@@ -60,7 +64,7 @@ class PlcService:
         else:
             opener.add_handler(urllib.request.ProxyHandler({}))
         try:
-            with self._lock:
+            with _plc_write_lock:
                 with opener.open(request, timeout=self.timeout_seconds) as response:
                     response_data = json.loads(response.read().decode("utf-8"))
             errcode = response_data.get("errcode")
