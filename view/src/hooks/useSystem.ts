@@ -35,29 +35,51 @@ export function useSystemPolling(isRunning: boolean) {
 export function useFrameUpdater(isRunning: boolean) {
   const lineCount = useAppStore(s => s.lineCount);
   const [frames, setFrames] = useState<Record<number, string>>({});
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const objectUrlsRef = useRef<Record<number, string>>({});
 
   useEffect(() => {
+    let cancelled = false;
+    let inFlight = false;
+
     async function updateFrames() {
-      const newFrames: Record<number, string> = {};
-      for (let i = 1; i <= lineCount; i++) {
-        try {
-          const buffer = await api.getFrame(i);
-          const bytes = new Uint8Array(buffer as unknown as ArrayBuffer);
-          const binary = bytes.reduce((acc, b) => acc + String.fromCharCode(b), '');
-          newFrames[i] = `data:image/jpeg;base64,${btoa(binary)}`;
-        } catch { /* ignore */ }
+      // 上一轮尚未返回时跳过本轮，避免慢速链路下多轮轮询叠加、旧帧覆盖新帧
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const newFrames: Record<number, string> = {};
+        for (let i = 1; i <= lineCount; i++) {
+          if (cancelled) break;
+          try {
+            const blob = await api.getFrame(i);
+            if (cancelled || !(blob instanceof Blob) || blob.size === 0) continue;
+            const oldUrl = objectUrlsRef.current[i];
+            const url = URL.createObjectURL(blob);
+            if (oldUrl) URL.revokeObjectURL(oldUrl);
+            objectUrlsRef.current[i] = url;
+            newFrames[i] = url;
+          } catch { /* camera may be idle */ }
+        }
+        if (!cancelled && Object.keys(newFrames).length > 0) {
+          setFrames(prev => ({ ...prev, ...newFrames }));
+        }
+      } finally {
+        inFlight = false;
       }
-      setFrames(prev => ({ ...prev, ...newFrames }));
     }
 
     if (isRunning) {
-      updateFrames();
-      intervalRef.current = setInterval(updateFrames, 1000);
+      void updateFrames();
+      const interval = setInterval(() => { void updateFrames(); }, 1000);
+      return () => {
+        cancelled = true;
+        clearInterval(interval);
+        for (const url of Object.values(objectUrlsRef.current)) URL.revokeObjectURL(url);
+        objectUrlsRef.current = {};
+        setFrames({});
+      };
     }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
+    setFrames({});
+    return undefined;
   }, [isRunning, lineCount]);
 
   return frames;

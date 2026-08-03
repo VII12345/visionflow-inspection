@@ -20,7 +20,7 @@ export const CameraPopoutPage: React.FC<{ camId: number }> = ({ camId }) => {
     let active = true;
     const updateFrame = async () => {
       try {
-        const blob = await api.getFrame(camId) as unknown as Blob;
+        const blob = await api.getFrame(camId);
         if (!active || !(blob instanceof Blob)) return;
         const nextUrl = URL.createObjectURL(blob);
         if (frameUrlRef.current) URL.revokeObjectURL(frameUrlRef.current);
