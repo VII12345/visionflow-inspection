@@ -19,9 +19,7 @@ v8 改进:
 """
 
 import json
-import time
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import torch
@@ -623,75 +621,3 @@ def classify_frames_batch(model, frames: list[Image.Image], labels: list[str] | 
         (_label_for_index(int(row.argmax()), labels), float(row[row.argmax()]))
         for row in probabilities
     ]
-
-
-# ─── 主函数 ────────────────────────────────────────────────
-
-
-def main():
-    img_dir = Path(__file__).parent / "images"
-    model_path = Path(__file__).parent / "model_classifier.pth"
-
-    if model_path.exists():
-        print(f"加载模型: {model_path}")
-        model = ProductClassifier().to(_get_device())
-        model.load_state_dict(
-            torch.load(model_path, map_location=_get_device(), weights_only=True)
-        )
-        model.eval()
-    else:
-        print("训练新模型...")
-        train_set = ProductDataset(img_dir, train=True, augment=True)
-        val_set = ProductDataset(img_dir, train=False, augment=False)
-        print(f"数据集模式: {train_set.mode}")
-        print(f"训练 {len(train_set)}  验证 {len(val_set)}")
-        model, history = train_model_v2(
-            ProductClassifier(),
-            DataLoader(train_set, batch_size=8, shuffle=True),
-            DataLoader(val_set, batch_size=8),
-            save_path=model_path,
-            epochs=50,
-            status_callback=lambda ep, total, tl, vl, va, msg: print(f"  {msg}"),
-        )
-        print(f"最佳轮次: {history['best_epoch']}")
-        print(
-            f"评估结果: Acc={history['eval']['accuracy']:.2%} "
-            f"P={history['eval']['precision']:.2%} "
-            f"R={history['eval']['recall']:.2%} "
-            f"F1={history['eval']['f1']:.2%}"
-        )
-        print(f"已保存: {model_path}")
-
-    paths = (
-        sorted(img_dir.glob("*.jpg"))
-        + sorted(img_dir.glob("*.jpeg"))
-        + sorted(img_dir.glob("*.png"))
-    )
-    if not paths:
-        print("无图片")
-        return
-
-    str_paths = [str(p) for p in paths]
-    results, ms = classify_batch(model, str_paths)
-    ms_per = ms / len(paths)
-
-    print(f"\n{'文件名':<52} {'结果':>4} {'置信度':>6}")
-    print("-" * 66)
-    total = classA = classB = 0
-    for _, label, conf in results:
-        total += 1
-        if label == "类别1":
-            classA += 1
-        elif label == "类别2":
-            classB += 1
-        c = f"{conf:.0%}" if conf > 0 else "-"
-        pname = paths[total - 1].name if total <= len(paths) else ""
-        print(f"{pname:<52} {label:>4} {c:>6}")
-    print("-" * 66)
-    print(
-        f"共 {total} 张 | 类别1 {classA} | 类别2 {classB} | 耗时 {ms:.1f}ms ({ms_per:.1f}ms/张)"
-    )
-
-
-if __name__ == "__main__":
-    main()
