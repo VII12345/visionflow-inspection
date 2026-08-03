@@ -10,6 +10,7 @@ from .env_check import run_environment_check
 from .hardware_service import collect_hardware_info
 from .runtime_state import runtime, DEFAULT_CAMERA_STATE
 from .settings_repository import (
+    available_devices,
     load_device_config,
     load_line_count,
     load_save_only_reject,
@@ -112,15 +113,11 @@ def get_device_config():
 @system_bp.route("/api/settings/device", methods=["POST"])
 def update_device_config():
     """更新设备选择配置"""
-    import torch
-
     data = request.get_json()
     training_device = data.get("training_device", "").strip()
     inference_device = data.get("inference_device", "").strip()
 
-    valid_devices = ["cpu"]
-    if torch.cuda.is_available():
-        valid_devices.append("cuda")
+    valid_devices = available_devices()
 
     if training_device not in valid_devices:
         return jsonify(

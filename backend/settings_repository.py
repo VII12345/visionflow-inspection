@@ -54,6 +54,19 @@ def save_device_config(config):
         json.dump(config, handle, indent=2)
 
 
+def available_devices():
+    """返回当前环境可用的设备列表：cpu 始终可用，cuda 按 torch 探测。"""
+    devices = ["cpu"]
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            devices.append("cuda")
+    except Exception:
+        pass
+    return devices
+
+
 def save_only_reject_path():
     return Config.DATA_DIR / "save_only_reject.json"
 

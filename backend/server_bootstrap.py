@@ -15,6 +15,7 @@ from .runtime_state import runtime
 from .user_repository import ensure_users_file
 from .system_routes import apply_line_count as _apply_line_count
 from .settings_repository import (
+    available_devices as _available_devices,
     load_device_config as _load_device_config,
     load_line_count as _load_line_count,
     load_save_only_reject as _load_save_only_reject,
@@ -43,11 +44,7 @@ def run_server():
         saved_cfg = _load_device_config()
         td = saved_cfg.get("training_device", Config.TRAINING_DEVICE)
         idd = saved_cfg.get("inference_device", Config.DEVICE)
-        import torch as _torch
-
-        valid_devices = ["cpu"]
-        if _torch.cuda.is_available():
-            valid_devices.append("cuda")
+        valid_devices = _available_devices()
         if td in valid_devices:
             Config.TRAINING_DEVICE = td
         if idd in valid_devices:
