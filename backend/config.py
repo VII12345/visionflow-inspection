@@ -8,6 +8,31 @@ import sys
 from pathlib import Path
 
 
+class _LazyDevice:
+    """首次读取时检测推理/训练设备并缓存。
+
+    避免 import config 就强制加载 torch。设备偏好在启动时由
+    settings_repository 用持久化配置覆盖，此处先给 torch 探测的默认值。
+    """
+
+    _cache: dict[str, str] = {}
+
+    def __init__(self, attr: str):
+        self.attr = attr
+
+    def __get__(self, instance, owner):
+        value = self._cache.get(self.attr)
+        if value is None:
+            import torch
+
+            value = "cuda" if torch.cuda.is_available() else "cpu"
+            self._cache[self.attr] = value
+        return value
+
+    def __set__(self, instance, value):
+        self._cache[self.attr] = value
+
+
 class Config:
     """系统配置"""
 
@@ -50,34 +75,10 @@ class Config:
     # ========== 推理配置 ==========
     INFERENCE_QUEUE_SIZE = 20
     INFERENCE_BATCH_SIZE = 1
-    import torch
 
-    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    TRAINING_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-    # 从持久化配置加载设备偏好（如果存在）
-    @classmethod
-    def load_device_config(cls):
-        import json
-
-        device_cfg = cls.DATA_DIR / "device_config.json"
-        if device_cfg.exists():
-            try:
-                with open(device_cfg, "r", encoding="utf-8") as f:
-                    cfg = json.load(f)
-                valid = ["cpu"]
-                import torch
-
-                if torch.cuda.is_available():
-                    valid.append("cuda")
-                td = cfg.get("training_device", cls.TRAINING_DEVICE)
-                idd = cfg.get("inference_device", cls.DEVICE)
-                if td in valid:
-                    cls.TRAINING_DEVICE = td
-                if idd in valid:
-                    cls.DEVICE = idd
-            except Exception:
-                pass
+    # 推理/训练设备：首次访问时按 torch 探测默认值，启动时由持久化配置覆盖
+    DEVICE = _LazyDevice("DEVICE")
+    TRAINING_DEVICE = _LazyDevice("TRAINING_DEVICE")
 
     # 模型路径优先级：
     # 模型路径在 DATA_DIR 确定后动态计算（见下方 get_active_model_path）
