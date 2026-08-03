@@ -24,13 +24,12 @@ def iter_photo_subdirs(capture_dir: Path):
     )
 
 
-def list_camera_photos(capture_dir: Path, reject_labels):
-    """Return photo records and result counts for one camera directory."""
-    photos = []
-    ok_count = 0
-    ng_count = 0
-    reject_labels = set(reject_labels or [])
+def iter_photo_records(capture_dir: Path, reject_labels, cam_id=None):
+    """遍历一个相机目录下的照片记录（时间倒序）。
 
+    reject_labels 决定哪些类别子目录视为 NG；cam_id 非空时记录附带 camId。
+    """
+    reject_labels = set(reject_labels or [])
     for subdir in iter_photo_subdirs(capture_dir):
         sub = subdir.name
         try:
@@ -49,20 +48,30 @@ def list_camera_photos(capture_dir: Path, reject_labels):
             except OSError:
                 continue
             result_tag = "NG" if sub in reject_labels else ("--" if sub == "未分类" else "OK")
-            if result_tag == "OK":
-                ok_count += 1
-            elif result_tag == "NG":
-                ng_count += 1
-            photos.append(
-                {
-                    "filename": file_path.name,
-                    "subdir": sub,
-                    "size": stat.st_size,
-                    "mtime": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
-                    "timestamp": stat.st_mtime,
-                    "result": result_tag,
-                }
-            )
+            record = {
+                "filename": file_path.name,
+                "subdir": sub,
+                "size": stat.st_size,
+                "mtime": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+                "timestamp": stat.st_mtime,
+                "result": result_tag,
+            }
+            if cam_id is not None:
+                record["camId"] = cam_id
+            yield record
+
+
+def list_camera_photos(capture_dir: Path, reject_labels):
+    """Return photo records and result counts for one camera directory."""
+    photos = []
+    ok_count = 0
+    ng_count = 0
+    for photo in iter_photo_records(capture_dir, reject_labels):
+        if photo["result"] == "OK":
+            ok_count += 1
+        elif photo["result"] == "NG":
+            ng_count += 1
+        photos.append(photo)
     return {"photos": photos, "okCount": ok_count, "ngCount": ng_count}
 
 

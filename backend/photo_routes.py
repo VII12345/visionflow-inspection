@@ -18,7 +18,7 @@ from .model_repository import get_model_reject_labels
 from .photo_service import (
     delete_photo as delete_photo_file,
     find_photo,
-    iter_photo_subdirs,
+    iter_photo_records,
     list_camera_photos,
     photo_mime,
 )
@@ -121,35 +121,7 @@ def _iter_all_photos(camera_id=None):
         capture_dir = Config.CAPTURE_DIR / f"cam{cam_id}"
         if not capture_dir.is_dir():
             continue
-        for subdir in iter_photo_subdirs(capture_dir):
-            sub = subdir.name
-            result_tag = "NG" if sub in reject_labels else ("--" if sub == "未分类" else "OK")
-            try:
-                files = sorted(
-                    subdir.iterdir(),
-                    key=lambda item: item.stat().st_mtime,
-                    reverse=True,
-                )
-            except OSError:
-                continue
-            for file_path in files:
-                if not file_path.is_file() or file_path.suffix.lower() not in IMAGE_EXTENSIONS:
-                    continue
-                try:
-                    stat = file_path.stat()
-                except OSError:
-                    continue
-                yield {
-                    "camId": cam_id,
-                    "filename": file_path.name,
-                    "subdir": sub,
-                    "result": result_tag,
-                    "size": stat.st_size,
-                    "timestamp": stat.st_mtime,
-                    "mtime": datetime.fromtimestamp(stat.st_mtime).strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    ),
-                }
+        yield from iter_photo_records(capture_dir, reject_labels, cam_id=cam_id)
 
 
 def _apply_filters(photos, camera_id=None, start=None, end=None, category=None):
