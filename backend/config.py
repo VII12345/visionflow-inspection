@@ -102,6 +102,18 @@ class Config:
     LINE_COUNT_FILE = DATA_DIR / 'line_count.json'
     LOG_FILE = DATA_DIR / "vision_system.log"
 
+    # ========== LECPServer 自动启动 ==========
+    # 应用启动时后端在后台自动拉起 LECPServer.exe（隐藏窗口），退出时关闭。
+    LECPSERVER_AUTO_START = os.environ.get("LECPSERVER_AUTO_START", "1") not in ("0", "false", "False", "no", "off")
+    LECPSERVER_EXE = os.environ.get("LECPSERVER_EXE", "").strip() or None  # 绝对路径到 exe
+    LECPSERVER_DIR = os.environ.get("LECPSERVER_DIR", "").strip() or None  # 含 LECPServer.exe 的目录
+    LECPSERVER_HOST = os.environ.get("LECPSERVER_HOST", "127.0.0.1")
+    LECPSERVER_PORT = int(os.environ.get("LECPSERVER_PORT", "8088"))
+    LECPSERVER_READY_TIMEOUT = int(os.environ.get("LECPSERVER_READY_TIMEOUT", "60"))
+    LECPSERVER_HIDE_MODE = os.environ.get("LECPSERVER_HIDE_MODE", "hide")  # "hide" | "minimize"
+    LECPSERVER_WINDOW_SWEEP_ATTEMPTS = int(os.environ.get("LECPSERVER_WINDOW_SWEEP_ATTEMPTS", "3"))
+    LECPSERVER_PID_FILE = DATA_DIR / "lecpserver.pid"
+
     # 活跃模型：优先用 data/ 下已训练的任意产品模型，否则用种子模型
     @classmethod
     def get_active_model_path(cls, model_name=None):

@@ -34,6 +34,10 @@ MvSDKLog/
 /model_classifier.pth
 /model_classifier_test.pth
 
+# Bundled LECPServer copy (dev staging copy, ~530M; build script copies to view/resources)
+/resources/lecpserver/
+/view/resources/lecpserver/
+
 # Training outputs at root
 /training_history.json
 

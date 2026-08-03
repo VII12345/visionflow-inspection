@@ -1,5 +1,6 @@
 """服务器启动编排：配置加载、环境检测、相机初始化与后台清理线程。"""
 
+import atexit
 import threading
 import time
 
@@ -20,6 +21,7 @@ from .settings_repository import (
     load_line_count as _load_line_count,
     load_save_only_reject as _load_save_only_reject,
 )
+from .lecpserver_launcher import ensure_started as _ensure_lecpserver, stop as _stop_lecpserver
 
 
 def run_server():
@@ -32,6 +34,14 @@ def run_server():
         logger.warning(f"加载线体数量失败，使用默认值: {e}")
 
     Config.ensure_directories()
+
+    # 自动启动 LECPServer（若 resources/lecpserver 存在且 8088 空闲），退出时自动关闭。
+    # 放在最前：模型预加载/环境检测占用十几到几十秒，LECPServer 趁此完成 webapi 就绪。
+    try:
+        _ensure_lecpserver()
+        atexit.register(_stop_lecpserver)
+    except Exception as exc:
+        logger.warning(f"LECPServer 自动启动异常，继续启动: {exc}")
 
     # 初始化用户文件（首次启动创建默认管理员并提示初始密码）
     ensure_users_file()

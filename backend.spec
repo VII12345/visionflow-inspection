@@ -39,6 +39,7 @@ a = Analysis(
         'backend.camera_config_manager',
         'backend.plc_service',
         'backend.hardware.run_hidden',
+        'backend.lecpserver_launcher',
     ],
     hookspath=[],
     hooksconfig={},
@@ -70,6 +71,7 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=None,
+    uac_admin=True,
 )
 
 # 使用 onedir 模式：DLL 独立存放，便于精简
