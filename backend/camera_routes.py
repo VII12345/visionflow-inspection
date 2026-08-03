@@ -85,7 +85,6 @@ def update_camera_config(cam_id):
             return jsonify(
                 {"success": False, "error": "PLC地址必须以 http:// 或 https:// 开头"}
             ), 400
-        camera_config["plcUrl"] = plc_url.rstrip("/")
 
         for key in ("rejectTime", "rejectDelay"):
             value = camera_config[key]

@@ -31,6 +31,7 @@ from torchvision import transforms
 from torch.amp import autocast
 
 from .config import IMAGE_EXTENSIONS
+from .logger import logger
 from .model_repository import DEFAULT_CATEGORIES
 
 IMG_SIZE = 224
@@ -42,9 +43,7 @@ def set_training_device(device_str: str):
     """运行时切换训练设备，如 'cuda' 或 'cpu'"""
     global _device
     _device = torch.device(device_str)
-    import logging
-
-    logging.getLogger("vision").info(f"训练设备已切换至: {_device}")
+    logger.info(f"训练设备已切换至: {_device}")
 
 
 def _get_device():
@@ -233,8 +232,7 @@ class ProductDataset(Dataset):
         self.base_tensors: list[torch.Tensor] = []
         self.labels: list[int] = []
         failed = 0
-        import logging
-        log = logging.getLogger("vision")
+        log = logger
         for image_path, label, rotated in self.samples:
             try:
                 image = Image.open(image_path).convert("RGB")
@@ -407,9 +405,7 @@ def train_model_v2(
         status_callback: fn(epoch, total_epochs, train_loss, val_loss, val_acc, message)
         stop_flag_fn: callable() -> bool, 返回 True 时立即停止训练
     """
-    import logging
-
-    _log = logging.getLogger("vision")
+    _log = logger
 
     # 检查数据加载器是否为空
     if len(train_ldr) == 0:

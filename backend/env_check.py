@@ -86,13 +86,6 @@ class EnvironmentChecker:
             ],
         }
 
-    def can_proceed(self):
-        """是否允许继续启动（致命错误返回 False）"""
-        for r in self.results:
-            if r.level == "error" and not r.passed:
-                return False
-        return True
-
 
 # ========== 便捷函数 ==========
 
