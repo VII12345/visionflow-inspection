@@ -133,6 +133,13 @@ def ensure_started():
         _state["error"] = None
     _write_pidfile(proc.pid, exe)
     logger.info(f"LECPServer 已启动 (pid={proc.pid}, exe={exe})")
+    # 即时隐藏：WinEvent 钩子在窗口被显示的瞬间同步 SW_HIDE，消除闪现
+    threading.Thread(
+        target=_win_event_hide_loop,
+        args=(proc.pid,),
+        daemon=True,
+        name="lecpserver-window-hide",
+    ).start()
     threading.Thread(
         target=_wait_ready_and_hide,
         args=(proc, proc.pid),
@@ -266,6 +273,53 @@ def _hide_windows_for_pid(pid):
             f"仍可见 {still_visible} (mode={Config.LECPSERVER_HIDE_MODE}, pid={pid})"
         )
     return len(windows)
+
+
+def _win_event_hide_loop(pid):
+    """用 WinEvent 钩子即时隐藏 pid 的顶层窗口，消除启动闪现。
+
+    LECPServer（WinForms）会忽略 SW_HIDE 的 nCmdShow 并主动显示主窗口，轮询
+    压制有延迟仍会闪现。SetWinEventHook(EVENT_OBJECT_SHOW) 在窗口被显示的
+    事件派发瞬间同步 SW_HIDE，用户看不到它。此线程跑消息循环，进程退出后由
+    后端结束（daemon）。
+    """
+    if os.name != "nt":
+        return
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    EVENT_OBJECT_SHOW = 0x8002
+    WINEVENT_OUTOFCONTEXT = 0x0000
+
+    WINEVENTPROC = ctypes.WINFUNCTYPE(
+        None, wintypes.HANDLE, wintypes.DWORD, wintypes.HWND,
+        wintypes.LONG, wintypes.LONG, wintypes.DWORD, wintypes.DWORD,
+    )
+
+    @WINEVENTPROC
+    def _cb(_hook, _event, hwnd, id_object, _id_child, _thread, _time):
+        if id_object != 0:  # 仅处理 OBJID_WINDOW
+            return
+        try:
+            wpid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(wpid))
+            if wpid.value == pid:
+                user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, _SWP_HIDEWINDOW | _SWP_NOMOVE | _SWP_NOSIZE)
+                user32.ShowWindow(hwnd, _SW_HIDE)
+        except Exception:
+            pass
+
+    hook = user32.SetWinEventHook(
+        EVENT_OBJECT_SHOW, EVENT_OBJECT_SHOW, None, _cb, pid, 0, WINEVENT_OUTOFCONTEXT
+    )
+    if not hook:
+        logger.warning("注册 LECPServer 窗口隐藏钩子失败，退化为轮询压制")
+        return
+    msg = wintypes.MSG()
+    while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+        user32.DispatchMessageW(ctypes.byref(msg))
+    user32.UnhookWinEvent(hook)
 
 
 def _wait_ready_and_hide(proc, pid):
