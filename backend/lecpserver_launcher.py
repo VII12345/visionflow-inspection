@@ -183,16 +183,23 @@ def _probe_port(host, port, timeout=1.0):
 
 
 def _spawn(exe):
-    # 注意：不能以最小化/隐藏状态启动。LECPServer 的内嵌浏览器在窗口最小化时
-    # 会节流页面脚本，导致 main.js 的 webAPIStart 不执行、8088 不监听。
-    # 正常启动、等 webapi 就绪后再由窗口压制线程最小化。
-    creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    # 用 SW_HIDE 启动，尽量让窗口从头就不出现（无闪现）。若应用忽略 nCmdShow
+    # 仍显示窗口，则等 webapi 就绪后由窗口压制线程 SW_HIDE 掉。健康检查会在
+    # 隐藏后确认 8088 仍存活。
+    startupinfo = None
+    creationflags = 0
+    if os.name == "nt":
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = _SW_HIDE
+        creationflags = subprocess.CREATE_NO_WINDOW
     return subprocess.Popen(
         [str(exe)],
         cwd=str(exe.parent),  # 读同目录 plc.conf/modules.conf，probing 相对 dlls\
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        startupinfo=startupinfo,
         creationflags=creationflags,
     )
 
@@ -264,10 +271,12 @@ def _hide_windows_for_pid(pid):
 def _wait_ready_and_hide(proc, pid):
     host, port = _plc_probe_address()
     start = time.time()
-    # 启动期间不压窗口：最小化会节流 LECPServer 内嵌浏览器的脚本，webapi 起不来。
     deadline = start + Config.LECPSERVER_READY_TIMEOUT
     ready_after = None
     while time.time() < deadline:
+        # 启动期间就持续隐藏窗口（配合 SW_HIDE 启动，消除闪现）。健康检查会确认
+        # 隐藏不影响 webapi；若影响，ready 会超时并记 warning。
+        _hide_windows_for_pid(pid)
         if proc.poll() is not None:
             with _state_lock:
                 _state["error"] = f"LECPServer 进程提前退出 (exit={proc.returncode})"
@@ -290,7 +299,7 @@ def _wait_ready_and_hide(proc, pid):
         _state["ready"] = True
         _state["ready_after_sec"] = round(ready_after, 1)
     logger.info(f"LECPServer webapi 就绪 ({ready_after:.1f}s)")
-    # 就绪后才持续压制窗口；进程存活期间每几秒压一次，覆盖迟建/重建的窗口。
+    # 就绪后继续持续隐藏窗口；进程存活期间每几秒压一次，覆盖迟建/重建的窗口。
     # （本实例退出或被 stop() 杀掉后 proc.poll() 非空，循环随之结束）
     logger.info("LECPServer 窗口压制线程已启动")
     cycle = 0
