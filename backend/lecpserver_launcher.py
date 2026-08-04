@@ -183,20 +183,16 @@ def _probe_port(host, port, timeout=1.0):
 
 
 def _spawn(exe):
-    startupinfo = None
-    creationflags = 0
-    if os.name == "nt":
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = _SW_HIDE if Config.LECPSERVER_HIDE_MODE == "hide" else _SW_MINIMIZE
-        creationflags = subprocess.CREATE_NO_WINDOW
+    # 注意：不能以最小化/隐藏状态启动。LECPServer 的内嵌浏览器在窗口最小化时
+    # 会节流页面脚本，导致 main.js 的 webAPIStart 不执行、8088 不监听。
+    # 正常启动、等 webapi 就绪后再由窗口压制线程最小化。
+    creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
     return subprocess.Popen(
         [str(exe)],
         cwd=str(exe.parent),  # 读同目录 plc.conf/modules.conf，probing 相对 dlls\
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        startupinfo=startupinfo,
         creationflags=creationflags,
     )
 
@@ -263,8 +259,7 @@ def _hide_windows_for_pid(pid):
 def _wait_ready_and_hide(proc, pid):
     host, port = _plc_probe_address()
     start = time.time()
-    # 第一遍隐藏尽量早，压掉窗口闪现
-    _hide_windows_for_pid(pid)
+    # 启动期间不压窗口：最小化会节流 LECPServer 内嵌浏览器的脚本，webapi 起不来。
     deadline = start + Config.LECPSERVER_READY_TIMEOUT
     ready_after = None
     while time.time() < deadline:
@@ -284,12 +279,13 @@ def _wait_ready_and_hide(proc, pid):
         with _state_lock:
             _state["error"] = f"LECPServer 启动后 {Config.LECPSERVER_READY_TIMEOUT}s 内 webapi 未就绪"
         logger.warning(_state["error"])
-    else:
-        with _state_lock:
-            _state["ready"] = True
-            _state["ready_after_sec"] = round(ready_after, 1)
-        logger.info(f"LECPServer webapi 就绪 ({ready_after:.1f}s)")
-    # 持续压制窗口：进程存活期间每几秒最小化一次，覆盖启动期迟建与重建的窗口。
+        # 未就绪时保留窗口可见，便于现场查看 LECPServer 的错误界面
+        return
+    with _state_lock:
+        _state["ready"] = True
+        _state["ready_after_sec"] = round(ready_after, 1)
+    logger.info(f"LECPServer webapi 就绪 ({ready_after:.1f}s)")
+    # 就绪后才持续最小化窗口；进程存活期间每几秒压一次，覆盖迟建/重建的窗口。
     # （本实例退出或被 stop() 杀掉后 proc.poll() 非空，循环随之结束）
     logger.info("LECPServer 窗口压制线程已启动")
     while proc.poll() is None:
