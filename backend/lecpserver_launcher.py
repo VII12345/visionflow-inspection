@@ -269,10 +269,11 @@ def _wait_ready_and_hide(proc, pid):
             _state["ready"] = True
             _state["ready_after_sec"] = round(ready_after, 1)
         logger.info(f"LECPServer webapi 就绪 ({ready_after:.1f}s)")
-    # 补几遍隐藏，覆盖浏览器迟创建的窗口
-    for _ in range(Config.LECPSERVER_WINDOW_SWEEP_ATTEMPTS):
+    # 持续压制窗口：进程存活期间每几秒最小化/隐藏一次，覆盖启动期迟建与重建的窗口。
+    # （本实例退出或被 stop() 杀掉后 proc.poll() 非空，循环随之结束）
+    while proc.poll() is None:
         _hide_windows_for_pid(pid)
-        time.sleep(1.0)
+        time.sleep(Config.LECPSERVER_HIDE_INTERVAL)
 
 
 def _pidfile_path():

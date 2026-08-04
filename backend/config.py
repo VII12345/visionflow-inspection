@@ -110,8 +110,9 @@ class Config:
     LECPSERVER_HOST = os.environ.get("LECPSERVER_HOST", "127.0.0.1")
     LECPSERVER_PORT = int(os.environ.get("LECPSERVER_PORT", "8088"))
     LECPSERVER_READY_TIMEOUT = int(os.environ.get("LECPSERVER_READY_TIMEOUT", "60"))
-    LECPSERVER_HIDE_MODE = os.environ.get("LECPSERVER_HIDE_MODE", "hide")  # "hide" | "minimize"
-    LECPSERVER_WINDOW_SWEEP_ATTEMPTS = int(os.environ.get("LECPSERVER_WINDOW_SWEEP_ATTEMPTS", "3"))
+    # LECPServer v1.3.7 对 SW_HIDE 有重新显示行为，SendMessage(SC_MINIMIZE) 实测可保持最小化
+    LECPSERVER_HIDE_MODE = os.environ.get("LECPSERVER_HIDE_MODE", "minimize")  # "minimize" | "hide"
+    LECPSERVER_HIDE_INTERVAL = float(os.environ.get("LECPSERVER_HIDE_INTERVAL", "3"))  # 持续压制间隔（秒）
     LECPSERVER_PID_FILE = DATA_DIR / "lecpserver.pid"
 
     # 活跃模型：优先用 data/ 下已训练的任意产品模型，否则用种子模型
