@@ -20,7 +20,7 @@ a = Analysis(
         'backend.training', 'backend.mvs_camera', 'backend.mvs_camera_manager',
         'backend.inference_worker', 'backend.env_check',
         'backend.camera_config_manager', 'backend.plc_service',
-        'backend.hardware.run_hidden',
+        'backend.hardware.run_hidden', 'backend.lecpserver_launcher',
     ],
     hookspath=[], hooksconfig={}, runtime_hooks=[], excludes=[],
     win_no_prefer_redirects=False, win_private_assemblies=False,
@@ -35,6 +35,7 @@ exe = EXE(
     disable_windowed_traceback=False, argv_emulation=False,
     target_arch=None, codesign_identity=None, entitlements_file=None,
     icon=None,
+    uac_admin=True,
 )
 coll = COLLECT(exe, a.binaries, a.zipfiles, a.datas, strip=False,
                upx=True, upx_exclude=[], name='backend')

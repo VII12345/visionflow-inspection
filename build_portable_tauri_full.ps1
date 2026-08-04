@@ -95,6 +95,7 @@ New-Item -ItemType Directory -Path (Join-Path $PortableDir "data") -Force | Out-
 Copy-Item -LiteralPath $BuiltExe -Destination (Join-Path $PortableDir "视界智检.exe") -Force
 Copy-Item -Path (Join-Path $BackendDir '*') -Destination (Join-Path $PortableDir "resources\backend") -Recurse -Force
 if (Test-Path -LiteralPath $LecpSource) {
+    New-Item -ItemType Directory -Path (Join-Path $PortableDir "resources\lecpserver") -Force | Out-Null
     Copy-Item -Path (Join-Path $LecpSource '*') -Destination (Join-Path $PortableDir "resources\lecpserver") -Recurse -Force
 }
 Set-Content -LiteralPath (Join-Path $PortableDir "portable.flag") -Value "Tauri GPU+CPU portable" -Encoding utf8

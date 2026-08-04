@@ -63,6 +63,19 @@ if (Test-Path -LiteralPath $ResourcesBackendDir) { Remove-Item -LiteralPath $Res
 New-Item -ItemType Directory -Path $ResourcesBackendDir -Force | Out-Null
 Copy-Item (Join-Path $BackendDir '*') -Destination $ResourcesBackendDir -Recurse -Force
 
+Write-Host "[4/5] 准备 LECPServer 资源..." -ForegroundColor Yellow
+$LecpSource = Join-Path $ProjectRoot "resources\lecpserver"
+$LecpTarget = Join-Path $ViewRoot "resources\lecpserver"
+if (Test-Path -LiteralPath $LecpSource) {
+    if (Test-Path -LiteralPath $LecpTarget) { Remove-Item -LiteralPath $LecpTarget -Recurse -Force }
+    Copy-Item -Path $LecpSource -Destination $LecpTarget -Recurse -Force
+    Remove-Item -LiteralPath (Join-Path $LecpTarget "cache") -Recurse -Force -ErrorAction SilentlyContinue
+    Get-ChildItem -LiteralPath $LecpTarget -Recurse -Filter '*.pdb' | Remove-Item -Force
+    Write-Host "  ✓ $LecpTarget" -ForegroundColor Green
+} else {
+    Write-Host "  [警告] 未找到 resources\lecpserver，LECPServer 自动启动将不可用" -ForegroundColor Yellow
+}
+
 Push-Location (Join-Path $ProjectRoot "view")
 try {
     npm run build

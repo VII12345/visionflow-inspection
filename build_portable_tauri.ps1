@@ -62,6 +62,19 @@ New-Item -ItemType Directory -Path $ResourcesBackendDir -Force | Out-Null
 Copy-Item -Path (Join-Path $BackendDir '*') -Destination $ResourcesBackendDir -Recurse -Force
 Write-Host "  ✓ $ResourcesBackendDir" -ForegroundColor Green
 
+Write-Host "[3/5] 准备 LECPServer 资源..." -ForegroundColor Yellow
+$LecpSource = Join-Path $ProjectRoot "resources\lecpserver"
+$LecpTarget = Join-Path $ViewRoot "resources\lecpserver"
+if (Test-Path -LiteralPath $LecpSource) {
+    if (Test-Path -LiteralPath $LecpTarget) { Remove-Item -LiteralPath $LecpTarget -Recurse -Force }
+    Copy-Item -Path $LecpSource -Destination $LecpTarget -Recurse -Force
+    Remove-Item -LiteralPath (Join-Path $LecpTarget "cache") -Recurse -Force -ErrorAction SilentlyContinue
+    Get-ChildItem -LiteralPath $LecpTarget -Recurse -Filter '*.pdb' | Remove-Item -Force
+    Write-Host "  ✓ $LecpTarget" -ForegroundColor Green
+} else {
+    Write-Host "  [警告] 未找到 resources\lecpserver，LECPServer 自动启动将不可用" -ForegroundColor Yellow
+}
+
 Write-Host "[4/5] 构建 React/Vite 和 Tauri 可执行文件..." -ForegroundColor Yellow
 Push-Location $ViewRoot
 try {
@@ -82,6 +95,10 @@ New-Item -ItemType Directory -Path (Join-Path $PortableDir "resources\backend") 
 New-Item -ItemType Directory -Path (Join-Path $PortableDir "data") -Force | Out-Null
 Copy-Item -LiteralPath $BuiltExe -Destination (Join-Path $PortableDir "视界智检.exe") -Force
 Copy-Item -Path (Join-Path $BackendDir '*') -Destination (Join-Path $PortableDir "resources\backend") -Recurse -Force
+if (Test-Path -LiteralPath $LecpSource) {
+    New-Item -ItemType Directory -Path (Join-Path $PortableDir "resources\lecpserver") -Force | Out-Null
+    Copy-Item -Path (Join-Path $LecpSource '*') -Destination (Join-Path $PortableDir "resources\lecpserver") -Recurse -Force
+}
 Set-Content -LiteralPath (Join-Path $PortableDir "portable.flag") -Value "Tauri CPU-only portable" -Encoding utf8
 
 $readmeLines = @(
@@ -89,7 +106,7 @@ $readmeLines = @(
     '',
     '直接双击“视界智检.exe”即可自动启动前端和后端。'
     '程序、后端资源和 data 数据目录均位于当前目录，可整体复制或压缩分发。',
-    '首次运行前请确认已安装海康 MVS SDK，并且 PLC 服务可用。'
+    '首次运行前请确认已安装海康 MVS SDK；PLC 服务由程序自动启动。'
 )
 [System.IO.File]::WriteAllLines((Join-Path $PortableDir "使用说明.txt"), $readmeLines, [System.Text.UTF8Encoding]::new($true))
 $size = [math]::Round(((Get-ChildItem -LiteralPath $PortableDir -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB, 1)
