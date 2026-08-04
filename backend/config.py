@@ -110,8 +110,8 @@ class Config:
     LECPSERVER_HOST = os.environ.get("LECPSERVER_HOST", "127.0.0.1")
     LECPSERVER_PORT = int(os.environ.get("LECPSERVER_PORT", "8088"))
     LECPSERVER_READY_TIMEOUT = int(os.environ.get("LECPSERVER_READY_TIMEOUT", "60"))
-    # LECPServer v1.3.7 对 SW_HIDE 有重新显示行为，SendMessage(SC_MINIMIZE) 实测可保持最小化
-    LECPSERVER_HIDE_MODE = os.environ.get("LECPSERVER_HIDE_MODE", "minimize")  # "minimize" | "hide"
+    # hide=完全隐藏（任务栏也不留）；minimize=最小化到任务栏。默认 hide。
+    LECPSERVER_HIDE_MODE = os.environ.get("LECPSERVER_HIDE_MODE", "hide")  # "hide" | "minimize"
     LECPSERVER_HIDE_INTERVAL = float(os.environ.get("LECPSERVER_HIDE_INTERVAL", "3"))  # 持续压制间隔（秒）
     LECPSERVER_PID_FILE = DATA_DIR / "lecpserver.pid"
 
