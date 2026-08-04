@@ -45,6 +45,8 @@ _state = {
     "error": None,
 }
 _state_lock = threading.Lock()
+# 窗口压制诊断日志节流
+_hide_state = {"last_log": 0.0}
 
 
 def status():
@@ -200,12 +202,11 @@ def _spawn(exe):
 
 
 def _hide_windows_for_pid(pid):
-    """隐藏或最小化属于 pid 的所有顶层窗口；非 Windows 直接返回 0。
+    """最小化 pid（含子进程）的可见顶层窗口；非 Windows 直接返回 0。
 
-    LECPServer 是 WinForms+内嵌浏览器窗口，对 ShowWindow 有重新显示行为：
-    hide 模式先 SetWindowPos(SWP_HIDEWINDOW)（绕过 WM_SHOWWINDOW 处理）再
-    ShowWindow；minimize 模式发 SC_MINIMIZE（实测可保持最小化）。本进程与
-    LECPServer 同权限（整个应用以管理员运行）时这些调用不受访问限制。
+    实测 LECPServer v1.3.7 对 SetWindowPos/ShowWindow 的 SW_HIDE 有重新显示
+    行为，而 SendMessage(WM_SYSCOMMAND, SC_MINIMIZE) 可保持最小化。这里只
+    处理可见顶层窗口（与验证口径一致），并带节流诊断日志。
     """
     if os.name != "nt":
         return 0
@@ -213,31 +214,50 @@ def _hide_windows_for_pid(pid):
     from ctypes import wintypes
 
     user32 = ctypes.WinDLL("user32", use_last_error=True)
-    minimize = Config.LECPSERVER_HIDE_MODE != "hide"
-    found = []
+    pids = {pid}
+    try:
+        import psutil
+
+        try:
+            for child in psutil.Process(pid).children(recursive=True):
+                pids.add(child.pid)
+        except (psutil.Error, ValueError):
+            pass
+    except ImportError:
+        pass
+
+    windows = []
 
     @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
     def _cb(hwnd, _lparam):
         wpid = wintypes.DWORD()
         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(wpid))
-        if wpid.value == pid:
-            found.append(hwnd)
+        if wpid.value in pids and user32.IsWindowVisible(hwnd):
+            windows.append(hwnd)
         return True
 
     try:
         user32.EnumWindows(_cb, 0)
     except Exception:
         return 0
-    for hwnd in found:
+
+    for hwnd in windows:
         try:
-            if minimize:
-                user32.SendMessageW(hwnd, _WM_SYSCOMMAND, _SC_MINIMIZE, 0)
-            else:
-                user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, _SWP_HIDEWINDOW | _SWP_NOMOVE | _SWP_NOSIZE)
-                user32.ShowWindow(hwnd, _SW_HIDE)
+            user32.SendMessageW(hwnd, _WM_SYSCOMMAND, _SC_MINIMIZE, 0)
+            user32.ShowWindow(hwnd, _SW_MINIMIZE)
         except Exception:
             pass
-    return len(found)
+
+    # 节流诊断：窗口数 + 最小化是否生效，便于现场定位
+    now = time.time()
+    if windows and (now - _hide_state["last_log"] > 15):
+        _hide_state["last_log"] = now
+        still_visible = sum(1 for h in windows if not user32.IsIconic(h))
+        logger.info(
+            f"LECPServer 窗口压制: 找到 {len(windows)} 个可见窗口, "
+            f"{still_visible} 个仍非最小化 (pid={pid})"
+        )
+    return len(windows)
 
 
 def _wait_ready_and_hide(proc, pid):
@@ -269,8 +289,9 @@ def _wait_ready_and_hide(proc, pid):
             _state["ready"] = True
             _state["ready_after_sec"] = round(ready_after, 1)
         logger.info(f"LECPServer webapi 就绪 ({ready_after:.1f}s)")
-    # 持续压制窗口：进程存活期间每几秒最小化/隐藏一次，覆盖启动期迟建与重建的窗口。
+    # 持续压制窗口：进程存活期间每几秒最小化一次，覆盖启动期迟建与重建的窗口。
     # （本实例退出或被 stop() 杀掉后 proc.poll() 非空，循环随之结束）
+    logger.info("LECPServer 窗口压制线程已启动")
     while proc.poll() is None:
         _hide_windows_for_pid(pid)
         time.sleep(Config.LECPSERVER_HIDE_INTERVAL)
