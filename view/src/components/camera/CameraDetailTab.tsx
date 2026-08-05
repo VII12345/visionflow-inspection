@@ -16,6 +16,16 @@ export const CameraDetailTab: React.FC<Props> = ({ camId }) => {
   const { saveSettings, setSaveSettings, toggleSaveGood, toggleSaveBad } = useSaveSettings(camId);
   const photos = useCameraPhotos(camId, isRunning, setSaveSettings);
   const currentSettings = saveSettings[camId] || { saveGood: true, saveBad: true };
+  const selectedPhotoData = photos.selectedPhoto
+    ? photos.photos.find(p => p.id === photos.selectedPhoto)
+    : undefined;
+  const isOk = selectedPhotoData?.result === 'OK';
+  const isNg = selectedPhotoData?.result === 'NG';
+  const resultBadge = isOk
+    ? { text: selectedPhotoData.subdir || '放行', cls: 'bg-emerald-50 text-ok' }
+    : isNg
+    ? { text: selectedPhotoData.subdir || '剔除', cls: 'bg-red-50 text-ng' }
+    : { text: selectedPhotoData?.subdir || '--', cls: 'bg-gray-100 text-text-tertiary' };
 
   return (
     <div className="flex flex-col xl:flex-row gap-5 xl:gap-6 h-full overflow-auto">
@@ -26,6 +36,7 @@ export const CameraDetailTab: React.FC<Props> = ({ camId }) => {
               <img src={api.getPhotoUrl(camId, photos.selectedPhoto)} alt={photos.selectedPhoto}
                 className="max-w-[90%] max-h-[90%] object-contain rounded"
                 onError={(e) => { (e.target as HTMLImageElement).alt = '加载失败'; }} />
+              <span className={`absolute top-3 left-3 px-3 py-1.5 rounded-md text-sm font-semibold ${resultBadge.cls}`}>{resultBadge.text}</span>
               <span className="absolute bottom-3 left-3 text-xs text-text-tertiary bg-white/80 px-2 py-1 rounded">{photos.selectedPhoto}</span>
             </>
           ) : (
