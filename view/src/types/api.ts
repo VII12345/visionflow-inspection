@@ -70,7 +70,7 @@ export interface PhotoTrendResponse {
 }
 
 export interface PlcConfigResponse { success: boolean; config: PlcConfig; }
-export interface SavePlcConfigResponse { success: boolean; config?: PlcConfig; message?: string; error?: string; }
+export interface SavePlcConfigResponse { success: boolean; config?: PlcConfig; message?: string; error?: string; plcError?: string; }
 export interface PlcWritePayload { camera_id: number; type: 'reject_time' | 'reject_delay' | 'reject_signal'; value: number; }
 export interface PlcWriteResponse { success: boolean; address?: string; value?: number; error?: string; }
 

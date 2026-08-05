@@ -1,6 +1,6 @@
 """PLC 服务聚合入口：配置读写（plc_config）+ 写入客户端（plc_client）。"""
 
-from .plc_client import PlcService, PlcWriteError, plc_service
+from .plc_client import PlcService, PlcNetworkError, PlcWriteError, plc_service
 from .plc_config import (
     CAMERA_PLC_MAP,
     DEFAULT_CAMERA_PLC_MAP,
@@ -20,6 +20,7 @@ __all__ = [
     "DEFAULT_NODE_PREFIX",
     "DEFAULT_CAMERA_PLC_MAP",
     "CAMERA_PLC_MAP",
+    "PlcNetworkError",
     "PlcWriteError",
     "PlcService",
     "plc_service",

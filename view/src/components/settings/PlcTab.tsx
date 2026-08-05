@@ -4,7 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { Button } from '../common/Button';
 import { FieldHint } from '../common/FieldHint';
 import { inputClass, labelClass } from '../common/uiClasses';
-import type { PlcConfig } from '../../types';
+import type { PlcCameraMapping, PlcConfig } from '../../types';
 
 const fallbackConfig: PlcConfig = {
   enabled: true,
@@ -14,6 +14,14 @@ const fallbackConfig: PlcConfig = {
   reject_labels: ['剔除类'],
   cameras: {},
 };
+
+const defaultMapping = (camId: number): PlcCameraMapping => ({
+  reject_time: `VW${(camId - 1) * 4}`,
+  reject_delay: `VW${(camId - 1) * 4 + 2}`,
+  reject_signal: `MB${camId - 1}`,
+  reject_time_value: 0,
+  reject_delay_value: 0,
+});
 
 export const PlcTab: React.FC = () => {
   const user = useAppStore(s => s.user);
@@ -53,15 +61,13 @@ export const PlcTab: React.FC = () => {
     return true;
   };
 
-  const updateCamera = (camId: number, key: 'reject_time' | 'reject_delay' | 'reject_signal', value: string) => {
+  const updateCamera = (camId: number, key: keyof PlcCameraMapping, value: string | number) => {
     setConfig(current => ({
       ...current,
       cameras: {
         ...current.cameras,
         [String(camId)]: {
-          reject_time: current.cameras[String(camId)]?.reject_time || `VW${(camId - 1) * 4}`,
-          reject_delay: current.cameras[String(camId)]?.reject_delay || `VW${(camId - 1) * 4 + 2}`,
-          reject_signal: current.cameras[String(camId)]?.reject_signal || `MB${camId - 1}`,
+          ...(current.cameras[String(camId)] || defaultMapping(camId)),
           [key]: value,
         },
       },
@@ -75,7 +81,7 @@ export const PlcTab: React.FC = () => {
       const data = await api.savePlcConfig(config);
       if (!data.success) throw new Error(data.error || '保存失败');
       if (data.config) setConfig(data.config);
-      showMessage('PLC 配置已保存，后续写入将使用新配置');
+      showMessage(data.plcError ? `PLC 配置已保存，但写入时序值失败：${data.plcError}` : 'PLC 配置已保存，已写入各相机时序值');
     } catch (error) {
       showMessage(`PLC 配置保存失败: ${(error as Error).message}`);
     } finally {
@@ -85,10 +91,12 @@ export const PlcTab: React.FC = () => {
 
   const test = async (cameraId: number, type: 'reject_time' | 'reject_delay' | 'reject_signal') => {
     if (!ensurePermission()) return;
+    const mapping = config.cameras[String(cameraId)] || defaultMapping(cameraId);
+    const value = type === 'reject_signal' ? 1 : (type === 'reject_time' ? Number(mapping.reject_time_value || 0) : Number(mapping.reject_delay_value || 0));
     const key = `${cameraId}-${type}`;
     setTesting(key);
     try {
-      const data = await api.testPlcWrite({ camera_id: cameraId, type, value: type === 'reject_signal' ? 1 : 0 });
+      const data = await api.testPlcWrite({ camera_id: cameraId, type, value });
       if (!data.success) throw new Error(data.error || '测试失败');
       showMessage(`PLC 测试写入成功：${data.address} = ${data.value}`);
     } catch (error) {
@@ -123,9 +131,9 @@ export const PlcTab: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden shrink-0">
-        <div className="px-6 py-4 border-b border-gray-100"><h3 className="text-[15px] font-semibold text-text-primary">相机节点映射</h3><p className="text-[11px] text-text-tertiary mt-1">当前数量来自系统实际线体/相机数量。请按 PLC 程序中的实际节点名称填写，不要照抄示例值。保存后再进行测试写入。</p></div>
-        <div className="max-h-[420px] 2xl:max-h-[600px] min-h-0 overflow-auto"><table className="w-full text-[12px] border-collapse min-w-[920px]"><thead className="bg-gray-50 sticky top-0 z-10"><tr><th className="px-5 py-3 text-left text-text-tertiary font-medium">相机</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">持续时间节点</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">触发延时节点</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">剔除信号节点</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">测试写入</th></tr></thead><tbody>
-          {cameraIds.map(camId => { const mapping = config.cameras[String(camId)] || { reject_time: `VW${(camId - 1) * 4}`, reject_delay: `VW${(camId - 1) * 4 + 2}`, reject_signal: `MB${camId - 1}` }; return <tr key={camId} className="border-t border-gray-100"><td className="px-5 py-3 font-medium text-text-primary">相机 {camId}</td><td className="px-5 py-2"><input value={mapping.reject_time} onChange={e => updateCamera(camId, 'reject_time', e.target.value)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-36 outline-none focus:border-accent" /></td><td className="px-5 py-2"><input value={mapping.reject_delay} onChange={e => updateCamera(camId, 'reject_delay', e.target.value)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-36 outline-none focus:border-accent" /></td><td className="px-5 py-2"><input value={mapping.reject_signal} onChange={e => updateCamera(camId, 'reject_signal', e.target.value)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-36 outline-none focus:border-accent" /></td><td className="px-5 py-2 whitespace-nowrap"><Button variant="secondary" size="sm" onClick={() => test(camId, 'reject_signal')} disabled={testing !== null}>{testing === `${camId}-reject_signal` ? '测试中...' : '测试信号'}</Button><Button variant="ghost" size="sm" className="ml-2" onClick={() => test(camId, 'reject_time')} disabled={testing !== null}>测试时间</Button></td></tr> })}
+        <div className="px-6 py-4 border-b border-gray-100"><h3 className="text-[15px] font-semibold text-text-primary">相机节点映射</h3><p className="text-[11px] text-text-tertiary mt-1">当前数量来自系统实际线体/相机数量。请按 PLC 程序中的实际节点名称填写，不要照抄示例值；「持续时间值/触发延时值」是保存时写入对应节点的数值，单位以现场 PLC 程序为准（通常为毫秒）。保存后立即写入 PLC。</p></div>
+        <div className="max-h-[420px] 2xl:max-h-[600px] min-h-0 overflow-auto"><table className="w-full text-[12px] border-collapse min-w-[1180px]"><thead className="bg-gray-50 sticky top-0 z-10"><tr><th className="px-5 py-3 text-left text-text-tertiary font-medium">相机</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">持续时间节点</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">持续时间值</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">触发延时节点</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">触发延时值</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">剔除信号节点</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">测试写入</th></tr></thead><tbody>
+          {cameraIds.map(camId => { const mapping = config.cameras[String(camId)] || defaultMapping(camId); return <tr key={camId} className="border-t border-gray-100"><td className="px-5 py-3 font-medium text-text-primary">相机 {camId}</td><td className="px-5 py-2"><input value={mapping.reject_time} onChange={e => updateCamera(camId, 'reject_time', e.target.value)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-36 outline-none focus:border-accent" /></td><td className="px-5 py-2"><input type="number" min={0} value={Number(mapping.reject_time_value ?? 0)} onChange={e => updateCamera(camId, 'reject_time_value', Number(e.target.value) || 0)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-28 outline-none focus:border-accent" /></td><td className="px-5 py-2"><input value={mapping.reject_delay} onChange={e => updateCamera(camId, 'reject_delay', e.target.value)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-36 outline-none focus:border-accent" /></td><td className="px-5 py-2"><input type="number" min={0} value={Number(mapping.reject_delay_value ?? 0)} onChange={e => updateCamera(camId, 'reject_delay_value', Number(e.target.value) || 0)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-28 outline-none focus:border-accent" /></td><td className="px-5 py-2"><input value={mapping.reject_signal} onChange={e => updateCamera(camId, 'reject_signal', e.target.value)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-36 outline-none focus:border-accent" /></td><td className="px-5 py-2 whitespace-nowrap"><Button variant="secondary" size="sm" onClick={() => test(camId, 'reject_signal')} disabled={testing !== null}>{testing === `${camId}-reject_signal` ? '测试中...' : '测试信号'}</Button><Button variant="ghost" size="sm" className="ml-2" onClick={() => test(camId, 'reject_time')} disabled={testing !== null}>{testing === `${camId}-reject_time` ? '测试中...' : '测试时间'}</Button><Button variant="ghost" size="sm" className="ml-2" onClick={() => test(camId, 'reject_delay')} disabled={testing !== null}>{testing === `${camId}-reject_delay` ? '测试中...' : '测试延时'}</Button></td></tr> })}
         </tbody></table></div>
       </div>
     </div>

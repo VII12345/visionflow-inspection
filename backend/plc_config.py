@@ -13,13 +13,25 @@ PLC_PROXY_URL = os.getenv("PLC_PROXY_URL", "").strip()
 PLC_TIMEOUT_SECONDS = float(os.getenv("PLC_TIMEOUT_SECONDS", "3"))
 DEFAULT_NODE_PREFIX = "NODES.MODBUS."
 DEFAULT_CAMERA_PLC_MAP = {
-    1: {"reject_time": "VW0", "reject_delay": "VW2", "reject_signal": "MB0"},
-    2: {"reject_time": "VW4", "reject_delay": "VW6", "reject_signal": "MB1"},
-    3: {"reject_time": "VW8", "reject_delay": "VW10", "reject_signal": "MB2"},
-    4: {"reject_time": "VW12", "reject_delay": "VW14", "reject_signal": "MB3"},
+    1: {"reject_time": "VW0", "reject_delay": "VW2", "reject_signal": "MB0", "reject_time_value": 0, "reject_delay_value": 0},
+    2: {"reject_time": "VW4", "reject_delay": "VW6", "reject_signal": "MB1", "reject_time_value": 0, "reject_delay_value": 0},
+    3: {"reject_time": "VW8", "reject_delay": "VW10", "reject_signal": "MB2", "reject_time_value": 0, "reject_delay_value": 0},
+    4: {"reject_time": "VW12", "reject_delay": "VW14", "reject_signal": "MB3", "reject_time_value": 0, "reject_delay_value": 0},
 }
 # 保留导出名称，兼容旧模块引用；实际运行时使用 get_plc_config() 的动态配置。
 CAMERA_PLC_MAP = DEFAULT_CAMERA_PLC_MAP
+
+# DWord 写入边界，与 plc_client.write_dword 保持一致。
+_PLC_DWORD_MAX = 4294967295
+
+
+def _clamp_value(raw, default=0):
+    """把节点写入值规整为非负整数，非法输入回落默认值。"""
+    try:
+        parsed = int(raw)
+    except (TypeError, ValueError):
+        return default
+    return max(0, min(parsed, _PLC_DWORD_MAX))
 
 
 def _default_config():
@@ -29,6 +41,8 @@ def _default_config():
             "reject_time": f"VW{(cam_id - 1) * 4}",
             "reject_delay": f"VW{(cam_id - 1) * 4 + 2}",
             "reject_signal": f"MB{cam_id - 1}",
+            "reject_time_value": 0,
+            "reject_delay_value": 0,
         }
     return {
         "enabled": True,
@@ -60,6 +74,10 @@ def get_plc_config():
                                 key: str(mapping.get(key, config["cameras"][str(cam_id)][key])).strip()
                                 for key in ("reject_time", "reject_delay", "reject_signal")
                             })
+                            for value_key in ("reject_time_value", "reject_delay_value"):
+                                config["cameras"][str(cam_id)][value_key] = _clamp_value(
+                                    mapping.get(value_key, config["cameras"][str(cam_id)].get(value_key, 0))
+                                )
     except Exception as exc:
         logger.warning(f"读取 PLC 配置失败，使用默认值: {exc}")
     return config
@@ -105,6 +123,14 @@ def save_plc_config(config):
         }
         if any(not normalized["cameras"][str(cam_id)][key] for key in ("reject_time", "reject_delay", "reject_signal")):
             raise ValueError(f"相机 {cam_id} 的 PLC 节点名称不能为空")
+        for value_key in ("reject_time_value", "reject_delay_value"):
+            try:
+                value = int(raw.get(value_key, mapping[value_key]))
+            except (TypeError, ValueError):
+                raise ValueError(f"相机 {cam_id} 的 {value_key} 必须是整数") from None
+            if value < 0 or value > _PLC_DWORD_MAX:
+                raise ValueError(f"相机 {cam_id} 的 {value_key} 必须在 0 到 {_PLC_DWORD_MAX} 之间")
+            normalized["cameras"][str(cam_id)][value_key] = value
 
     Config.DATA_DIR.mkdir(exist_ok=True)
     with open(Config.PLC_CONFIG_FILE, "w", encoding="utf-8") as handle:

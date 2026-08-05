@@ -5,7 +5,7 @@ from flask import Blueprint, jsonify, request
 from .camera_config_manager import camera_config_manager
 from .config import Config
 from .logger import logger
-from .plc_service import get_plc_config, save_plc_config, PlcWriteError, plc_service
+from .plc_service import get_plc_config, save_plc_config, PlcNetworkError, PlcWriteError, plc_service
 from .runtime_state import runtime
 
 camera_bp = Blueprint("camera", __name__)
@@ -103,9 +103,7 @@ def update_camera_config(cam_id):
         plc_result = None
         plc_error = None
         try:
-            plc_result = None if not plc_config.get("enabled", True) else plc_service.with_base_url(plc_url).write_camera_timing(
-                cam_id, camera_config["rejectTime"], camera_config["rejectDelay"]
-            )
+            plc_result = None if not plc_config.get("enabled", True) else plc_service.with_base_url(plc_url).write_camera_timing(cam_id)
         except (PlcWriteError, ValueError) as e:
             plc_error = str(e)
 
@@ -134,13 +132,42 @@ def get_plc_configuration():
     return jsonify({"success": True, "config": get_plc_config()})
 
 
+def _write_all_timing(config):
+    """PLC 配置保存后把各相机时序值写入 PLC，尽力而为。
+
+    网络层失败（PlcNetworkError）说明 PLC 不可达，继续逐台写只会拖慢保存，故中断；
+    单节点写入被拒则记录错误继续尝试其他相机。返回错误描述，全成功返回 None。
+    """
+    if not config.get("enabled", True):
+        return None
+    client = plc_service.with_base_url(config.get("base_url", plc_service.base_url))
+    errors = []
+    for cam_id in sorted(config.get("cameras", {}), key=int):
+        try:
+            client.write_camera_timing(int(cam_id))
+        except PlcNetworkError as exc:
+            errors.append(f"相机{cam_id}: {exc}")
+            break
+        except (PlcWriteError, ValueError) as exc:
+            errors.append(f"相机{cam_id}: {exc}")
+    if not errors:
+        return None
+    if len(errors) > 3:
+        return "；".join(errors[:3]) + f"；另有 {len(errors) - 3} 台相机写入失败"
+    return "；".join(errors)
+
+
 @camera_bp.route("/api/plc/config", methods=["POST"])
 def save_plc_configuration():
-    """保存独立 PLC 配置。"""
+    """保存独立 PLC 配置，并尽力把各相机时序值写入 PLC。"""
     try:
         config = save_plc_config(request.get_json(silent=True) or {})
         logger.info("PLC 独立配置已保存")
-        return jsonify({"success": True, "config": config, "message": "PLC 配置已保存"})
+        plc_error = _write_all_timing(config)
+        response = {"success": True, "config": config, "message": "PLC 配置已保存"}
+        if plc_error:
+            response["plcError"] = plc_error
+        return jsonify(response)
     except (TypeError, ValueError) as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
     except Exception as exc:

@@ -19,6 +19,10 @@ class PlcWriteError(RuntimeError):
     """Raised when an PLC node write fails."""
 
 
+class PlcNetworkError(PlcWriteError):
+    """PLC 网络层失败（连不上/超时），区别于节点写入被拒。"""
+
+
 # 全局写入锁：with_base_url() 会为每次调用新建 PlcService 实例，若锁挂在实例上，
 # 多相机 worker 并发写 PLC 实际不会串行化。这里统一用模块级锁串行所有写入。
 _plc_write_lock = threading.Lock()
@@ -80,6 +84,8 @@ class PlcService:
             logger.error(f"PLC 写入失败: {payload['node']} - {exc}")
             if isinstance(exc, PlcWriteError):
                 raise
+            if isinstance(exc, (urllib.error.URLError, TimeoutError)):
+                raise PlcNetworkError(f"PLC 网络请求失败: {exc}") from exc
             raise PlcWriteError(f"PLC 网络请求失败: {exc}") from exc
 
     def write_dword(self, address, value):
@@ -96,13 +102,24 @@ class PlcService:
             raise ValueError("Byte 值必须在 0 到 255 之间")
         return self.write_node(address, [value, 0])
 
-    def write_camera_timing(self, cam_id, reject_time, reject_delay):
+    def write_camera_timing(self, cam_id, reject_time=None, reject_delay=None):
+        """把某相机的持续时间/触发延时值写入对应节点。
+
+        数值以 PLC 配置（plc_config.json 的 reject_time_value/reject_delay_value）为准，
+        未配置时回退调用方传入的参数，最后回退 0。
+        """
         mapping = get_plc_config()["cameras"].get(str(cam_id))
         if mapping is None:
             raise ValueError("无效的相机编号")
+        reject_time = mapping.get("reject_time_value") if mapping.get("reject_time_value") is not None else reject_time
+        reject_delay = mapping.get("reject_delay_value") if mapping.get("reject_delay_value") is not None else reject_delay
+        if reject_time is None:
+            reject_time = 0
+        if reject_delay is None:
+            reject_delay = 0
         return {
-            "rejectTime": self.write_dword(mapping["reject_time"], reject_time),
-            "rejectDelay": self.write_dword(mapping["reject_delay"], reject_delay),
+            "rejectTime": self.write_dword(mapping["reject_time"], int(reject_time)),
+            "rejectDelay": self.write_dword(mapping["reject_delay"], int(reject_delay)),
         }
 
     def write_reject_signal(self, cam_id):
