@@ -24,6 +24,29 @@ CAMERA_PLC_MAP = DEFAULT_CAMERA_PLC_MAP
 # DWord 写入边界，与 plc_client.write_dword 保持一致。
 _PLC_DWORD_MAX = 4294967295
 
+# save_plc_config 会识别的顶层键；其余键视为扩展字段（如 snap7 直连分支的 plc_*），保存时沿用，避免被覆盖丢。
+_KNOWN_TOP_KEYS = {"enabled", "base_url", "proxy_url", "timeout_seconds", "node_prefix", "reject_labels", "cameras"}
+
+
+def _extra_top_level_fields(config):
+    """收集 normallizer 不认识的顶层扩展字段（plc_ip/plc_port/plc_rack 等）。
+
+    优先取本次请求提供的值；请求未提供时沿用现有配置文件里的值，
+    保证通过 UI 保存不会把其他分支/外部工具写入的扩展字段覆盖丢。
+    """
+    extra = {key: deepcopy(value) for key, value in config.items() if key not in _KNOWN_TOP_KEYS}
+    try:
+        if Config.PLC_CONFIG_FILE.exists():
+            with open(Config.PLC_CONFIG_FILE, "r", encoding="utf-8") as handle:
+                saved = json.load(handle)
+            if isinstance(saved, dict):
+                for key, value in saved.items():
+                    if key not in _KNOWN_TOP_KEYS and key not in extra:
+                        extra[key] = deepcopy(value)
+    except Exception as exc:
+        logger.warning(f"读取 PLC 配置扩展字段失败: {exc}")
+    return extra
+
 
 def _clamp_value(raw, default=0):
     """把节点写入值规整为非负整数，非法输入回落默认值。"""
@@ -131,6 +154,8 @@ def save_plc_config(config):
             if value < 0 or value > _PLC_DWORD_MAX:
                 raise ValueError(f"相机 {cam_id} 的 {value_key} 必须在 0 到 {_PLC_DWORD_MAX} 之间")
             normalized["cameras"][str(cam_id)][value_key] = value
+
+    normalized.update(_extra_top_level_fields(config))
 
     Config.DATA_DIR.mkdir(exist_ok=True)
     with open(Config.PLC_CONFIG_FILE, "w", encoding="utf-8") as handle:
