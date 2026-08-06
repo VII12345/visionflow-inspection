@@ -76,7 +76,7 @@ export const CameraPopoutPage: React.FC<{ camId: number }> = ({ camId }) => {
             <div className="text-sm font-semibold text-text-primary">相机 {camId}</div>
             <div className="mt-1 text-xs text-text-secondary">实时检测画面</div>
           </div>
-          <div className={`rounded-lg px-6 py-3 text-xl font-bold ${badgeClass}`}>
+          <div className={`rounded px-6 py-3 text-4xl font-bold ${badgeClass}`}>
             {badge}
           </div>
         </header>
