@@ -2,13 +2,20 @@
 
 应用启动时由 server_bootstrap 调用 ensure_started()，在后台把 LECPServer.exe
 拉起来（窗口隐藏）并等待其 webapi 就绪；进程退出时 stop() 关闭由本进程启动的
-实例。若 8088 端口已被占用（用户手动开着 LECPServer），则跳过启动且退出时不杀。
+实例。若 8088 端口已被占用且不属于上次启动遗留的实例（即用户手动开着
+LECPServer），则跳过启动且退出时不杀。
 
 LECPServer.exe 的 manifest 是 requireAdministrator，因此本模块（以及整个应用）
 需要以管理员权限运行：打包时 backend.spec 用 uac_admin=True、Tauri 主程序用
 manifest.xml 声明 requireAdministrator。
 
-后端被 Tauri 硬杀导致 atexit 不执行时，靠 data/lecpserver.pid 跨启动清理孤儿。
+可靠性：
+- 启动的 LECPServer 会被挂入 KILL_ON_JOB_CLOSE 的 Job：后端进程无论以何种方式
+  退出（正常退出/被 Tauri 硬杀/崩溃），Windows 都会连带强制终止 LECPServer，
+  避免残留进程占着 8088 端口、锁住打包产物。
+- 若 Job 托管失败（降级）或 LECPServer 非由本次启动（端口已被占），靠
+  data/lecpserver.pid 在下次启动时清理遗留孤儿：进程存活则杀掉并重新接管，
+  进程已死则仅清掉失效的 pid 文件。
 """
 
 import json
@@ -47,6 +54,10 @@ _state = {
 _state_lock = threading.Lock()
 # 窗口压制诊断日志节流
 _hide_state = {"last_log": 0.0}
+# 挂载 LECPServer 的 Job 句柄（KILL_ON_JOB_CLOSE）：句柄由本进程持有直到退出，
+# 内核在进程结束时关闭句柄并强制终止 Job 内所有进程（含 LECPServer 及其子进程）。
+# 不放进 _state，避免 status() 序列化 ctypes 句柄。
+_job_handle = None
 
 
 def status():
@@ -106,13 +117,29 @@ def ensure_started():
 
     host, port = _plc_probe_address()
     if _probe_port(host, port):
-        with _state_lock:
-            _state["port_open_at_start"] = True
-            _state["managed"] = False
-            _state["ready"] = True
-            _state["error"] = None
-        logger.info(f"LECPServer 已在运行（{host}:{port}），跳过自动启动")
-        return status()
+        if _cleanup_orphan():
+            # 端口被上次启动遗留的 LECPServer 占着：杀掉并等端口释放后重新启动接管，
+            # 避免它被当成"用户手动开启"而永远不被清理（残留自我延续，最终锁住打包产物）。
+            deadline = time.time() + 5.0
+            while time.time() < deadline and _probe_port(host, port):
+                time.sleep(0.3)
+            if _probe_port(host, port):
+                with _state_lock:
+                    _state["port_open_at_start"] = True
+                    _state["managed"] = False
+                    _state["ready"] = True
+                    _state["error"] = None
+                logger.warning(f"清理遗留 LECPServer 后端口 ({host}:{port}) 仍被占用，跳过自动启动")
+                return status()
+        else:
+            # 端口被占但 pid 文件里没有我们上次启动的存活实例 → 用户手动开着，不接管。
+            with _state_lock:
+                _state["port_open_at_start"] = True
+                _state["managed"] = False
+                _state["ready"] = True
+                _state["error"] = None
+            logger.info(f"LECPServer 已在运行（{host}:{port}），跳过自动启动")
+            return status()
 
     _cleanup_orphan()
     try:
@@ -133,6 +160,9 @@ def ensure_started():
         _state["error"] = None
     _write_pidfile(proc.pid, exe)
     logger.info(f"LECPServer 已启动 (pid={proc.pid}, exe={exe})")
+    # 挂入 KILL_ON_JOB_CLOSE Job：后端进程无论怎么退出都连带终止 LECPServer。
+    # 失败仅降级（仍靠 atexit/孤儿清理），不影响本次启动。
+    _assign_kill_on_close_job(proc)
     # 即时隐藏：WinEvent 钩子在窗口被显示的瞬间同步 SW_HIDE，消除闪现
     threading.Thread(
         target=_win_event_hide_loop,
@@ -209,6 +239,104 @@ def _spawn(exe):
         startupinfo=startupinfo,
         creationflags=creationflags,
     )
+
+
+def _assign_kill_on_close_job(proc):
+    """把 proc 挂进 KILL_ON_JOB_CLOSE 的 Job。
+
+    后端被 Tauri 硬杀或崩溃导致 atexit 不执行时，本进程持有的 Job 句柄随进程退出
+    被内核关闭，Windows 随即强制终止 Job 内所有进程（含 LECPServer 及其子进程），
+    从根上避免残留进程占着 8088、锁住打包产物。失败仅降级为靠 atexit/孤儿清理。
+    """
+    global _job_handle
+    if os.name != "nt":
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+        JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+        PROCESS_SET_QUOTA = 0x0100
+        PROCESS_TERMINATE = 0x0001
+
+        job = kernel32.CreateJobObjectW(None, None)
+        if not job:
+            logger.warning(f"CreateJobObjectW 失败 (err={ctypes.get_last_error()})，LECPServer 退出托管降级")
+            return None
+
+        class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+            _fields_ = [
+                ("PerProcessUserTimeLimit", ctypes.c_longlong),
+                ("PerJobUserTimeLimit", ctypes.c_longlong),
+                ("LimitFlags", wintypes.DWORD),
+                ("MinimumWorkingSetSize", ctypes.c_size_t),
+                ("MaximumWorkingSetSize", ctypes.c_size_t),
+                ("ActiveProcessLimit", wintypes.DWORD),
+                ("Affinity", ctypes.c_size_t),
+                ("PriorityClass", wintypes.DWORD),
+                ("SchedulingClass", wintypes.DWORD),
+            ]
+
+        class IO_COUNTERS(ctypes.Structure):
+            _fields_ = [
+                ("ReadOperationCount", ctypes.c_ulonglong),
+                ("WriteOperationCount", ctypes.c_ulonglong),
+                ("OtherOperationCount", ctypes.c_ulonglong),
+                ("ReadTransferCount", ctypes.c_ulonglong),
+                ("WriteTransferCount", ctypes.c_ulonglong),
+                ("OtherTransferCount", ctypes.c_ulonglong),
+            ]
+
+        class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+            _fields_ = [
+                ("BasicLimitInformation", JOBOBJECT_BASIC_LIMIT_INFORMATION),
+                ("IoInfo", IO_COUNTERS),
+                ("ProcessMemoryLimit", ctypes.c_size_t),
+                ("JobMemoryLimit", ctypes.c_size_t),
+                ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                ("PeakJobMemoryUsed", ctypes.c_size_t),
+            ]
+
+        info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+        if not kernel32.QueryInformationJobObject(
+            job, JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
+            ctypes.byref(info), ctypes.sizeof(info), None,
+        ):
+            kernel32.CloseHandle(job)
+            logger.warning("QueryInformationJobObject 失败，LECPServer 退出托管降级")
+            return None
+        info.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if not kernel32.SetInformationJobObject(
+            job, JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
+            ctypes.byref(info), ctypes.sizeof(info),
+        ):
+            kernel32.CloseHandle(job)
+            logger.warning("SetInformationJobObject 失败，LECPServer 退出托管降级")
+            return None
+
+        # AssignProcessToJobObject 需要 PROCESS_SET_QUOTA|PROCESS_TERMINATE 权限，
+        # Popen 自带的进程句柄权限不足，用 OpenProcess 单独打开。
+        proc_handle = kernel32.OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, False, proc.pid)
+        if not proc_handle:
+            kernel32.CloseHandle(job)
+            logger.warning(f"OpenProcess 失败 (err={ctypes.get_last_error()})，LECPServer 退出托管降级")
+            return None
+        try:
+            if not kernel32.AssignProcessToJobObject(job, proc_handle):
+                kernel32.CloseHandle(job)
+                logger.warning(f"AssignProcessToJobObject 失败 (err={ctypes.get_last_error()})，LECPServer 退出托管降级")
+                return None
+        finally:
+            kernel32.CloseHandle(proc_handle)
+
+        _job_handle = job
+        logger.info(f"LECPServer (pid={proc.pid}) 已挂入 KILL_ON_JOB_CLOSE Job，后端退出将连带终止")
+        return job
+    except Exception as exc:
+        logger.warning(f"创建 LECPServer Job 失败，退化为不托管: {exc}")
+        return None
 
 
 def _hide_windows_for_pid(pid):
@@ -426,9 +554,15 @@ def _kill_tree(pid):
 
 
 def _cleanup_orphan():
+    """清理上次运行遗留的 LECPServer。
+
+    进程存活则杀掉并返回 True（供调用方决定接管后重新启动）；进程已不存在则仅
+    清掉失效的 pid 文件并返回 False。pid 文件命中但进程名不是 LECPServer 时不杀，
+    防止 pid 复用误伤其它进程。
+    """
     data = _read_pidfile()
     if data is None:
-        return
+        return False
     pid = data["pid"]
     _remove_pidfile()
     try:
@@ -436,12 +570,15 @@ def _cleanup_orphan():
 
         proc = psutil.Process(pid)
         name = (proc.name() or "").lower()
-        if "lepcserver" not in name:
+        if "lecpserver" not in name:
             logger.info(f"忽略 pid 文件中的非 LECPServer 进程 (pid={pid}, name={name})")
-            return
+            return False
         logger.info(f"清理上次遗留的 LECPServer 进程 (pid={pid})")
         _kill_tree(pid)
+        return True
     except psutil.NoSuchProcess:
         logger.info("pid 文件中的 LECPServer 进程已不存在，跳过清理")
+        return False
     except psutil.Error as exc:
         logger.warning(f"清理遗留 LECPServer 进程失败: {exc}")
+        return False
