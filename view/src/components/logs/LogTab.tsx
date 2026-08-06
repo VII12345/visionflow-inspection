@@ -23,13 +23,26 @@ const LEVEL_CLASS: Record<string, string> = {
   CRITICAL: 'text-ng',
 };
 
-/** 日志查看页签：自动滚动 tail、级别筛选、搜索、下载。 */
+/** 把相对 logs/ 的日志文件名格式化为可读标签，如 "2026-08-06 11:44:35 [错误]"。 */
+function formatFileLabel(f: LogFileInfo): string {
+  const errSuffix = f.source === 'error' ? ' [错误]' : '';
+  const m = f.name.match(/(\d{4}-\d{2}-\d{2})\/(\d{8})_(\d{6})\.log(?:\.(\d))?$/);
+  if (m) {
+    const time = `${m[3].slice(0, 2)}:${m[3].slice(2, 4)}:${m[3].slice(4, 6)}`;
+    const split = m[4] ? `（分片${m[4]}）` : '';
+    return `${m[1]} ${time}${split}${errSuffix}`;
+  }
+  return f.name + errSuffix;
+}
+
+/** 日志查看页签：自动滚动 tail、级别筛选、搜索、下载、历史文件查看。 */
 export const LogTab: React.FC = () => {
   const showMessage = useAppStore(s => s.showMessage);
   const [source, setSource] = useState<LogSource>('main');
   const [level, setLevel] = useState('');
   const [search, setSearch] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [selectedFile, setSelectedFile] = useState('');
   const [lines, setLines] = useState<LogLine[]>([]);
   const [file, setFile] = useState('');
   const [files, setFiles] = useState<LogFileInfo[]>([]);
@@ -39,13 +52,15 @@ export const LogTab: React.FC = () => {
 
   const load = useCallback(async () => {
     try {
-      const data = await api.getLogs(source, 500, level);
+      const data = selectedFile
+        ? await api.getLogs('main', 500, level, selectedFile)
+        : await api.getLogs(source, 500, level);
       setLines(data.lines || []);
       setFile(data.file || '');
     } catch (error) {
       showMessage(`读取日志失败: ${(error as Error).message}`);
     }
-  }, [source, level, showMessage]);
+  }, [source, level, selectedFile, showMessage]);
 
   useEffect(() => {
     void load();
@@ -53,7 +68,8 @@ export const LogTab: React.FC = () => {
     getDataPath().then(setDataPath).catch(() => undefined);
   }, [load]);
 
-  usePolling(load, 2000, autoRefresh);
+  // 查看历史文件时停用自动刷新（文件不会变化）
+  usePolling(load, 2000, autoRefresh && !selectedFile);
 
   // 自动刷新时跟随到底部；用户上滚查看历史则暂停跟随
   useEffect(() => {
@@ -87,8 +103,7 @@ export const LogTab: React.FC = () => {
     }
   };
 
-  const sourceFiles = files.filter(f => f.source === source);
-  const currentSize = sourceFiles.find(f => f.name === file)?.size ?? 0;
+  const currentSize = files.find(f => f.name === file || f.name.endsWith('/' + file))?.size ?? 0;
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -96,12 +111,22 @@ export const LogTab: React.FC = () => {
       <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-gray-200 bg-white shrink-0">
         <div className="flex items-center gap-1">
           {(['main', 'error'] as LogSource[]).map(s => (
-            <button key={s} onClick={() => setSource(s)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${source === s ? 'bg-accent text-white' : 'bg-gray-100 text-text-secondary hover:bg-gray-200'}`}>
+            <button key={s} disabled={!!selectedFile} onClick={() => setSource(s)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${source === s ? 'bg-accent text-white' : 'bg-gray-100 text-text-secondary hover:bg-gray-200'} disabled:opacity-40 disabled:cursor-not-allowed`}>
               {s === 'main' ? '主日志' : '错误日志'}
             </button>
           ))}
         </div>
+        <div className="w-px h-5 bg-gray-200" />
+        <select value={selectedFile} onChange={e => {
+          const v = e.target.value;
+          setSelectedFile(v);
+          if (v) setAutoRefresh(false);
+        }}
+          className="max-w-[280px] px-2.5 py-1.5 text-xs rounded-md border border-gray-200 focus:border-accent focus:outline-none text-text-primary bg-white">
+          <option value="">当前会话（{source === 'main' ? '主日志' : '错误日志'}）</option>
+          {files.map(f => <option key={f.name} value={f.name}>{formatFileLabel(f)}</option>)}
+        </select>
         <div className="w-px h-5 bg-gray-200" />
         <div className="flex items-center gap-1">
           {LEVEL_OPTIONS.map(opt => (
@@ -116,7 +141,8 @@ export const LogTab: React.FC = () => {
           className="w-48 px-3 py-1.5 text-xs rounded-md border border-gray-200 focus:border-accent focus:outline-none" />
         <div className="flex-1" />
         <label className="flex items-center gap-1.5 text-xs text-text-secondary select-none cursor-pointer">
-          <input type="checkbox" checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)} />
+          <input type="checkbox" checked={autoRefresh} disabled={!!selectedFile}
+            onChange={e => setAutoRefresh(e.target.checked)} />
           自动刷新
         </label>
         <Button variant="secondary" size="sm" onClick={() => void load()}>刷新</Button>
@@ -148,10 +174,10 @@ export const LogTab: React.FC = () => {
       {/* 底部信息 */}
       <div className="flex items-center justify-between gap-2 px-4 py-2 border-t border-gray-200 bg-white text-[11px] text-text-tertiary shrink-0">
         <span>
-          {file || '—'}（{currentSize ? `${(currentSize / 1024).toFixed(1)} KB` : '0 B'}，{sourceFiles.length} 个轮转文件）
+          {file || '—'}（{currentSize ? `${(currentSize / 1024).toFixed(1)} KB` : '0 B'}，共 {files.length} 个日志文件）
         </span>
         <span>
-          {dataPath && dataPath !== '浏览器本地存储' ? `日志目录：${dataPath}` : '历史轮转文件存放在 data 目录'}
+          {dataPath && dataPath !== '浏览器本地存储' ? `日志目录：${dataPath}` : '日志存放在 data/logs 目录（按天分文件夹）'}
         </span>
       </div>
     </div>
