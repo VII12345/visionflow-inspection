@@ -107,7 +107,7 @@ return (
 
     {/* Image Area */}
     <div className="relative flex-1 min-h-0 min-w-0 bg-gray-50 flex items-center justify-center overflow-hidden px-2 py-3">
-      <div className={`absolute top-3 left-3 z-10 px-3 py-1.5 rounded-md text-sm font-semibold ${
+      <div className={`absolute top-3 left-3 z-10 px-5 py-3 rounded-lg text-xl font-bold ${
         badgeVariant === 'ok' ? 'bg-emerald-50 text-ok' :
         badgeVariant === 'ng' ? 'bg-red-50 text-ng' :
         badgeVariant === 'error' ? 'bg-red-50 text-ng' :
