@@ -101,6 +101,7 @@ class Config:
     PLC_CONFIG_FILE = DATA_DIR / 'plc_config.json'
     LINE_COUNT_FILE = DATA_DIR / 'line_count.json'
     LOG_FILE = DATA_DIR / "vision_system.log"
+    LOG_ERROR_FILE = DATA_DIR / "vision_system_error.log"
 
     # ========== LECPServer 自动启动 ==========
     # 应用启动时后端在后台自动拉起 LECPServer.exe（隐藏窗口），退出时关闭。

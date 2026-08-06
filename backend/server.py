@@ -26,6 +26,7 @@ from .model_test_routes import model_test_bp
 from .photo_routes import photo_bp
 from .system_routes import apply_line_count as _apply_line_count, system_bp
 from .training_routes import training_bp
+from .log_routes import log_bp
 
 
 # 初始化 Flask
@@ -39,6 +40,7 @@ app.register_blueprint(model_bp)
 app.register_blueprint(model_test_bp)
 app.register_blueprint(photo_bp)
 app.register_blueprint(training_bp)
+app.register_blueprint(log_bp)
 
 # 登录鉴权：默认关闭（AUTH_ENABLED=False），兼容现有局域网无鉴权部署。
 if Config.AUTH_ENABLED:

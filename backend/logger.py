@@ -42,13 +42,23 @@ def setup_logger(name='vision_system'):
     console_handler.setFormatter(formatter)
     handlers.append(console_handler)
 
-    # 文件输出
+    # 文件输出：主日志 + 独立错误日志，均按天轮转且保留全部历史（backupCount=0）。
+    # 主日志保留所有级别（含错误），错误日志是 WARNING/ERROR 的独立副本，便于现场排障。
     try:
         Config.ensure_directories()
-        file_handler = logging.FileHandler(Config.LOG_FILE, encoding='utf-8')
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(formatter)
-        handlers.append(file_handler)
+        main_handler = logging.handlers.TimedRotatingFileHandler(
+            Config.LOG_FILE, when="midnight", backupCount=0, encoding="utf-8"
+        )
+        main_handler.setLevel(logging.DEBUG)
+        main_handler.setFormatter(formatter)
+        handlers.append(main_handler)
+
+        error_handler = logging.handlers.TimedRotatingFileHandler(
+            Config.LOG_ERROR_FILE, when="midnight", backupCount=0, encoding="utf-8"
+        )
+        error_handler.setLevel(logging.ERROR)
+        error_handler.setFormatter(formatter)
+        handlers.append(error_handler)
     except Exception as e:
         logger.warning(f"无法创建日志文件: {e}")
 
