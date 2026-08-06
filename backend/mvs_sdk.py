@@ -9,7 +9,10 @@ from .logger import logger
 # 导入 MVS SDK
 if Config.IS_WINDOWS:
     Config.prepare_mvs_runtime_paths()
-    sys.path.append(Config.PYTHON_IMPORT_PATH)
+    if Config.FAKE_MVS_DIR:
+        sys.path.insert(0, Config.FAKE_MVS_DIR)
+    else:
+        sys.path.append(Config.PYTHON_IMPORT_PATH)
     os.environ["MVCAM_COMMON_RUNENV"] = Config.MVS_SDK_PATH
 
 # 集中导入 MVS SDK 所需的命名符号；SDK 缺失时给出占位值，使依赖模块仍可导入，

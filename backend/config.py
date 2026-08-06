@@ -56,6 +56,11 @@ class Config:
             "/mnt/c/Program Files (x86)/MVS/Development/Samples/Python/MvImport"
         )
 
+    # 模拟相机：打包后的 exe 不读取 PYTHONPATH，需用 FAKE_MVS_DIR 显式指向
+    # simulator 目录，使 import MvCameraControl_class 命中模拟替身。
+    # 开发环境仍可用 PYTHONPATH=simulator；两者都不设则走真实 MVS SDK。
+    FAKE_MVS_DIR = os.environ.get("FAKE_MVS_DIR", "").strip() or None
+
     # ========== Flask 服务 ==========
     # Web 模式默认监听所有网卡，允许局域网浏览器访问；可用 VISION_FLASK_HOST 覆盖。
     FLASK_HOST = os.environ.get("VISION_FLASK_HOST", "0.0.0.0")
