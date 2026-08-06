@@ -105,6 +105,8 @@ class Config:
     CAMERA_CONFIG_FILE = DATA_DIR / 'camera_config.json'
     PLC_CONFIG_FILE = DATA_DIR / 'plc_config.json'
     LINE_COUNT_FILE = DATA_DIR / 'line_count.json'
+    LOG_DIR = DATA_DIR / "logs"
+    # 旧路径仅用于迁移：改造前日志直接写在 data 根目录，启动时挪进 LOG_DIR 归档
     LOG_FILE = DATA_DIR / "vision_system.log"
     LOG_ERROR_FILE = DATA_DIR / "vision_system_error.log"
 

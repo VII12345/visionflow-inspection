@@ -1,8 +1,8 @@
-"""日志读取接口：尾部查看（支持级别过滤）、轮转文件列表、下载。
+"""日志读取接口：尾部查看（支持级别过滤/历史文件）、文件列表、下载。
 
-前端"日志"页签通过 GET /api/logs 轮询最近日志；文件按天轮转，当前内容在
-Config.LOG_FILE（主）与 Config.LOG_ERROR_FILE（错误）中，旧文件为带日期的后缀。
-鉴权由 server.py 的 require_auth_middleware 统一 gate，本蓝图无需额外处理。
+日志按 data/logs/<日期>/ 组织，每次启动一个会话文件。前端"日志"页签轮询
+GET /api/logs 读当前会话；带 file 参数可读任意历史文件。鉴权由 server.py 的
+require_auth_middleware 统一 gate，本蓝图无需额外处理。
 """
 
 import os
@@ -13,6 +13,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request, send_file
 
 from .config import Config
+from .logger import get_active_log_files
 
 log_bp = Blueprint("logs", __name__)
 
@@ -21,27 +22,41 @@ _ENTRY_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\] (\S+):
 
 
 def _source_paths():
-    return {"main": Config.LOG_FILE, "error": Config.LOG_ERROR_FILE}
+    """当前会话的主/错误日志文件。"""
+    return get_active_log_files()
 
 
-def _log_files():
-    """列出主/错误日志及其全部按天轮转的历史文件。"""
+def _all_log_files():
+    """递归列出 data/logs/ 下所有日志文件（各天文件夹 + 归档 + 分片）。"""
     files = []
-    for source, path in _source_paths().items():
-        parent = path.parent
-        for p in sorted(parent.glob(path.name + "*")):
-            try:
-                st = p.stat()
-            except OSError:
-                continue
-            files.append({
-                "name": p.name,
-                "source": source,
-                "size": st.st_size,
-                "modified": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime)),
-            })
-    files.sort(key=lambda f: f["name"])
+    root = Config.LOG_DIR
+    if not root.exists():
+        return files
+    for p in root.rglob("*.log*"):
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        files.append({
+            "name": str(p.relative_to(root)).replace("\\", "/"),
+            "source": "error" if "error" in p.name else "main",
+            "size": st.st_size,
+            "modified": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime)),
+        })
+    # 最新修改在前，方便前端默认选中当前会话
+    files.sort(key=lambda f: f["modified"], reverse=True)
     return files
+
+
+def _resolve_log_file(name: str):
+    """把相对 data/logs/ 的文件名解析为绝对路径；仅允许 logs/ 内文件，防路径穿越。"""
+    root = Config.LOG_DIR
+    target = (root / name).resolve()
+    try:
+        target.relative_to(root.resolve())
+    except ValueError:
+        return None
+    return target if target.is_file() else None
 
 
 def _tail_lines(path: Path, n: int) -> list[str]:
@@ -91,39 +106,50 @@ def _parse_lines(raw_lines: list[str]) -> list[dict]:
 
 @log_bp.route("/api/logs", methods=["GET"])
 def get_logs():
-    """返回最近日志；source=main|error，lines 限制返回条数，level 过滤最低级别。"""
-    source = request.args.get("source", "main")
-    paths = _source_paths()
-    if source not in paths:
-        return jsonify({"success": False, "error": "source 无效"}), 400
+    """返回最近日志。file 指定历史文件（相对 logs/）；否则 source=main|error 读当前会话。"""
+    file_param = request.args.get("file", "").strip()
+    if file_param:
+        path = _resolve_log_file(file_param)
+        if path is None:
+            return jsonify({"success": False, "error": "文件不存在"}), 404
+        source = "error" if "error" in path.name else "main"
+        display = file_param
+    else:
+        source = request.args.get("source", "main")
+        paths = _source_paths()
+        if source not in paths:
+            return jsonify({"success": False, "error": "source 无效"}), 400
+        path = paths[source]
+        display = path.name
+
     try:
         lines = max(1, min(int(request.args.get("lines", 500)), 5000))
     except (TypeError, ValueError):
         lines = 500
     min_priority = _LEVEL_PRIORITY.get((request.args.get("level") or "").upper(), 0)
 
-    raw = _tail_lines(paths[source], max(lines * 2, 500))
+    raw = _tail_lines(path, max(lines * 2, 500))
     entries = _parse_lines(raw)
     if min_priority:
         entries = [e for e in entries if _LEVEL_PRIORITY.get(e["level"], 0) >= min_priority]
     return jsonify({
         "success": True,
         "source": source,
-        "file": paths[source].name,
+        "file": display,
         "lines": entries[-lines:],
     })
 
 
 @log_bp.route("/api/logs/files", methods=["GET"])
 def get_log_files():
-    return jsonify({"success": True, "files": _log_files()})
+    return jsonify({"success": True, "files": _all_log_files()})
 
 
 @log_bp.route("/api/logs/download", methods=["GET"])
 def download_log():
-    """下载指定日志文件；文件名必须命中日志目录内 glob 白名单，防路径穿越。"""
+    """下载指定日志文件；仅允许 data/logs/ 内的文件，防路径穿越。"""
     name = request.args.get("file", "")
-    target = Path(Config.LOG_FILE).parent / name
-    if name in {f["name"] for f in _log_files()} and target.is_file():
-        return send_file(target, as_attachment=True, download_name=name)
+    target = _resolve_log_file(name)
+    if target is not None:
+        return send_file(target, as_attachment=True, download_name=Path(name).name)
     return jsonify({"success": False, "error": "文件不存在"}), 404
