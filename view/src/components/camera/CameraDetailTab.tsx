@@ -36,7 +36,7 @@ export const CameraDetailTab: React.FC<Props> = ({ camId }) => {
               <img src={api.getPhotoUrl(camId, photos.selectedPhoto)} alt={photos.selectedPhoto}
                 className="max-w-[90%] max-h-[90%] object-contain rounded"
                 onError={(e) => { (e.target as HTMLImageElement).alt = '加载失败'; }} />
-              <span className={`absolute top-3 left-3 px-6 py-3 rounded text-4xl font-bold ${resultBadge.cls}`}>{resultBadge.text}</span>
+              <span className={`absolute top-3 left-3 px-7 py-4 rounded text-5xl font-bold ${resultBadge.cls}`}>{resultBadge.text}</span>
               <span className="absolute bottom-3 left-3 text-xs text-text-tertiary bg-white/80 px-2 py-1 rounded">{photos.selectedPhoto}</span>
             </>
           ) : (
