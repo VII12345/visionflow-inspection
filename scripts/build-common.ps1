@@ -54,3 +54,34 @@ function Copy-FrontendDist([string]$ViewRoot, [string]$BackendDir, [string]$Reso
         Write-Host "  ✓ 前端 dist 已复制到后端资源: $dest" -ForegroundColor Green
     }
 }
+
+<#
+.SYNOPSIS
+给 LECPServer.exe.config 打上关闭 .NET 长路径阻断的开关，幂等。
+
+LECPServer v3.9.23.9 内嵌 CefSharp 的资源处理器会对超过 248 字符的模板 URL 调
+Path.GetDirectoryName，触发 PathTooLongException 导致启动即崩。通过
+AppContextSwitchOverrides 关闭长路径阻断即可避免。resources/lecpserver 是 gitignore
+的厂商捆绑目录，此修复需在每次打包时重新应用，避免重新拷贝源目录后丢失。
+#>
+function Apply-LecpserverLongPathFix([string]$LecpDir) {
+    $config = Join-Path $LecpDir 'LECPServer.exe.config'
+    if (-not (Test-Path -LiteralPath $config)) {
+        Write-Host "  [跳过] 未找到 $config（LECPServer 配置缺失）" -ForegroundColor Yellow
+        return
+    }
+    $marker = 'Switch.System.IO.BlockLongPaths=false'
+    $content = Get-Content -LiteralPath $config -Raw -Encoding UTF8
+    if ($content -like "*$marker*") {
+        Write-Host "  ✓ LECPServer 长路径修复已存在" -ForegroundColor Green
+        return
+    }
+    $line = '    <AppContextSwitchOverrides value="Switch.System.IO.UseLegacyPathHandling=false;Switch.System.IO.BlockLongPaths=false" />'
+    if ($content -match '(?m)^  <runtime>\r?\n') {
+        $content = $content -replace '(?m)^  <runtime>\r?\n', "  <runtime>`r`n$line`r`n"
+        [System.IO.File]::WriteAllText($config, $content, (New-Object System.Text.UTF8Encoding($true)))
+        Write-Host "  ✓ 已应用 LECPServer 长路径修复" -ForegroundColor Green
+    } else {
+        Write-Host "  [警告] LECPServer 配置未找到 <runtime> 节点，跳过长路径修复" -ForegroundColor Yellow
+    }
+}

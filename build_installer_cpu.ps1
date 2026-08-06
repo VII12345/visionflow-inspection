@@ -66,6 +66,8 @@ Copy-Item (Join-Path $BackendDir '*') -Destination $ResourcesBackendDir -Recurse
 Write-Host "[4/5] 准备 LECPServer 资源..." -ForegroundColor Yellow
 $LecpSource = Join-Path $ProjectRoot "resources\lecpserver"
 $LecpTarget = Join-Path $ViewRoot "resources\lecpserver"
+# 确保源 LECPServer 配置带长路径修复（重新拷贝厂商目录后需要重新应用）
+Apply-LecpserverLongPathFix $LecpSource
 if (Test-Path -LiteralPath $LecpSource) {
     if (Test-Path -LiteralPath $LecpTarget) { Remove-Item -LiteralPath $LecpTarget -Recurse -Force }
     Copy-Item -Path $LecpSource -Destination $LecpTarget -Recurse -Force
