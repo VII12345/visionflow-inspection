@@ -100,3 +100,26 @@ export interface CatalogResponse {
   initialized?: boolean;
 }
 export type EnvironmentCheckResponse = EnvCheckResult;
+
+export interface LogLine {
+  time: string;
+  level: string;
+  logger: string;
+  message: string;
+}
+export interface LogFileInfo {
+  name: string;
+  source: string;
+  size: number;
+  modified: string;
+}
+export interface LogsResponse {
+  success: boolean;
+  source: string;
+  file: string;
+  lines: LogLine[];
+}
+export interface LogFilesResponse {
+  success: boolean;
+  files: LogFileInfo[];
+}

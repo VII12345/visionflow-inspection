@@ -10,6 +10,7 @@ import { ModelSettingsTab } from '../settings/ModelSettingsTab';
 import { HelpTab } from '../help/HelpTab';
 import { TestTab } from '../test/TestTab';
 import { CameraDetailTab } from '../camera/CameraDetailTab';
+import { LogTab } from '../logs/LogTab';
 
 /** 主内容区按激活页签渲染对应页面。 */
 export const TabRouter: React.FC = () => {
@@ -28,6 +29,7 @@ export const TabRouter: React.FC = () => {
   if (activeTab === 'models') return <ModelSettingsTab />;
   if (activeTab === 'help') return <HelpTab />;
   if (activeTab === 'test') return <TestTab />;
+  if (activeTab === 'logs') return <LogTab />;
   if (activeTab.startsWith('cam-detail-')) {
     const camId = parseInt(activeTab.replace('cam-detail-', ''));
     return <CameraDetailTab camId={camId} />;

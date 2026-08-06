@@ -141,4 +141,4 @@ export interface PlcConfig {
   reject_labels: string[];
   cameras: Record<string, PlcCameraMapping>;
 }
-export type TabId = 'run' | 'file' | 'settings' | 'models' | 'test' | 'user' | 'plc' | 'help' | `cam-detail-${number}`;
+export type TabId = 'run' | 'file' | 'settings' | 'models' | 'test' | 'user' | 'plc' | 'help' | 'logs' | `cam-detail-${number}`;

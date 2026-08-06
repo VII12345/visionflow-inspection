@@ -11,6 +11,7 @@ import type {
   StartTrainingResponse, StopResponse, TestModelParams, TestModelResponse,
   TrainingStatusResponse, PhotoFilterParams, PhotoListResponse,
   PhotoTrendResponse,
+  LogsResponse, LogFilesResponse,
 } from '../types/api';
 
 function buildQuery(params: Record<string, string | number | undefined | null>): string {
@@ -73,6 +74,11 @@ export const api = {
   getSaveOnlyReject: () => backendFetch<{ success: boolean; enabled: boolean }>('/api/settings/save-only-reject'),
   saveOnlyReject: (enabled: boolean) => backendFetch<{ success: boolean; enabled?: boolean; message?: string }>('/api/settings/save-only-reject', { method: 'POST', body: { enabled } }),
   envCheck: () => backendFetch<EnvironmentCheckResponse>('/api/env-check'),
+  getLogs: (source: 'main' | 'error' = 'main', lines = 500, level = '') =>
+    backendFetch<LogsResponse>(`/api/logs?${buildQuery({ source, lines, level })}`),
+  getLogFiles: () => backendFetch<LogFilesResponse>('/api/logs/files'),
+  downloadLog: (file: string) =>
+    backendFetch<Blob>(`/api/logs/download?${buildQuery({ file })}`, { responseType: 'blob' }),
 };
 
 export default api;

@@ -12,6 +12,7 @@ const TABS: { id: TabId; label: string; fixed: boolean }[] = [
   { id: 'test', label: '测试', fixed: true },
   { id: 'user', label: '用户', fixed: true },
   { id: 'plc', label: 'PLC', fixed: true },
+  { id: 'logs', label: '日志', fixed: true },
   { id: 'help', label: '说明书', fixed: true },
 ];
 
