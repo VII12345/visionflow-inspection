@@ -14,7 +14,8 @@ class FormatTimingTest(unittest.TestCase):
             "preprocess_ms": 8.4,
             "model_call_ms": 12.3,
             "recognition_ms": 1.4,
-        }, 42.3)
+        }, total_ms=50.0, round_trip_ms=42.3)
+        self.assertIn("总 50ms", text)
         self.assertIn("往返 42ms", text)
         for label in ("队列 1ms", "批窗 5ms", "准备 3ms", "预处理 8ms", "模型 12ms", "后处理 1ms"):
             self.assertIn(label, text)
@@ -24,18 +25,19 @@ class FormatTimingTest(unittest.TestCase):
             "inference_queue_wait_ms": 0.8,
             "inference_batch_window_ms": 4.9,
             "model_prepare_ms": 2.6,
-        }, 33.1)
+        }, total_ms=40.0, round_trip_ms=33.1)
+        self.assertIn("总 40ms", text)
         self.assertIn("往返 33ms", text)
         self.assertIn("队列 1ms", text)
         self.assertIn("批窗 5ms", text)
         self.assertIn("准备 3ms", text)
-        # 批量合并时无预处理/模型/识别细分
+        # 批量合并时无预处理/模型/后处理细分
         self.assertNotIn("预处理", text)
-        self.assertNotIn("识别", text)
+        self.assertNotIn("后处理", text)
 
-    def test_empty_timing_only_round_trip(self):
-        text = _format_timing({}, 99.9)
-        self.assertEqual(text, " [往返 100ms]")
+    def test_empty_timing_only_total_and_round_trip(self):
+        text = _format_timing({}, total_ms=100.0, round_trip_ms=99.9)
+        self.assertEqual(text, " [总 100ms | 往返 100ms]")
 
 
 if __name__ == "__main__":

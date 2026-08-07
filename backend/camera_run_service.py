@@ -37,13 +37,13 @@ _TIMING_LABELS = (
 )
 
 
-def _format_timing(timing: dict, round_trip_ms: float) -> str:
-    """把检测各步骤耗时拼成日志后缀，如 [往返 42ms | 队列 1ms | 批窗 5ms | 准备 3ms | 预处理 8ms | 模型 12ms | 后处理 1ms]。
+def _format_timing(timing: dict, total_ms: float, round_trip_ms: float) -> str:
+    """把检测各步骤耗时拼成日志后缀，如 [总 50ms | 往返 42ms | 队列 1ms | 批窗 5ms | 准备 3ms | 预处理 8ms | 模型 12ms | 后处理 1ms]。
 
-    往返 = 提交推理到取回结果的全程；其余各字段来自推理 worker 的 result['timing']，
-    批量合并推理时只有队列/批窗/准备三项。
+    总 = 收到照片到输出结果全程；往返 = 提交推理到取回结果；其余各字段来自推理
+    worker 的 result['timing']，批量合并推理时只有队列/批窗/准备三项。
     """
-    parts = [f"往返 {round_trip_ms:.0f}ms"]
+    parts = [f"总 {total_ms:.0f}ms", f"往返 {round_trip_ms:.0f}ms"]
     for key, label in _TIMING_LABELS:
         value = timing.get(key)
         if value is not None:
@@ -162,7 +162,8 @@ def camera_worker(cam_id):
                     )
                 continue
 
-            # 收到触发，拿到了新照片！
+            # 收到触发，拿到了新照片！记录收到时刻用于总耗时
+            frame_received_at = time.perf_counter()
             wait_count = 0
             frame_count += 1
             runtime.set_latest_frame(cam_id, frame)
@@ -183,6 +184,8 @@ def camera_worker(cam_id):
                 round_trip_ms = (time.perf_counter() - submit_at) * 1000
                 if result:
                     runtime.set_latest_result(cam_id, result)
+                    # 总耗时 = 收到照片到结果可用（不含后续 PLC/存盘），避免被下游耗时污染
+                    total_ms = (time.perf_counter() - frame_received_at) * 1000
                     runtime.increment_stat(cam_id, "detected")
                     plc_config = get_plc_config()
                     model_name = model_loader.get_camera_product(cam_id)
@@ -198,7 +201,7 @@ def camera_worker(cam_id):
                     logger.info(
                         f"Camera {cam_id}: #{frame_count} → {result['label']} "
                         f"({result['confidence']:.2f})"
-                        f"{_format_timing(result.get('timing') or {}, round_trip_ms)}"
+                        f"{_format_timing(result.get('timing') or {}, total_ms, round_trip_ms)}"
                     )
                 else:
                     logger.warning(f"Camera {cam_id}: 推理超时，跳过此帧")
