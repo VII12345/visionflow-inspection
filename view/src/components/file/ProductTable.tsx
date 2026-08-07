@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { Badge } from '../common/Badge';
 import { Button } from '../common/Button';
+import { RemarkModal } from '../common/modals/RemarkModal';
 import type { LineConfig, Product } from '../../types';
 import { EmptyState } from './EmptyState';
 import { editInputClass, thClass } from './fileStyles';
@@ -13,13 +14,15 @@ interface Props {
   onCheck: (id: number) => void;
   productNameDrafts: Record<number, string>;
   setProductNameDrafts: Dispatch<SetStateAction<Record<number, string>>>;
-  onSaveProductName: (product: Product) => void;
+  productSizeDrafts: Record<number, string>;
+  setProductSizeDrafts: Dispatch<SetStateAction<Record<number, string>>>;
+  onSaveProduct: (product: Product) => void;
   onAssignProduct: (productId: number, line: number) => void;
   onRefresh: () => void;
   onAddProduct: () => void;
 }
 
-/** 全部产品表：编辑名称/分配线体/学习状态。 */
+/** 全部产品表：编辑名称/尺寸/分配线体/学习状态。 */
 export const ProductTable: React.FC<Props> = ({
   products,
   lineConfig,
@@ -27,12 +30,15 @@ export const ProductTable: React.FC<Props> = ({
   onCheck,
   productNameDrafts,
   setProductNameDrafts,
-  onSaveProductName,
+  productSizeDrafts,
+  setProductSizeDrafts,
+  onSaveProduct,
   onAssignProduct,
   onRefresh,
   onAddProduct,
 }) => {
   const [lineDrafts, setLineDrafts] = useState<Record<number, string>>({});
+  const [remarkTarget, setRemarkTarget] = useState<Product | null>(null);
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
@@ -70,7 +76,14 @@ export const ProductTable: React.FC<Props> = ({
                     />
                   </td>
                   <td className="px-4 py-3 text-text-secondary font-mono text-xs">{p.model}</td>
-                  <td className="px-4 py-3 text-text-secondary">{p.size}</td>
+                  <td className="px-4 py-2.5">
+                    <input
+                      value={productSizeDrafts[p.id] ?? p.size}
+                      onChange={e => setProductSizeDrafts(prev => ({ ...prev, [p.id]: e.target.value }))}
+                      className={`${editInputClass} w-32`}
+                      placeholder="尺寸规格"
+                    />
+                  </td>
                   <td className="px-4 py-3">{p.learned ? <Badge variant="learned">已学习</Badge> : <Badge variant="unlearned">未学习</Badge>}</td>
                   <td className="px-4 py-3">
                     <select value={lineDrafts[p.id] ?? ''} onChange={e => setLineDrafts(prev => ({ ...prev, [p.id]: e.target.value }))} className="bg-white border border-gray-300 rounded-md px-3 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent w-32">
@@ -79,8 +92,9 @@ export const ProductTable: React.FC<Props> = ({
                     </select>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <Button variant="secondary" size="sm" onClick={() => onSaveProductName(p)}>保存名称</Button>
+                    <Button variant="secondary" size="sm" onClick={() => onSaveProduct(p)}>保存</Button>
                     <Button variant="primary" size="sm" className="ml-2" onClick={() => onAssignProduct(p.id, Number(lineDrafts[p.id] || 0))}>分配</Button>
+                    <Button variant="ghost" size="sm" className="ml-2" onClick={() => setRemarkTarget(p)}>备注</Button>
                   </td>
                 </tr>
               ))}
@@ -89,6 +103,7 @@ export const ProductTable: React.FC<Props> = ({
           </table>
         </div>
       </div>
+      {remarkTarget && <RemarkModal product={remarkTarget} onClose={() => setRemarkTarget(null)} />}
     </div>
   );
 };

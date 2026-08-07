@@ -55,6 +55,7 @@ def normalize_products(raw):
                 "model": model,
                 "size": str(item.get("size", "") or ""),
                 "learned": bool(item.get("learned", False)),
+                "remark": str(item.get("remark", "") or ""),
             }
         )
     return products

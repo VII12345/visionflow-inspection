@@ -45,6 +45,7 @@ function normalizeProducts(raw: Product[]): Product[] {
     ...product,
     name: String(product.name || product.model || `产品 ${product.id}`),
     model: String(product.model || product.name || `product_${product.id}`),
+    remark: String(product.remark || ''),
   }));
 }
 

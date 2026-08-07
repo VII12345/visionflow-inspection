@@ -14,6 +14,8 @@ export interface Product {
   model: string;
   size: string;
   learned: boolean;
+  /** 产品备注，仅用于界面显示和管理。 */
+  remark: string;
 }
 
 export type RunLayoutId = 'auto' | 'single' | 'two' | 'three' | 'four' | 'focus' | 'custom';

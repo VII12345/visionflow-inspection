@@ -15,6 +15,7 @@ export const useCatalogEdit = (
   const lineCount = useAppStore(s => s.lineCount);
   const [checkedId, setCheckedId] = useState<number | null>(null);
   const [productNameDrafts, setProductNameDrafts] = useState<Record<number, string>>({});
+  const [productSizeDrafts, setProductSizeDrafts] = useState<Record<number, string>>({});
   const [lineNameDrafts, setLineNameDrafts] = useState<Record<number, string>>({});
 
   const requireEditPermission = (): boolean => {
@@ -26,15 +27,17 @@ export const useCatalogEdit = (
     return true;
   };
 
-  const saveProductName = (product: Product) => {
+  const saveProduct = (product: Product) => {
     if (!requireEditPermission()) return;
     const name = (productNameDrafts[product.id] ?? product.name ?? product.model).trim();
     if (!name) { showMessage('产品名称不能为空'); return; }
-    const next = storage.getProducts().map(item => item.id === product.id ? { ...item, name } : item);
+    const size = (productSizeDrafts[product.id] ?? product.size ?? '').trim();
+    if (!size) { showMessage('产品尺寸不能为空'); return; }
+    const next = storage.getProducts().map(item => item.id === product.id ? { ...item, name, size } : item);
     storage.saveProducts(next);
     refreshCatalog();
     onCatalogChanged();
-    showMessage(`产品名称已更新为“${name}”`);
+    showMessage(`产品「${name}」已更新`);
   };
 
   const saveLineName = (line: LineConfig) => {
@@ -68,9 +71,11 @@ export const useCatalogEdit = (
     checkedId,
     productNameDrafts,
     setProductNameDrafts,
+    productSizeDrafts,
+    setProductSizeDrafts,
     lineNameDrafts,
     setLineNameDrafts,
-    saveProductName,
+    saveProduct,
     saveLineName,
     assignProduct,
     checkProduct,

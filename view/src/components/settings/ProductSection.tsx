@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Badge } from '../common/Badge';
+import { Button } from '../common/Button';
+import { RemarkModal } from '../common/modals/RemarkModal';
 import type { Product } from '../../types';
 import { inputClass, thClass } from './settingsStyles';
 
@@ -12,6 +14,7 @@ interface Props {
 /** 左侧产品列表：筛选 + 已学习状态展示。 */
 export const ProductSection: React.FC<Props> = ({ products, selectedModel, onSelect }) => {
   const [filter, setFilter] = useState('');
+  const [remarkTarget, setRemarkTarget] = useState<Product | null>(null);
   const filtered = products.filter(p => `${p.name || ''} ${p.model}`.toLowerCase().includes(filter.toLowerCase()));
 
   return (
@@ -32,6 +35,7 @@ export const ProductSection: React.FC<Props> = ({ products, selectedModel, onSel
               <th className={thClass}>模型标识</th>
               <th className={thClass}>尺寸</th>
               <th className={thClass}>状态</th>
+              <th className={thClass}>操作</th>
             </tr>
           </thead>
           <tbody>
@@ -49,11 +53,15 @@ export const ProductSection: React.FC<Props> = ({ products, selectedModel, onSel
                 <td className="px-4 py-3">
                   {p.learned ? <Badge variant="learned">已学习</Badge> : <Badge variant="unlearned">未学习</Badge>}
                 </td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <Button variant="ghost" size="sm" onClick={e => { e.stopPropagation(); setRemarkTarget(p); }}>备注</Button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {remarkTarget && <RemarkModal product={remarkTarget} onClose={() => setRemarkTarget(null)} />}
     </div>
   );
 };

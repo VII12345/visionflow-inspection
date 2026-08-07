@@ -54,7 +54,9 @@ export const FileTab: React.FC = () => {
             onCheck={edit.checkProduct}
             productNameDrafts={edit.productNameDrafts}
             setProductNameDrafts={edit.setProductNameDrafts}
-            onSaveProductName={edit.saveProductName}
+            productSizeDrafts={edit.productSizeDrafts}
+            setProductSizeDrafts={edit.setProductSizeDrafts}
+            onSaveProduct={edit.saveProduct}
             onAssignProduct={edit.assignProduct}
             onRefresh={refresh}
             onAddProduct={() => setModal('addProduct', true)}

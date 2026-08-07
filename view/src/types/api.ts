@@ -95,7 +95,7 @@ export interface SaveLineCountResponse { success: boolean; message?: string; lin
 
 export interface CatalogResponse {
   success: boolean;
-  products?: { id: number; name: string; model: string; size: string; learned: boolean }[];
+  products?: { id: number; name: string; model: string; size: string; learned: boolean; remark: string }[];
   line_config?: { line: number; name: string; productId: number | null; model: string }[];
   initialized?: boolean;
 }

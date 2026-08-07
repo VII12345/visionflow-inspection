@@ -19,7 +19,7 @@ export const AddProductModal: React.FC = () => {
     if (!displayName || !modelKey || !size.trim()) { showMessage('请填写完整的产品信息'); return; }
     const products = storage.getProducts();
     if (products.find(p => p.model === modelKey || p.name === displayName)) { showMessage('该产品名称或模型标识已存在'); return; }
-    products.push({ id: Date.now(), name: displayName, model: modelKey, size: size.trim(), learned: false });
+    products.push({ id: Date.now(), name: displayName, model: modelKey, size: size.trim(), learned: false, remark: '' });
     storage.saveProducts(products);
     refreshCatalog();
     setModal('addProduct', false);

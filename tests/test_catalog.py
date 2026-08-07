@@ -102,6 +102,7 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(products[0]["learned"], False)
         self.assertEqual(products[1]["id"], 2)
         self.assertEqual(products[1]["size"], "")
+        self.assertEqual(products[0]["remark"], "")
 
     def test_normalize_line_config_coerces_product_id(self):
         lines = normalize_line_config(
