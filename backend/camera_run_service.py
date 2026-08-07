@@ -26,6 +26,31 @@ def should_save_photo(save_only_reject, save_settings, cam_id, tag, reject_label
     return bool(save_settings.get(cam_id, {}).get(setting_key, True))
 
 
+# 推理各步骤耗时的日志展示顺序与文案
+_TIMING_LABELS = (
+    ("inference_queue_wait_ms", "队列"),
+    ("inference_batch_window_ms", "批窗"),
+    ("model_prepare_ms", "准备"),
+    ("preprocess_ms", "预处理"),
+    ("model_call_ms", "模型"),
+    ("recognition_ms", "后处理"),
+)
+
+
+def _format_timing(timing: dict, round_trip_ms: float) -> str:
+    """把检测各步骤耗时拼成日志后缀，如 [往返 42ms | 队列 1ms | 批窗 5ms | 准备 3ms | 预处理 8ms | 模型 12ms | 后处理 1ms]。
+
+    往返 = 提交推理到取回结果的全程；其余各字段来自推理 worker 的 result['timing']，
+    批量合并推理时只有队列/批窗/准备三项。
+    """
+    parts = [f"往返 {round_trip_ms:.0f}ms"]
+    for key, label in _TIMING_LABELS:
+        value = timing.get(key)
+        if value is not None:
+            parts.append(f"{label} {value:.0f}ms")
+    return " [" + " | ".join(parts) + "]"
+
+
 def initialize_camera_manager():
     """初始化相机管理器"""
 
@@ -146,14 +171,16 @@ def camera_worker(cam_id):
 
             # 提交并等待推理结果
             submitted = False
+            submit_at = time.perf_counter()
             if model_loader.model_loaded:
-                submitted = submit_inference(cam_id, frame)
+                submitted = submit_inference(cam_id, frame, timed=True)
             else:
                 logger.warning(f"Camera {cam_id}: model_loaded=False，跳过检测")
 
             if submitted:
                 # 阻塞等待推理完成
                 result = get_inference_result(cam_id, timeout=5.0)
+                round_trip_ms = (time.perf_counter() - submit_at) * 1000
                 if result:
                     runtime.set_latest_result(cam_id, result)
                     runtime.increment_stat(cam_id, "detected")
@@ -169,7 +196,9 @@ def camera_worker(cam_id):
                         except (PlcWriteError, ValueError) as e:
                             logger.error(f"Camera {cam_id}: 结果写入 PLC 失败: {e}")
                     logger.info(
-                        f"Camera {cam_id}: #{frame_count} → {result['label']} ({result['confidence']:.2f})"
+                        f"Camera {cam_id}: #{frame_count} → {result['label']} "
+                        f"({result['confidence']:.2f})"
+                        f"{_format_timing(result.get('timing') or {}, round_trip_ms)}"
                     )
                 else:
                     logger.warning(f"Camera {cam_id}: 推理超时，跳过此帧")
