@@ -36,10 +36,11 @@ let resultText = '--';
 let resultColor = '';
 
 if (camStatus?.state === 'running' && camStatus.result) {
-  badgeVariant = rejectLabels.includes(camStatus.result.label) ? 'ng' : 'ok';
+  const isReject = camStatus.result.reject ?? rejectLabels.includes(camStatus.result.label);
+  badgeVariant = isReject ? 'ng' : 'ok';
   badgeText = camStatus.result.label;
   resultText = `结果: ${camStatus.result.label} (${Math.round(camStatus.result.confidence * 100)}%)`;
-  resultColor = rejectLabels.includes(camStatus.result.label) ? 'text-ng' : 'text-ok';
+  resultColor = isReject ? 'text-ng' : 'text-ok';
 } else if (camStatus?.state === 'running') {
   badgeText = '等待触发';
   resultText = `触发模式 - 等待传感器信号... (已触发 ${camStatus.totalTriggers || 0} 次)`;

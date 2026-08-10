@@ -1,6 +1,7 @@
-"""相机运行服务（camera_run_service）的单元测试：检测耗时日志格式化。"""
+"""相机运行服务（camera_run_service）的单元测试：检测耗时日志格式化与剔除判定。"""
 
 import unittest
+from unittest import mock
 
 from backend.camera_run_service import _format_timing
 
@@ -38,6 +39,79 @@ class FormatTimingTest(unittest.TestCase):
     def test_empty_timing_only_total_and_round_trip(self):
         text = _format_timing({}, total_ms=100.0, round_trip_ms=99.9)
         self.assertEqual(text, " [总 100ms | 往返 100ms]")
+
+
+class FakeCam:
+    """模拟一台相机：grab_frame 返回一帧后置 running=False 让 worker 退出循环。"""
+
+    running = True
+    trigger_timeout = 30000
+
+    def grab_frame(self, timeout_ms=None):
+        self.running = False
+        return bytearray(b"frame")
+
+    def stop_grabbing(self):
+        pass
+
+    def disconnect(self):
+        pass
+
+
+class CameraWorkerRejectTest(unittest.TestCase):
+    """camera_worker 单帧流程：结果应附带按模型剔除类别判定的 reject 标志。"""
+
+    CAM_ID = 1
+
+    def setUp(self):
+        from backend.camera_run_service import runtime
+        from backend.camera_run_service import model_loader
+
+        runtime.cameras[self.CAM_ID] = FakeCam()
+        runtime.system_running = True
+        runtime.latest_results.pop(self.CAM_ID, None)
+        runtime.stats[self.CAM_ID] = {"detected": 0, "defective": 0}
+        runtime.save_settings = {}
+        runtime.save_only_reject = False
+
+        self._loaded = model_loader.model_loaded
+        model_loader.model_loaded = True
+        self._runner = mock.patch.object(model_loader, "get_camera_product", return_value="TEST-PROD-A")
+        self._runner.start()
+
+    def tearDown(self):
+        from backend.camera_run_service import runtime
+        from backend.camera_run_service import model_loader
+
+        runtime.system_running = False
+        runtime.cameras.pop(self.CAM_ID, None)
+        runtime.latest_results.pop(self.CAM_ID, None)
+        model_loader.model_loaded = self._loaded
+        self._runner.stop()
+
+    def _run_worker(self, label, reject_labels):
+        import backend.camera_run_service as crs
+
+        with mock.patch.object(crs, "submit_inference", return_value=True), \
+             mock.patch.object(crs, "get_inference_result", return_value={"label": label, "confidence": 0.9}), \
+             mock.patch.object(crs, "get_plc_config", return_value={"enabled": False}), \
+             mock.patch.object(crs, "_get_model_reject_labels", return_value=reject_labels), \
+             mock.patch.object(crs, "submit_save"):
+            crs.camera_worker(self.CAM_ID)
+
+    def test_reject_label_sets_flag(self):
+        self._run_worker("类别1", ["类别1"])
+        from backend.camera_run_service import runtime
+        result = runtime.latest_results[self.CAM_ID]
+        self.assertIs(result["reject"], True)
+        self.assertEqual(runtime.stats[self.CAM_ID]["defective"], 1)
+
+    def test_pass_label_clears_flag(self):
+        self._run_worker("类别2", ["类别1"])
+        from backend.camera_run_service import runtime
+        result = runtime.latest_results[self.CAM_ID]
+        self.assertIs(result["reject"], False)
+        self.assertEqual(runtime.stats[self.CAM_ID]["defective"], 0)
 
 
 if __name__ == "__main__":

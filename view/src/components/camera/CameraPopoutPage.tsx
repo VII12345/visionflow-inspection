@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 
 type CameraState = {
   state?: string;
-  result?: { label: string; confidence: number };
+  result?: { label: string; confidence: number; reject?: boolean };
   lastFrameTime?: string;
   totalTriggers?: number;
   error?: string;
@@ -58,14 +58,14 @@ export const CameraPopoutPage: React.FC<{ camId: number }> = ({ camId }) => {
     else window.history.back();
   };
 
-  // 类别名由训练子目录定义、可自定义，无法用固定标签判断 OK/NG；仅按状态着色
+  // 后端已按当前模型剔除类别判定 result.reject，据此红/绿着色；无结果时仅按状态着色
   const badge = camera.state === 'error'
     ? '错误'
     : camera.result?.label || (camera.state === 'running' ? '等待触发' : '等待检测');
   const badgeClass = camera.state === 'error'
     ? 'bg-red-50 text-ng'
     : camera.result
-      ? 'bg-gray-100 text-text-secondary'
+      ? (camera.result.reject ? 'bg-red-50 text-ng' : 'bg-emerald-50 text-ok')
       : 'bg-amber-50 text-warn';
 
   return (

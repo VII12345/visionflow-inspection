@@ -183,7 +183,6 @@ def camera_worker(cam_id):
                 result = get_inference_result(cam_id, timeout=5.0)
                 round_trip_ms = (time.perf_counter() - submit_at) * 1000
                 if result:
-                    runtime.set_latest_result(cam_id, result)
                     # 总耗时 = 收到照片到结果可用（不含后续 PLC/存盘），避免被下游耗时污染
                     total_ms = (time.perf_counter() - frame_received_at) * 1000
                     runtime.increment_stat(cam_id, "detected")
@@ -191,6 +190,9 @@ def camera_worker(cam_id):
                     model_name = model_loader.get_camera_product(cam_id)
                     reject_labels = _get_model_reject_labels(model_name)
                     should_reject = result["label"] in reject_labels
+                    # 把剔除判定结果附加到结果里，前端据此着色，与 PLC/计数/存盘口径一致
+                    result["reject"] = should_reject
+                    runtime.set_latest_result(cam_id, result)
                     if should_reject:
                         runtime.increment_stat(cam_id, "defective")
                     if plc_config.get("enabled", True) and should_reject:

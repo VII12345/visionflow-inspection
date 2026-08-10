@@ -68,6 +68,8 @@ export interface CameraStatus {
   result?: {
     label: string;
     confidence: number;
+    /** 后端按当前模型剔除类别判定的权威结果；为空时前端回退到 PLC 全局配置判断。 */
+    reject?: boolean;
   };
   lastFrameTime?: string;
   totalTriggers?: number;
