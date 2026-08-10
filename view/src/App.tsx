@@ -14,6 +14,7 @@ import { TrainingCompleteModal } from './components/settings/TrainingCompleteMod
 import { storage } from './services/storage';
 import { useHealthChecks } from './hooks/useHealthChecks';
 import { useInitialPassword } from './hooks/useInitialPassword';
+import { useSessionValidation } from './hooks/useSessionValidation';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useModelRefSync } from './hooks/useModelRefSync';
 import { resolveProductLabel } from './utils/productLabel';
@@ -31,6 +32,7 @@ const MainApp: React.FC = () => {
   const learnCallback = useAppStore(s => s.learnCallback);
 
   useHealthChecks();
+  useSessionValidation();
   useKeyboardShortcuts();
   useModelRefSync();
   const initialPassword = useInitialPassword();

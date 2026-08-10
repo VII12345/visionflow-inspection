@@ -26,6 +26,7 @@ function buildQuery(params: Record<string, string | number | undefined | null>):
 export const api = {
   health: () => backendFetch<HealthResponse>('/api/health'),
   login: (name: string, password: string) => backendFetch<{ success: boolean; message?: string; token?: string; user?: { id: number; name: string; level: UserLevel } }>('/api/auth/login', { method: 'POST', body: { name, password } }),
+  me: () => backendFetch<{ success: boolean; user?: { id: number; name: string; level: UserLevel }; message?: string }>('/api/auth/me'),
   getInitialPassword: () => backendFetch<InitialPasswordResponse>('/api/auth/initial-password'),
   changePassword: (old_password: string, new_password: string) => backendFetch<{ success: boolean; message?: string }>('/api/auth/change-password', { method: 'POST', body: { old_password, new_password } }),
   getUsers: () => backendFetch<{ success: boolean; users?: { id: number; name: string; level: UserLevel }[]; message?: string }>('/api/auth/users'),
