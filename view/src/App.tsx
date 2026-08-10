@@ -8,6 +8,7 @@ import { CameraPopoutPage } from './components/camera/CameraPopoutPage';
 import { CameraConfigModal } from './components/camera/CameraConfigModal';
 import { ModalRouter } from './components/common/Modals';
 import { InitialPasswordModal } from './components/common/modals/InitialPasswordModal';
+import { CatalogMigrationModal } from './components/common/modals/CatalogMigrationModal';
 import { EnvCheckModal } from './components/common/EnvCheckModal';
 import { SystemAlarm } from './components/common/SystemAlarm';
 import { TrainingCompleteModal } from './components/settings/TrainingCompleteModal';
@@ -97,6 +98,7 @@ const MainApp: React.FC = () => {
           onClose={initialPassword.dismiss}
         />
       )}
+      <CatalogMigrationModal />
     </div>
   );
 };

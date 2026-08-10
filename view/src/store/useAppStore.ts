@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { User, TabId, SystemAlarm } from '../types';
+import type { User, TabId, SystemAlarm, Product, LineConfig } from '../types';
 import { storage } from '../services/storage';
 
 type ModalName = 'login' | 'changePwd' | 'addProduct' | 'learnConfirm' | 'envCheck' | 'cameraConfig' | 'trainingComplete' | 'all';
@@ -31,6 +31,11 @@ interface AppState {
   catalogRevision: number;
   setLineCount: (count: number) => void;
   refreshCatalog: () => void;
+
+  // Catalog migration prompt (backend uninitialized but local residual data exists)
+  pendingCatalogMigration: { products: Product[]; line_config: LineConfig[] } | null;
+  requestCatalogMigration: (payload: { products: Product[]; line_config: LineConfig[] }) => void;
+  setPendingCatalogMigration: (payload: { products: Product[]; line_config: LineConfig[] } | null) => void;
 
   // Tabs
   activeTab: TabId;
@@ -86,6 +91,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   isRunning: false,
   lineCount: 4,
   catalogRevision: 0,
+  pendingCatalogMigration: null,
+  requestCatalogMigration: (payload) => set({ pendingCatalogMigration: payload }),
+  setPendingCatalogMigration: (payload) => set({ pendingCatalogMigration: payload }),
   activeTab: 'run',
   dynamicTabs: new Set(),
   loginModal: false,

@@ -68,6 +68,18 @@ function normalizeLineConfig(raw: LineConfig[], count: number): LineConfig[] {
   });
 }
 
+/** 本地是否残留值得迁移的目录数据（有产品，或线体配置非默认）。 */
+function hasResidualCatalogData(): boolean {
+  const products = normalizeProducts(get('products', defaults.products));
+  if (products.length > 0) return true;
+  const lines = get('lineConfig', defaults.lineConfig) as LineConfig[];
+  const count = Math.min(16, Math.max(1, lines.length || defaults.lineConfig.length));
+  return normalizeLineConfig(lines, count).some((line, index) => {
+    const fallback = defaults.lineConfig[index];
+    return !fallback || line.name !== fallback.name || line.productId !== null;
+  });
+}
+
 export const storage = {
   initialize: async () => {
     if (!isTauri()) return;
@@ -131,11 +143,17 @@ export const storage = {
       const result = await Promise.race([api.getCatalog(), timeout]);
       if (!result || !result.success) return;
       if (!result.initialized) {
-        // 后端首次使用：把本地已有数据作为初始目录上传，避免升级丢数据
+        // 后端目录不存在（全新环境或数据目录被清空）。仅当本地残留真实目录数据时弹窗确认是否迁移，
+        // 避免清空数据后把旧目录自动回传（与登录会话同类的本地残留失同步问题）。
+        if (!hasResidualCatalogData()) return;
         const localProducts = normalizeProducts(get('products', defaults.products));
         const localLines = get('lineConfig', defaults.lineConfig) as LineConfig[];
         const count = Math.min(16, Math.max(1, localLines.length || defaults.lineConfig.length));
-        await api.saveCatalog({ products: localProducts, line_config: normalizeLineConfig(localLines, count) });
+        const { useAppStore } = await import('../store/useAppStore');
+        useAppStore.getState().requestCatalogMigration({
+          products: localProducts,
+          line_config: normalizeLineConfig(localLines, count),
+        });
       } else {
         if (result.products) set('products', normalizeProducts(result.products));
         if (result.line_config) {
@@ -144,6 +162,27 @@ export const storage = {
         }
       }
     } catch { /* 后端不可达时保持本地缓存 */ }
+  },
+  /** 处理目录迁移确认：恢复则上传本地残留，否则清空本地目录从空开始。 */
+  applyCatalogMigration: async (restore: boolean) => {
+    const { useAppStore } = await import('../store/useAppStore');
+    const store = useAppStore.getState();
+    const payload = store.pendingCatalogMigration;
+    store.setPendingCatalogMigration(null);
+    if (!payload) return;
+    if (restore) {
+      try {
+        const { api } = await import('./api');
+        await api.saveCatalog(payload);
+      } catch {
+        store.showMessage('目录恢复失败，本地数据已保留，下次启动会再次询问');
+        return;
+      }
+    } else {
+      set('products', defaults.products);
+      set('lineConfig', defaults.lineConfig);
+    }
+    store.refreshCatalog();
   },
   getRunLayout: () => get('runLayout', defaults.runLayout),
   saveRunLayout: (layout: RunLayout) => set('runLayout', layout),
