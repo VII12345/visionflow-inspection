@@ -19,6 +19,9 @@ $BackendDir = $DistDir
 $CpuVenvPath = Join-Path $ProjectRoot ".venv_cpu"
 $PythonExe = Join-Path $CpuVenvPath "Scripts\python.exe"
 $PyInstallerExe = Join-Path $CpuVenvPath "Scripts\pyinstaller.exe"
+$BuildId = [guid]::NewGuid().ToString('N')
+$PortableStagingDir = Join-Path $OutputRoot ("视界智检_Tauri_CPU_免安装版.staging-$BuildId")
+$PortableBackupDir = Join-Path $OutputRoot ("视界智检_Tauri_CPU_免安装版.backup-$BuildId")
 
 
 Write-Host "╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
@@ -34,6 +37,13 @@ $env:CARGO_BUILD_JOBS = "1"
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw "未找到 Node.js" }
 if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { throw "未找到 Cargo，请先安装 Rust" }
 if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw "未找到 Python" }
+$runningPortableProcesses = Get-CimInstance Win32_Process | Where-Object {
+    $_.ExecutablePath -and $_.ExecutablePath.StartsWith($PortableDir, [StringComparison]::OrdinalIgnoreCase)
+}
+if ($runningPortableProcesses) {
+    $names = ($runningPortableProcesses | ForEach-Object { "$($_.Name) (PID $($_.ProcessId))" }) -join ', '
+    throw "请先关闭便携版及其后端进程再打包：$names"
+}
 
 if (-not (Test-Path -LiteralPath $PythonExe)) {
     Write-Host "[准备] 创建 CPU-only Python 环境..." -ForegroundColor Yellow
@@ -42,7 +52,7 @@ if (-not (Test-Path -LiteralPath $PythonExe)) {
 
 Write-Host "[1/5] 准备 CPU-only 后端环境..." -ForegroundColor Yellow
 # 安装运行依赖（含 psutil，硬件信息采集必需）+ PyInstaller，避免打包产物缺少依赖导致设置页设备信息异常。
-Invoke-Checked $PythonExe @('-m', 'pip', 'install', '--disable-pip-version-check', '-q', '-r', (Join-Path $ProjectRoot 'requirements-cpu.txt'), 'pyinstaller')
+Invoke-Checked $PythonExe @('-m', 'pip', 'install', '--disable-pip-version-check', '-q', '-r', (Join-Path $ProjectRoot 'requirements-cpu.txt'), 'pyinstaller==6.21.0', 'pyinstaller-hooks-contrib==2026.6')
 if (-not (Test-Path -LiteralPath $PyInstallerExe)) { throw "未找到 CPU-only PyInstaller: $PyInstallerExe" }
 
 Write-Host "[2/5] 构建 CPU-only Python 后端..." -ForegroundColor Yellow
@@ -54,6 +64,28 @@ if ($LASTEXITCODE -ne 0) { throw "CPU-only PyInstaller 构建失败，详情见:
 if (Test-Path -LiteralPath (Join-Path $DistDir "backend" "backend.exe")) { $BackendDir = Join-Path $DistDir "backend" }
 if (-not (Test-Path -LiteralPath (Join-Path $BackendDir "backend.exe"))) { throw "未找到 CPU-only backend.exe" }
 Assert-NoGpuDll $BackendDir
+$torchvisionDir = Join-Path $BackendDir "_internal\torchvision"
+$operatorExtensions = @(Get-ChildItem -LiteralPath $torchvisionDir -Filter "_C*.pyd" -File -ErrorAction SilentlyContinue)
+if (-not $operatorExtensions) { throw "CPU backend is missing TorchVision C++ operator extension (_C*.pyd): $torchvisionDir" }
+$smokeCode = @"
+import os, sys
+root = os.path.abspath(sys.argv[1])
+internal = os.path.join(root, "_internal")
+sys.path.insert(0, internal)
+for path in (internal, os.path.join(internal, "torch", "lib")):
+    if os.path.isdir(path): os.add_dll_directory(path)
+os.environ["TORCHVISION_WARN_WHEN_EXTENSION_LOADING_FAILS"] = "1"
+import torch, torchvision
+from torchvision.ops import nms
+boxes = torch.tensor([[0., 0., 10., 10.], [1., 1., 9., 9.]])
+scores = torch.tensor([0.9, 0.8])
+keep = nms(boxes, scores, 0.5)
+assert keep.tolist() == [0], keep.tolist()
+print(f"torch={torch.__version__}; torchvision={torchvision.__version__}; nms={keep.tolist()}")
+"@
+& $PythonExe -c $smokeCode $BackendDir
+if ($LASTEXITCODE -ne 0) { throw "Packaged TorchVision NMS smoke test failed (exit=$LASTEXITCODE)" }
+Write-Host "  ✓ TorchVision native extension and NMS operator validated" -ForegroundColor Green
 Write-Host "  ✓ CPU-only backend.exe 已生成，未检测到 GPU DLL" -ForegroundColor Green
 
 Write-Host "[3/5] 准备便携版后端资源..." -ForegroundColor Yellow
@@ -90,35 +122,73 @@ $BuiltExe = Join-Path $ViewRoot "src-tauri\target\release\vision-inspection.exe"
 if (-not (Test-Path -LiteralPath $BuiltExe)) { throw "未找到 Tauri 可执行文件: $BuiltExe" }
 Write-Host "  ✓ $BuiltExe" -ForegroundColor Green
 
-Write-Host "[5/5] 整理 CPU-only 免安装目录..." -ForegroundColor Yellow
-if (Test-Path -LiteralPath $PortableDir) { Remove-Item -LiteralPath $PortableDir -Recurse -Force }
-New-Item -ItemType Directory -Path $PortableDir -Force | Out-Null
-New-Item -ItemType Directory -Path (Join-Path $PortableDir "resources\backend") -Force | Out-Null
-New-Item -ItemType Directory -Path (Join-Path $PortableDir "data") -Force | Out-Null
-Copy-Item -LiteralPath $BuiltExe -Destination (Join-Path $PortableDir "视界智检.exe") -Force
-Copy-Item -Path (Join-Path $BackendDir '*') -Destination (Join-Path $PortableDir "resources\backend") -Recurse -Force
+Write-Host "[5/5] 整理 CPU-only 免安装目录（保留现有 data）..." -ForegroundColor Yellow
+New-Item -ItemType Directory -Path (Join-Path $PortableStagingDir "resources\backend") -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $PortableStagingDir "data") -Force | Out-Null
+Copy-Item -LiteralPath $BuiltExe -Destination (Join-Path $PortableStagingDir "视界智检.exe") -Force
+Copy-Item -Path (Join-Path $BackendDir '*') -Destination (Join-Path $PortableStagingDir "resources\backend") -Recurse -Force
 if (Test-Path -LiteralPath $LecpSource) {
-    New-Item -ItemType Directory -Path (Join-Path $PortableDir "resources\lecpserver") -Force | Out-Null
-    Copy-Item -Path (Join-Path $LecpSource '*') -Destination (Join-Path $PortableDir "resources\lecpserver") -Recurse -Force
+    New-Item -ItemType Directory -Path (Join-Path $PortableStagingDir "resources\lecpserver") -Force | Out-Null
+    Copy-Item -Path (Join-Path $LecpSource '*') -Destination (Join-Path $PortableStagingDir "resources\lecpserver") -Recurse -Force
 }
-Set-Content -LiteralPath (Join-Path $PortableDir "portable.flag") -Value "Tauri CPU-only portable" -Encoding utf8
+Set-Content -LiteralPath (Join-Path $PortableStagingDir "portable.flag") -Value "Tauri CPU-only portable" -Encoding utf8
 
 $readmeLines = @(
     '视界智检 V2.0 - Tauri CPU-only 免安装版',
     '',
-    '直接双击“视界智检.exe”即可自动启动前端和后端。'
+    '直接双击“视界智检.exe”即可自动启动前端和后端。',
     '程序、后端资源和 data 数据目录均位于当前目录，可整体复制或压缩分发。',
     '首次运行前请确认已安装海康 MVS SDK；PLC 服务由程序自动启动。'
 )
-[System.IO.File]::WriteAllLines((Join-Path $PortableDir "使用说明.txt"), $readmeLines, [System.Text.UTF8Encoding]::new($true))
+[System.IO.File]::WriteAllLines((Join-Path $PortableStagingDir "使用说明.txt"), $readmeLines, [System.Text.UTF8Encoding]::new($true))
+$stagedBackend = Join-Path $PortableStagingDir "resources\backend"
+$stagedExtension = Join-Path $stagedBackend "_internal\torchvision\_C_stable.pyd"
+if (-not (Test-Path -LiteralPath $stagedExtension)) { throw "Staged portable package is missing TorchVision NMS extension: $stagedExtension" }
+
+$dataMoved = $false
+try {
+    if (Test-Path -LiteralPath $PortableDir) {
+        $oldData = Join-Path $PortableDir "data"
+        if (Test-Path -LiteralPath $oldData) {
+            Remove-Item -LiteralPath (Join-Path $PortableStagingDir "data") -Force
+            Move-Item -LiteralPath $oldData -Destination (Join-Path $PortableStagingDir "data")
+            $dataMoved = $true
+        }
+        Move-Item -LiteralPath $PortableDir -Destination $PortableBackupDir
+    }
+    Move-Item -LiteralPath $PortableStagingDir -Destination $PortableDir
+} catch {
+    if (Test-Path -LiteralPath $PortableBackupDir) {
+        if (Test-Path -LiteralPath $PortableDir) { Move-Item -LiteralPath $PortableDir -Destination $PortableStagingDir }
+        Move-Item -LiteralPath $PortableBackupDir -Destination $PortableDir
+    }
+    if ($dataMoved -and (Test-Path -LiteralPath (Join-Path $PortableStagingDir "data")) -and (Test-Path -LiteralPath $PortableDir)) {
+        Move-Item -LiteralPath (Join-Path $PortableStagingDir "data") -Destination (Join-Path $PortableDir "data")
+    }
+    throw
+}
 $size = [math]::Round(((Get-ChildItem -LiteralPath $PortableDir -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB, 1)
-
-if (Test-Path -LiteralPath $DistDir) { Remove-Item -LiteralPath $DistDir -Recurse -Force }
-if (Test-Path -LiteralPath $BuildDir) { Remove-Item -LiteralPath $BuildDir -Recurse -Force }
-if (Test-Path -LiteralPath $pyinstallerLog) { Remove-Item -LiteralPath $pyinstallerLog -Force }
-
+if (Test-Path -LiteralPath $PortableBackupDir) {
+    $resolvedBackup = (Resolve-Path -LiteralPath $PortableBackupDir).Path
+    if (-not $resolvedBackup.StartsWith((Resolve-Path -LiteralPath $OutputRoot).Path, [StringComparison]::OrdinalIgnoreCase)) { throw "拒绝清理输出目录之外的备份: $resolvedBackup" }
+    Remove-Item -LiteralPath $resolvedBackup -Recurse -Force
+}
 Write-Host ""
 Write-Host "✓ Tauri CPU-only 免安装版打包完成" -ForegroundColor Green
 Write-Host "目录: $PortableDir" -ForegroundColor White
 Write-Host "启动: $(Join-Path $PortableDir '视界智检.exe')" -ForegroundColor White
 Write-Host "大小: $size MB" -ForegroundColor White
+
+foreach ($generatedPath in @($DistDir, $BuildDir)) {
+    if (Test-Path -LiteralPath $generatedPath) {
+        $resolvedGenerated = (Resolve-Path -LiteralPath $generatedPath).Path
+        $rootPrefix = (Resolve-Path -LiteralPath $ProjectRoot).Path.TrimEnd('\') + '\'
+        if (-not $resolvedGenerated.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) { throw "拒绝清理项目目录之外的构建临时文件: $resolvedGenerated" }
+        Remove-Item -LiteralPath $resolvedGenerated -Recurse -Force
+    }
+}
+if (Test-Path -LiteralPath $pyinstallerLog) {
+    $resolvedLog = (Resolve-Path -LiteralPath $pyinstallerLog).Path
+    if (-not $resolvedLog.StartsWith((Resolve-Path -LiteralPath $ProjectRoot).Path, [StringComparison]::OrdinalIgnoreCase)) { throw "拒绝清理项目目录之外的构建日志: $resolvedLog" }
+    Remove-Item -LiteralPath $resolvedLog -Force
+}

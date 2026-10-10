@@ -1,15 +1,30 @@
 # -*- mode: python ; coding: utf-8 -*-
 # CPU-only PyInstaller configuration for the vision inspection backend.
-# Build this spec only with the CPU PyTorch environment created by
-# build_portable_cpu.ps1; do not use the GPU .venv.
+# Build this spec only with the pinned CPU environment from requirements-cpu.txt.
+
+import importlib.util
+from pathlib import Path
+
+from PyInstaller.utils.hooks import collect_data_files
 
 block_cipher = None
+
+torchvision_spec = importlib.util.find_spec("torchvision")
+if torchvision_spec is None or not torchvision_spec.origin:
+    raise RuntimeError("TorchVision is required to build the backend")
+torchvision_dir = Path(torchvision_spec.origin).parent
+# TorchVision loads these C++ operator libraries dynamically with torch.ops.load_library,
+# so PyInstaller's Python import graph cannot discover them. Collect every package-level
+# native extension, including the current _C_stable.pyd NMS/operator library.
+torchvision_extensions = sorted(torchvision_dir.glob("*.pyd"))
+if not any(path.name.startswith(("_C.", "_C_", "_C-")) for path in torchvision_extensions):
+    raise RuntimeError(f"TorchVision native C++ operator extension was not found in {torchvision_dir}")
 
 a = Analysis(
     ['backend/__main__.py'],
     pathex=[],
-    binaries=[],
-    datas=[('backend/*.py', 'backend')],
+    binaries=[(str(path), "torchvision") for path in torchvision_extensions],
+    datas=[('backend/*.py', 'backend'), *collect_data_files('torchvision')],
     hiddenimports=[
         'flask', 'flask_cors',
         'PIL', 'PIL.Image', 'PIL.ImageDraw', 'PIL.ImageFont',
