@@ -11,15 +11,29 @@ export const useHealthChecks = () => {
   const setLineCount = useAppStore(s => s.setLineCount);
   const raiseAlarm = useAppStore(s => s.raiseAlarm);
 
-  // 后端是线体数量的最终来源：启动时同步，避免本地缓存与实际相机槽位不一致。
+  // 后端启动可能晚于 Tauri 前端（首次模型预加载尤其明显）。持续重试，
+  // 避免唯一一次启动请求过早失败后所有界面一直保留默认的 4 条线体。
   useEffect(() => {
     let cancelled = false;
-    api.getLineCount().then(data => {
-      if (!cancelled && data.success && Number.isInteger(data.line_count)) {
-        setLineCount(data.line_count);
-      }
-    }).catch(() => { /* 后端健康检查会提示连接异常 */ });
-    return () => { cancelled = true; };
+    let retryTimer: number | undefined;
+
+    const syncLineCount = async () => {
+      try {
+        const data = await api.getLineCount();
+        if (cancelled) return;
+        if (data.success && Number.isInteger(data.line_count) && data.line_count >= 1 && data.line_count <= 16) {
+          setLineCount(data.line_count);
+          return;
+        }
+      } catch { /* 后端尚未就绪，稍后重试 */ }
+      if (!cancelled) retryTimer = window.setTimeout(syncLineCount, 1000);
+    };
+
+    void syncLineCount();
+    return () => {
+      cancelled = true;
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+    };
   }, [setLineCount]);
 
   // Startup health and environment checks. Failures are visible as a popup plus a restrained full-screen flash.

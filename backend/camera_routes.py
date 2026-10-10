@@ -187,7 +187,7 @@ def test_plc_write():
         if cam_id < 1 or cam_id > Config.CAMERA_COUNT:
             return jsonify({"success": False, "error": "无效的相机编号"}), 400
         key = str(data.get("type", "reject_signal"))
-        if key not in ("reject_time", "reject_delay", "reject_signal"):
+        if key not in ("reject_time", "reject_delay", "reject_signal", "pipeline_signal"):
             return jsonify({"success": False, "error": "无效的测试节点类型"}), 400
         mapping = config["cameras"].get(str(cam_id), {})
         address = mapping.get(key)
@@ -195,7 +195,9 @@ def test_plc_write():
             return jsonify({"success": False, "error": "该相机尚未配置节点名称"}), 400
         client = plc_service.with_base_url(config["base_url"])
         value = int(data.get("value", 1))
-        result = client.write_byte(address, value) if key == "reject_signal" else client.write_dword(address, value)
+        if key == "pipeline_signal" and value not in (0, 1):
+            return jsonify({"success": False, "error": "流水线控制信号测试值只能是 0 或 1"}), 400
+        result = client.write_byte(address, value) if key in ("reject_signal", "pipeline_signal") else client.write_dword(address, value)
         return jsonify({"success": True, "camera_id": cam_id, "type": key, "address": address, "value": value, "plc": result})
     except (PlcWriteError, ValueError, TypeError) as exc:
         return jsonify({"success": False, "error": str(exc)}), 400

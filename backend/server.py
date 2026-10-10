@@ -18,6 +18,7 @@ from .camera_run_service import start_camera, stop_camera
 from .model_loader import set_camera_product
 from . import model_loader
 from .runtime_state import runtime
+from .plc_service import get_plc_config, PlcWriteError, plc_service
 from .auth_routes import auth_bp, require_auth_middleware
 from .camera_routes import camera_bp
 from .catalog_routes import catalog_bp
@@ -96,6 +97,24 @@ def register_web_static(app):
 register_web_static(app)
 logger.info(f"网页入口: http://{Config.FLASK_HOST}:{Config.FLASK_PORT}/")
 
+
+
+def _write_pipeline_signals(cam_ids, enabled):
+    """Best-effort writes for configured per-line BOOL-like PLC nodes."""
+    try:
+        config = get_plc_config()
+        if not config.get("enabled", True):
+            return []
+        client = plc_service.with_base_url(config.get("base_url", plc_service.base_url), config=config)
+    except Exception as exc:
+        return [f"流水线信号初始化失败: {exc}"]
+    errors = []
+    for cam_id in cam_ids:
+        try:
+            client.write_pipeline_signal(cam_id, enabled, config=config)
+        except (PlcWriteError, ValueError) as exc:
+            errors.append(f"线路 {cam_id}: {exc}")
+    return errors
 
 # ========== API 端点 ==========
 
@@ -176,6 +195,7 @@ def start_system():
             runtime.system_running = False
             return jsonify({"success": False, "message": "所有选中的相机启动失败", "errors": errors}), 500
 
+        plc_errors = _write_pipeline_signals(started_cameras, True)
         message = f"系统启动成功，启动了 {len(started_cameras)}/{len(enabled_cameras)} 个相机"
         if errors:
             message += f"，{len(errors)} 个相机启动失败"
@@ -187,6 +207,7 @@ def start_system():
             "started_cameras": started_cameras,
             "total": len(enabled_cameras),
             "errors": errors if errors else None,
+            "plcErrors": plc_errors if plc_errors else None,
             "running": runtime.system_running,
         })
     except Exception as e:
@@ -212,12 +233,11 @@ def set_line_enabled(cam_id):
         stop_camera(cam_id)
         if not runtime.cameras:
             runtime.system_running = False
-        return jsonify({
-            "success": True,
-            "enabled": False,
-            "running": runtime.system_running,
-            "message": f"线路 {cam_id} 已关闭",
-        })
+        plc_errors = _write_pipeline_signals([cam_id], False)
+        response = {"success": True, "enabled": False, "running": runtime.system_running, "message": f"线路 {cam_id} 已关闭"}
+        if plc_errors:
+            response["plcError"] = "；".join(plc_errors)
+        return jsonify(response)
 
     if runtime.camera_manager is None:
         runtime.line_enabled[cam_id] = False
@@ -238,12 +258,11 @@ def set_line_enabled(cam_id):
             if not runtime.cameras:
                 runtime.system_running = False
             return jsonify({"success": False, "message": error_msg or f"线路 {cam_id} 启动失败", "running": runtime.system_running}), 500
-        return jsonify({
-            "success": True,
-            "enabled": True,
-            "running": runtime.system_running,
-            "message": f"线路 {cam_id} 已启动",
-        })
+        plc_errors = _write_pipeline_signals([cam_id], True)
+        response = {"success": True, "enabled": True, "running": runtime.system_running, "message": f"线路 {cam_id} 已启动"}
+        if plc_errors:
+            response["plcError"] = "；".join(plc_errors)
+        return jsonify(response)
     except Exception as e:
         runtime.line_enabled[cam_id] = False
         if not runtime.cameras:
@@ -264,8 +283,12 @@ def stop_system():
         runtime.system_running = False
         for cam_id in list(runtime.cameras.keys()):
             stop_camera(cam_id)
+        plc_errors = _write_pipeline_signals(range(1, Config.CAMERA_COUNT + 1), False)
         logger.info("系统停止成功")
-        return jsonify({"success": True, "message": "系统停止成功", "running": False})
+        response = {"success": True, "message": "系统停止成功", "running": False}
+        if plc_errors:
+            response["plcErrors"] = plc_errors
+        return jsonify(response)
     except Exception as e:
         logger.error(f"停止失败: {e}")
         return jsonify({"success": False, "message": f"停止失败: {str(e)}"}), 500

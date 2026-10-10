@@ -128,5 +128,15 @@ class PlcService:
             raise ValueError("无效的相机编号")
         return self.write_byte(mapping["reject_signal"], 1)
 
+    def write_pipeline_signal(self, cam_id, enabled, config=None):
+        """Write the configured per-line pipeline signal as byte 0/1."""
+        plc_config = config or get_plc_config()
+        mapping = plc_config.get("cameras", {}).get(str(cam_id))
+        if mapping is None:
+            raise ValueError("无效的相机编号")
+        address = str(mapping.get("pipeline_signal", "")).strip()
+        if not address:
+            return None
+        return self.write_byte(address, 1 if enabled else 0)
 
 plc_service = PlcService()

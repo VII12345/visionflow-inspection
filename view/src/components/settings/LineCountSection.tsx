@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
 import { Button } from '../common/Button';
@@ -11,6 +11,8 @@ export const LineCountSection: React.FC = () => {
   const isRunning = useAppStore(s => s.isRunning);
   const showMessage = useAppStore(s => s.showMessage);
   const [lineCountDraft, setLineCountDraft] = useState(String(lineCount));
+
+  useEffect(() => setLineCountDraft(String(lineCount)), [lineCount]);
 
   const saveLineCount = async () => {
     const nextCount = Number(lineCountDraft);

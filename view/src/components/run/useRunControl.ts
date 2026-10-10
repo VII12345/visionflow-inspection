@@ -38,10 +38,10 @@ export const useRunControl = (lineCount: number) => {
         return;
       }
       const result = await api.start(camProducts, lineCount, activeLineIds);
-      const startResult = result as { success: boolean; message?: string; errors?: string[] };
+      const startResult = result as { success: boolean; message?: string; errors?: string[]; plcErrors?: string[] };
       if (startResult.success) {
         setRunning(true);
-        showMessage('系统已启动，开始检测');
+        showMessage(startResult.plcErrors?.length ? `系统已启动，但流水线 PLC 信号写入失败：${startResult.plcErrors.join('；')}` : '系统已启动，开始检测');
         if (startResult.errors && startResult.errors.length > 0) {
           raiseAlarm({
             title: '部分相机连接异常',
@@ -73,7 +73,7 @@ export const useRunControl = (lineCount: number) => {
       const result = await api.stop();
       if ((result as { success: boolean }).success) {
         setRunning(false);
-        showMessage('系统已停止检测');
+        showMessage(result.plcErrors?.length ? `相机已停止，但流水线 PLC 信号写入失败：${result.plcErrors.join('；')}` : '系统已停止检测');
       } else {
         showMessage('停止失败: ' + (result as { message?: string }).message);
       }
@@ -90,7 +90,7 @@ export const useRunControl = (lineCount: number) => {
       if (result.success) {
         setLineEnabled(previous => ({ ...previous, [camId]: nextEnabled }));
         if (typeof result.running === 'boolean') setRunning(result.running);
-        showMessage(nextEnabled ? `线路 ${camId} 已启用` : `线路 ${camId} 已停用`);
+        showMessage(result.plcError ? `相机已切换，但流水线 PLC 信号写入失败：${result.plcError}` : (nextEnabled ? `线路 ${camId} 已启用` : `线路 ${camId} 已停用`));
       } else {
         showMessage(result.message || `线路 ${camId} 操作失败`);
       }

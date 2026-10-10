@@ -13,10 +13,10 @@ PLC_PROXY_URL = os.getenv("PLC_PROXY_URL", "").strip()
 PLC_TIMEOUT_SECONDS = float(os.getenv("PLC_TIMEOUT_SECONDS", "3"))
 DEFAULT_NODE_PREFIX = "NODES.MODBUS."
 DEFAULT_CAMERA_PLC_MAP = {
-    1: {"reject_time": "VW0", "reject_delay": "VW2", "reject_signal": "MB0", "reject_time_value": 0, "reject_delay_value": 0},
-    2: {"reject_time": "VW4", "reject_delay": "VW6", "reject_signal": "MB1", "reject_time_value": 0, "reject_delay_value": 0},
-    3: {"reject_time": "VW8", "reject_delay": "VW10", "reject_signal": "MB2", "reject_time_value": 0, "reject_delay_value": 0},
-    4: {"reject_time": "VW12", "reject_delay": "VW14", "reject_signal": "MB3", "reject_time_value": 0, "reject_delay_value": 0},
+    1: {"reject_time": "VW0", "reject_delay": "VW2", "reject_signal": "MB0", "pipeline_signal": "", "reject_time_value": 0, "reject_delay_value": 0},
+    2: {"reject_time": "VW4", "reject_delay": "VW6", "reject_signal": "MB1", "pipeline_signal": "", "reject_time_value": 0, "reject_delay_value": 0},
+    3: {"reject_time": "VW8", "reject_delay": "VW10", "reject_signal": "MB2", "pipeline_signal": "", "reject_time_value": 0, "reject_delay_value": 0},
+    4: {"reject_time": "VW12", "reject_delay": "VW14", "reject_signal": "MB3", "pipeline_signal": "", "reject_time_value": 0, "reject_delay_value": 0},
 }
 # 保留导出名称，兼容旧模块引用；实际运行时使用 get_plc_config() 的动态配置。
 CAMERA_PLC_MAP = DEFAULT_CAMERA_PLC_MAP
@@ -64,6 +64,7 @@ def _default_config():
             "reject_time": f"VW{(cam_id - 1) * 4}",
             "reject_delay": f"VW{(cam_id - 1) * 4 + 2}",
             "reject_signal": f"MB{cam_id - 1}",
+            "pipeline_signal": "",
             "reject_time_value": 0,
             "reject_delay_value": 0,
         }
@@ -95,7 +96,7 @@ def get_plc_config():
                         if str(cam_id) in config["cameras"] and isinstance(mapping, dict):
                             config["cameras"][str(cam_id)].update({
                                 key: str(mapping.get(key, config["cameras"][str(cam_id)][key])).strip()
-                                for key in ("reject_time", "reject_delay", "reject_signal")
+                                for key in ("reject_time", "reject_delay", "reject_signal", "pipeline_signal")
                             })
                             for value_key in ("reject_time_value", "reject_delay_value"):
                                 config["cameras"][str(cam_id)][value_key] = _clamp_value(
@@ -142,7 +143,7 @@ def save_plc_config(config):
         mapping = defaults["cameras"][str(cam_id)]
         normalized["cameras"][str(cam_id)] = {
             key: str(raw.get(key, mapping[key])).strip()
-            for key in ("reject_time", "reject_delay", "reject_signal")
+            for key in ("reject_time", "reject_delay", "reject_signal", "pipeline_signal")
         }
         if any(not normalized["cameras"][str(cam_id)][key] for key in ("reject_time", "reject_delay", "reject_signal")):
             raise ValueError(f"相机 {cam_id} 的 PLC 节点名称不能为空")

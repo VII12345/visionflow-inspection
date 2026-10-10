@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
 import { Button } from '../common/Button';
@@ -19,6 +19,7 @@ const defaultMapping = (camId: number): PlcCameraMapping => ({
   reject_time: `VW${(camId - 1) * 4}`,
   reject_delay: `VW${(camId - 1) * 4 + 2}`,
   reject_signal: `MB${camId - 1}`,
+  pipeline_signal: '',
   reject_time_value: 0,
   reject_delay_value: 0,
 });
@@ -35,25 +36,46 @@ export const PlcTab: React.FC = () => {
 
   const cameraIds = useMemo(() => Array.from({ length: Math.max(1, plcCameraCount) }, (_, index) => index + 1), [plcCameraCount]);
 
-  const load = async () => {
+  const loadRequestId = useRef(0);
+  const load = useCallback(async () => {
+    const requestId = ++loadRequestId.current;
     setLoading(true);
     try {
-      const data = await api.getPlcConfig();
-      if (data.success) setConfig({ ...fallbackConfig, ...data.config, cameras: { ...fallbackConfig.cameras, ...data.config.cameras } });
+      let data: Awaited<ReturnType<typeof api.getPlcConfig>> | undefined;
+      // Tauri launches the backend asynchronously. Keep retrying while this tab is
+      // mounted instead of leaving defaults visible after an early connection refusal.
+      while (requestId === loadRequestId.current) {
+        try {
+          data = await api.getPlcConfig();
+        } catch (error) {
+          const status = (error as Error & { status?: number }).status;
+          if (status !== undefined && status < 500) throw error;
+          await new Promise<void>(resolve => window.setTimeout(resolve, 1000));
+          continue;
+        }
+        if (!data.success) throw new Error('PLC 配置接口返回失败');
+        break;
+      }
+      if (requestId !== loadRequestId.current || !data?.success) return;
+      setConfig({ ...fallbackConfig, ...data.config, cameras: { ...fallbackConfig.cameras, ...data.config.cameras } });
       try {
         const countData = await api.getLineCount();
+        if (requestId !== loadRequestId.current) return;
         if (countData.success && Number.isInteger(countData.line_count)) setPlcCameraCount(Math.max(1, countData.line_count));
       } catch {
-        setPlcCameraCount(Math.max(1, lineCount));
+        if (requestId === loadRequestId.current) setPlcCameraCount(Math.max(1, lineCount));
       }
     } catch (error) {
-      showMessage(`PLC 配置加载失败: ${(error as Error).message}`);
+      if (requestId === loadRequestId.current) showMessage(`PLC 配置加载失败: ${(error as Error).message}`);
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestId.current) setLoading(false);
     }
-  };
+  }, [lineCount, showMessage]);
 
-  useEffect(() => { load(); }, [lineCount]);
+  useEffect(() => {
+    void load();
+    return () => { loadRequestId.current += 1; };
+  }, [load]);
 
   const ensurePermission = () => {
     if (!user) { showMessage('请先登录'); return false; }
@@ -89,10 +111,10 @@ export const PlcTab: React.FC = () => {
     }
   };
 
-  const test = async (cameraId: number, type: 'reject_time' | 'reject_delay' | 'reject_signal') => {
+  const test = async (cameraId: number, type: 'reject_time' | 'reject_delay' | 'reject_signal' | 'pipeline_signal') => {
     if (!ensurePermission()) return;
     const mapping = config.cameras[String(cameraId)] || defaultMapping(cameraId);
-    const value = type === 'reject_signal' ? 1 : (type === 'reject_time' ? Number(mapping.reject_time_value || 0) : Number(mapping.reject_delay_value || 0));
+    const value = type === 'reject_signal' || type === 'pipeline_signal' ? 1 : (type === 'reject_time' ? Number(mapping.reject_time_value || 0) : Number(mapping.reject_delay_value || 0));
     const key = `${cameraId}-${type}`;
     setTesting(key);
     try {
@@ -131,9 +153,9 @@ export const PlcTab: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-lg shadow-card border border-gray-100 overflow-hidden shrink-0">
-        <div className="px-6 py-4 border-b border-gray-100"><h3 className="text-[15px] font-semibold text-text-primary">相机节点映射</h3><p className="text-[11px] text-text-tertiary mt-1">当前数量来自系统实际线体/相机数量。请按 PLC 程序中的实际节点名称填写，不要照抄示例值；「持续时间值/触发延时值」是保存时写入对应节点的数值，单位以现场 PLC 程序为准（通常为毫秒）。保存后立即写入 PLC。</p></div>
-        <div className="max-h-[420px] 2xl:max-h-[600px] min-h-0 overflow-auto"><table className="w-full text-[12px] border-collapse min-w-[1180px]"><thead className="bg-gray-50 sticky top-0 z-10"><tr><th className="px-5 py-3 text-left text-text-tertiary font-medium">相机</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">持续时间节点</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">持续时间值</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">触发延时节点</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">触发延时值</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">剔除信号节点</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">测试写入</th></tr></thead><tbody>
-          {cameraIds.map(camId => { const mapping = config.cameras[String(camId)] || defaultMapping(camId); return <tr key={camId} className="border-t border-gray-100"><td className="px-5 py-3 font-medium text-text-primary">相机 {camId}</td><td className="px-5 py-2"><input value={mapping.reject_time} onChange={e => updateCamera(camId, 'reject_time', e.target.value)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-36 outline-none focus:border-accent" /></td><td className="px-5 py-2"><input type="number" min={0} value={Number(mapping.reject_time_value ?? 0)} onChange={e => updateCamera(camId, 'reject_time_value', Number(e.target.value) || 0)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-28 outline-none focus:border-accent" /></td><td className="px-5 py-2"><input value={mapping.reject_delay} onChange={e => updateCamera(camId, 'reject_delay', e.target.value)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-36 outline-none focus:border-accent" /></td><td className="px-5 py-2"><input type="number" min={0} value={Number(mapping.reject_delay_value ?? 0)} onChange={e => updateCamera(camId, 'reject_delay_value', Number(e.target.value) || 0)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-28 outline-none focus:border-accent" /></td><td className="px-5 py-2"><input value={mapping.reject_signal} onChange={e => updateCamera(camId, 'reject_signal', e.target.value)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-36 outline-none focus:border-accent" /></td><td className="px-5 py-2 whitespace-nowrap"><Button variant="secondary" size="sm" onClick={() => test(camId, 'reject_signal')} disabled={testing !== null}>{testing === `${camId}-reject_signal` ? '测试中...' : '测试信号'}</Button><Button variant="ghost" size="sm" className="ml-2" onClick={() => test(camId, 'reject_time')} disabled={testing !== null}>{testing === `${camId}-reject_time` ? '测试中...' : '测试时间'}</Button><Button variant="ghost" size="sm" className="ml-2" onClick={() => test(camId, 'reject_delay')} disabled={testing !== null}>{testing === `${camId}-reject_delay` ? '测试中...' : '测试延时'}</Button></td></tr> })}
+        <div className="px-6 py-4 border-b border-gray-100"><h3 className="text-[15px] font-semibold text-text-primary">相机节点映射</h3><p className="text-[11px] text-text-tertiary mt-1">当前数量来自系统实际线体/相机数量。请按 PLC 程序中的实际节点名称填写，不要照抄示例值；「持续时间值/触发延时值」保存时写入对应节点；流水线控制节点按 BOOL 语义写入 1=启动、0=停止（通过现有 PLC 接口编码为 BYTE）。保存后立即写入 PLC 时序值。</p></div>
+        <div className="max-h-[420px] 2xl:max-h-[600px] min-h-0 overflow-auto"><table className="w-full text-[12px] border-collapse min-w-[1320px]"><thead className="bg-gray-50 sticky top-0 z-10"><tr><th className="px-5 py-3 text-left text-text-tertiary font-medium">相机</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">持续时间节点</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">持续时间值</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">触发延时节点</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">触发延时值</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">剔除信号节点</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">流水线控制信号</th><th className="px-5 py-3 text-left text-text-tertiary font-medium">测试写入</th></tr></thead><tbody>
+          {cameraIds.map(camId => { const mapping = config.cameras[String(camId)] || defaultMapping(camId); return <tr key={camId} className="border-t border-gray-100"><td className="px-5 py-3 font-medium text-text-primary">相机 {camId}</td><td className="px-5 py-2"><input value={mapping.reject_time} onChange={e => updateCamera(camId, 'reject_time', e.target.value)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-36 outline-none focus:border-accent" /></td><td className="px-5 py-2"><input type="number" min={0} value={Number(mapping.reject_time_value ?? 0)} onChange={e => updateCamera(camId, 'reject_time_value', Number(e.target.value) || 0)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-28 outline-none focus:border-accent" /></td><td className="px-5 py-2"><input value={mapping.reject_delay} onChange={e => updateCamera(camId, 'reject_delay', e.target.value)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-36 outline-none focus:border-accent" /></td><td className="px-5 py-2"><input type="number" min={0} value={Number(mapping.reject_delay_value ?? 0)} onChange={e => updateCamera(camId, 'reject_delay_value', Number(e.target.value) || 0)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-28 outline-none focus:border-accent" /></td><td className="px-5 py-2"><input value={mapping.reject_signal} onChange={e => updateCamera(camId, 'reject_signal', e.target.value)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-36 outline-none focus:border-accent" /></td><td className="px-5 py-2"><input value={mapping.pipeline_signal || ''} onChange={e => updateCamera(camId, 'pipeline_signal', e.target.value)} className="bg-white border border-gray-200 rounded-md px-2 py-1.5 w-36 outline-none focus:border-accent" placeholder="可选，BOOL 0/1" /></td><td className="px-5 py-2 whitespace-nowrap"><Button variant="secondary" size="sm" onClick={() => test(camId, 'pipeline_signal')} disabled={testing !== null}>{testing === `${camId}-pipeline_signal` ? '测试中...' : '测试流水线'}</Button><Button variant="secondary" size="sm" onClick={() => test(camId, 'reject_signal')} disabled={testing !== null}>{testing === `${camId}-reject_signal` ? '测试中...' : '测试信号'}</Button><Button variant="ghost" size="sm" className="ml-2" onClick={() => test(camId, 'reject_time')} disabled={testing !== null}>{testing === `${camId}-reject_time` ? '测试中...' : '测试时间'}</Button><Button variant="ghost" size="sm" className="ml-2" onClick={() => test(camId, 'reject_delay')} disabled={testing !== null}>{testing === `${camId}-reject_delay` ? '测试中...' : '测试延时'}</Button></td></tr> })}
         </tbody></table></div>
       </div>
     </div>

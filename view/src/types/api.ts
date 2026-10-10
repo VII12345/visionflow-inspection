@@ -2,9 +2,9 @@ import type { CameraStats, CameraStatus, EnvCheckResult, ModelInfo, PlcConfig, S
 
 export interface HealthResponse { status: string; version?: string; cameras?: Record<number, boolean>; modelLoaded?: boolean; running?: boolean; dataDir?: string; }
 export interface InitialPasswordResponse { success: boolean; username?: string | null; password?: string | null; }
-export interface StartResponse { success: boolean; message?: string; errors?: string[]; started?: number; started_cameras?: number[]; total?: number; running?: boolean; }
-export interface StopResponse { success: boolean; message?: string; running?: boolean; }
-export interface SetLineEnabledResponse { success: boolean; enabled?: boolean; running?: boolean; message?: string; }
+export interface StartResponse { success: boolean; message?: string; errors?: string[]; plcErrors?: string[]; started?: number; started_cameras?: number[]; total?: number; running?: boolean; }
+export interface StopResponse { success: boolean; message?: string; running?: boolean; plcErrors?: string[]; }
+export interface SetLineEnabledResponse { success: boolean; enabled?: boolean; running?: boolean; message?: string; plcError?: string; }
 export interface CameraStatusResponse extends SystemStatus { cameras: Record<number, CameraStatus>; system?: { running: boolean; modelLoaded?: boolean }; }
 
 export interface CameraConfigResponse { success: boolean; config: Record<string, unknown>; }
@@ -71,7 +71,7 @@ export interface PhotoTrendResponse {
 
 export interface PlcConfigResponse { success: boolean; config: PlcConfig; }
 export interface SavePlcConfigResponse { success: boolean; config?: PlcConfig; message?: string; error?: string; plcError?: string; }
-export interface PlcWritePayload { camera_id: number; type: 'reject_time' | 'reject_delay' | 'reject_signal'; value: number; }
+export interface PlcWritePayload { camera_id: number; type: 'reject_time' | 'reject_delay' | 'reject_signal' | 'pipeline_signal'; value: number; }
 export interface PlcWriteResponse { success: boolean; address?: string; value?: number; error?: string; }
 
 export interface HardwareInfoResponse {

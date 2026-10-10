@@ -133,6 +133,7 @@ export interface PlcCameraMapping {
   reject_time: string;
   reject_delay: string;
   reject_signal: string;
+  pipeline_signal: string;
   reject_time_value: number;
   reject_delay_value: number;
 }
